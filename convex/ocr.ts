@@ -84,50 +84,53 @@ export const processReceiptWithAI = action({
     isPdf: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<ProcessReceiptResult> => {
-    // PDF path: extract text and process
+    // PDF path: Extract text and process
     if (args.isPdf) {
       const url = await ctx.storage.getUrl(args.storageIds[0]);
       if (!url) throw new Error("File not found");
       const res = await fetch(url);
       const arrayBuffer = await res.arrayBuffer();
       
-      // Extract text from PDF
-      let pdfText = "";
       try {
         const pdfParseModule = await import("pdf-parse");
-        // @ts-ignore - pdf-parse module resolution
+        // @ts-ignore
         const pdfParse = pdfParseModule.default || pdfParseModule;
         const buffer = Buffer.from(arrayBuffer);
         
-        // Try to parse with minimal options
-        const data = await pdfParse(buffer).catch((err: any) => {
-          // If DOMMatrix or canvas errors, try text-only extraction
-          if (err?.message?.includes("DOMMatrix") || err?.message?.includes("canvas")) {
-            return pdfParse(buffer, { max: 0 });
-          }
-          throw err;
-        });
-        
-        pdfText = data?.text ?? "";
+        // Try parsing with minimal options
+        const data = await pdfParse(buffer, { max: 0 });
+        const pdfText = data?.text ?? "";
         
         if (!pdfText.trim()) {
-          throw new Error("PDF nie zawiera tekstu (może być skanem). Spróbuj przesłać zdjęcie zamiast PDF.");
+          // PDF parsed but no text - it's a scanned image
+          throw new Error(
+            "PDF nie zawiera tekstu (to zeskanowany obraz). " +
+            "Użyj aparatu w aplikacji aby zrobić zdjęcie paragonu."
+          );
         }
-      } catch (err: any) {
-        console.error("PDF parse error:", err);
-        const errorMsg = err?.message || String(err);
         
-        // If it's our custom error about no text, rethrow it
-        if (errorMsg.includes("nie zawiera tekstu")) {
+        console.log(`PDF parsed successfully: ${pdfText.length} characters extracted`);
+        return await processTextWithOpenAI(pdfText, args.categories);
+        
+      } catch (err: any) {
+        // Log the actual error for debugging
+        console.error("PDF parsing error details:", {
+          message: err.message,
+          name: err.name,
+          stack: err.stack?.substring(0, 200)
+        });
+        
+        // If it's our custom "no text" error, rethrow it
+        if (err.message?.includes("nie zawiera tekstu")) {
           throw err;
         }
         
-        // For other errors, suggest using image
-        throw new Error("Nie udało się odczytać pliku PDF (może być zaszyfrowany lub uszkodzony). Spróbuj przesłać zdjęcie paragonu zamiast PDF.");
+        // For any other error, provide generic message
+        throw new Error(
+          `Nie udało się odczytać PDF: ${err.message}. ` +
+          "Spróbuj użyć aparatu w aplikacji aby zrobić zdjęcie paragonu."
+        );
       }
-      
-      // Process PDF text with OpenAI
-      return await processTextWithOpenAI(pdfText, args.categories);
     }
 
     // Image path: use OpenAI vision
