@@ -234,7 +234,7 @@ async function processTextWithOpenAI(
       messages: [
         { 
           role: "system", 
-          content: "Jesteś ekspertem OCR specjalizującym się w odczycie paragonów i faktur. KRYTYCZNE: Gdy widzisz 'Opust' lub 'Rabat' pod produktem, MUSISZ użyć ceny z linii rabatu, NIE oryginalnej ceny. Zawsze używaj KOŃCOWEJ ceny po rabacie. Dla faktur, czytaj pozycje z tabeli i używaj wartości z kolumny 'Kwota'."
+          content: "Jesteś ekspertem OCR specjalizującym się w odczycie paragonów. KRYTYCZNE: Gdy widzisz 'Opust' lub 'Rabat' pod produktem, MUSISZ użyć ceny z linii rabatu, NIE oryginalnej ceny. Zawsze używaj KOŃCOWEJ ceny po rabacie."
         },
         { role: "user", content: prompt }
       ],
@@ -344,45 +344,69 @@ function buildPrompt(categoryPromptData: any[], documentText?: string) {
     : "";
 
   return `Jesteś asystentem OCR i kategoryzacji wydatków domowych.
-Przeanalizuj ${documentText ? "poniższy tekst" : "obraz"} paragonu lub faktury i zwróć WSZYSTKIE pozycje zakupowe.
+Przeanalizuj ${documentText ? "poniższy tekst" : "obraz"} paragonu lub faktury (język polski) i zwróć pozycje zakupowe.
 
-${textSection}ZASADY ODCZYTU:
+${textSection}KRYTYCZNE ZASADY ODCZYTU PARAGONU:
 
-1) CZYTAJ WSZYSTKIE PRODUKTY:
-   - Przeczytaj KAŻDY produkt z paragonu/faktury
-   - NIE pomijaj żadnych pozycji
-   - Dla paragonów: czytaj kolumnę "Wartość" (ostatnia kolumna z ceną)
-   - Dla faktur: czytaj kolumnę "Kwota"
+1) STRUKTURA KOLUMN - Typowy paragon ma kolumny:
+   - Nazwa produktu (może być w wielu liniach)
+   - PTU (stawka VAT: A, B, C, itp.)
+   - Ilość (np. "1 x", "2 x", "0.385 x")
+   - Cena jednostkowa
+   - Wartość (cena końcowa dla tej pozycji)
 
-2) RABATY (OPUST):
-   - Jeśli pod produktem jest "Opust" - użyj KOŃCOWEJ ceny (po rabacie)
-   - Przykład: Produkt 19.47 → Opust → 12.98 = użyj "12.98"
-   - NIE twórz osobnej pozycji dla "Opust"
+2) RABATY I OPUSTY - TO JEST NAJWAŻNIEJSZE:
+   - Jeśli pod produktem jest linia "Opust" lub "Rabat" - TO JEST RABAT, NIE OSOBNY PRODUKT
+   - Wartość po rabacie jest w kolumnie "Wartość" w linii z rabatem
+   - ZAWSZE używaj wartości KOŃCOWEJ (po rabacie) jako amount
+   
+   PRZYKŁAD Z PARAGONU:
+   Linia 1: SerekAlmeJogurt150g    C    3x    6.49    19.57
+   Linia 2:     Opust                                   12.98
+   
+   POPRAWNIE: description="Serek Alme Jogurt 150g", amount="12.98"
+   BŁĘDNIE: amount="19.57" ❌
+   
+   KOLEJNY PRZYKŁAD:
+   Linia 1: BananLuz               C  1.240x  6.99     8.67
+   Linia 2:     Opust                                    3.71
+   
+   POPRAWNIE: description="Banan Luz", amount="3.71"
+   BŁĘDNIE: amount="8.67" ❌
 
-3) IGNORUJ:
-   - Sumy ("Suma", "Suma PTU", "DO ZAPŁATY", "Należna kwota")
-   - Opakowania zwrotne ("But Plastik kaucja")
-   - Płatność, reszta, numery transakcji
+3) CZYTANIE LINIA PO LINII:
+   - Czytaj od góry do dołu
+   - Dla każdego produktu znajdź jego KOŃCOWĄ wartość (ostatnia kolumna)
+   - Jeśli następna linia to "Opust" - użyj wartości z linii opustu zamiast oryginalnej ceny
 
-4) FORMAT KWOTY:
-   - Tylko liczba z kropką: "12.98" (bez "zł", "PLN", "USD")
-   - Konwertuj przecinek na kropkę: "5,00" → "5.00"
+4) IGNORUJ:
+   - Linie z samym słowem "Opust" lub "Rabat" (to nie są produkty)
+   - Sumy częściowe, VAT, "OPUSTY ŁĄCZNIE", "Suma PTU"
+   - Płatność, reszta, kody kreskowe, numery transakcji
 
-5) KATEGORYZACJA:
-   - Wybierz categoryId i subcategoryId z listy poniżej
-   - Jeśli niepewne: null
+5) NORMALIZACJA NAZW:
+   - Usuń kody VAT z nazw (A, B, C)
+   - Rozwiń skróty: "Sok1loBraSadoo.75l" → "Sok 1l Bra Sadoo 0,75l"
+   - Popraw wielkość liter: "MLEKO" → "Mleko"
 
-Dozwolone kategorie:
+6) KATEGORYZACJA:
+   - Wybierz najlepsze categoryId i subcategoryId z listy poniżej
+   - Jeżeli niepewne, wpisz null
+
+FORMAT ODPOWIEDZI:
+- amount: string z kropką jako separator dziesiętny, np. "12.98"
+- description: pełna, znormalizowana nazwa produktu
+- ZAWSZE używaj ceny KOŃCOWEJ (po rabacie jeśli jest)
+
+Dozwolone kategorie i podkategorie:
 ${JSON.stringify(categoryPromptData, null, 2)}
 
-WAŻNE: Zwróć WSZYSTKIE produkty z paragonu, nie pomijaj żadnych!
-
-Zwróć JSON:
+Zwróć TYLKO poprawny JSON bez Markdown:
 {
-  "rawText": "krótka transkrypcja",
+  "rawText": "krótka transkrypcja kluczowych linii",
   "items": [
     {
-      "description": "Nazwa produktu",
+      "description": "Pełna nazwa produktu",
       "amount": "12.98",
       "categoryId": "id_lub_null",
       "subcategoryId": "id_lub_null"
