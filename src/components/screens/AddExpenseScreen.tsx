@@ -4,6 +4,7 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { DynamicIcon } from "../ui/DynamicIcon";
 import { toast } from "sonner";
+import { DollarSign, CloudUpload, FileText, Image as ImageIcon } from "lucide-react";
 
 interface Props {
   householdId: Id<"households">;
@@ -123,7 +124,7 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
     <div className="space-y-6 pb-4">
       <div className="pt-2 pb-1">
         <div className="flex items-center gap-3 mb-1">
-          <span className="text-3xl filter grayscale opacity-80 mix-blend-multiply drop-shadow-sm">💸</span>
+          <DollarSign className="w-8 h-8 text-[#c76823] drop-shadow-sm" />
           <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a] drop-shadow-sm">Dodaj wydatek</h2>
         </div>
         <p className="text-[#6d4d38] text-[15px] ml-1 font-bold drop-shadow-sm">Wprowadź szczegóły transakcji</p>
@@ -134,11 +135,7 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
         <div className="bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-[2rem] p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)] space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <div className="bg-gradient-to-br from-[#de9241] to-[#ca782a] p-2 rounded-xl text-white shadow-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path>
-                <path d="M12 12v9"></path>
-                <path d="m16 16-4-4-4 4"></path>
-              </svg>
+              <CloudUpload className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-[17px] font-extrabold text-[#2b180a]">Dowód zakupu</h3>
@@ -149,10 +146,7 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
           <div className="flex gap-4">
             <label className="flex-1 flex flex-col items-center justify-center gap-3 py-6 px-2 border-2 border-dashed border-[#de9241]/40 bg-white/60 hover:bg-white backdrop-blur-sm rounded-2xl cursor-pointer hover:border-[#de9241] transition-all shadow-sm group">
               <div className="bg-[#fcf4e4] text-[#ca782a] p-3 rounded-full group-hover:scale-110 transition-transform">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                </svg>
+                <FileText className="w-6 h-6" />
               </div>
               <span className="text-[13px] font-extrabold text-[#6d4d38] group-hover:text-[#ca782a] transition-colors">Załącz plik</span>
               <input
@@ -167,11 +161,7 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
 
             <label className="flex-1 flex flex-col items-center justify-center gap-3 py-6 px-2 border-2 border-dashed border-[#4aad6f]/40 bg-[#f0fbf4]/60 hover:bg-[#ebf7ef] backdrop-blur-sm rounded-2xl cursor-pointer hover:border-[#4aad6f] transition-all shadow-sm group">
               <div className="bg-[#dcfce7] text-[#4aad6f] p-3 rounded-full group-hover:scale-110 transition-transform">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                  <polyline points="21 15 16 10 5 21"></polyline>
-                </svg>
+                <ImageIcon className="w-6 h-6" />
               </div>
               <span className="text-[13px] font-extrabold text-[#4aad6f] group-hover:text-[#388e57] transition-colors">Skanuj OCR</span>
               <input

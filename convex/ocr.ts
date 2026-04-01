@@ -103,10 +103,48 @@ export const processReceiptWithAI = action({
         
         if (!pdfText.trim()) {
           // PDF parsed but no text - it's a scanned image
-          throw new Error(
-            "PDF nie zawiera tekstu (to zeskanowany obraz). " +
-            "Użyj aparatu w aplikacji aby zrobić zdjęcie paragonu."
-          );
+          // Fall through to Vision API by converting PDF to image
+          console.log("PDF has no text layer - treating as scanned image, using Vision API");
+          
+          try {
+            // Use pdfjs-dist to render the first page as an image
+            const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+            
+            // Load the PDF document
+            const loadingTask = pdfjsLib.getDocument({
+              data: new Uint8Array(arrayBuffer),
+            });
+            const pdfDoc = await loadingTask.promise;
+            
+            // Get the first page
+            const page = await pdfDoc.getPage(1);
+            const viewport = page.getViewport({ scale: 2.0 }); // 2x scale for better quality
+            
+            // Create a canvas using node-canvas
+            const { createCanvas } = await import("canvas");
+            const canvas = createCanvas(viewport.width, viewport.height);
+            const context = canvas.getContext("2d");
+            
+            // Render the page to canvas
+            await page.render({
+              canvasContext: context as any,
+              viewport: viewport,
+              canvas: canvas as any,
+            }).promise;
+            
+            // Convert canvas to base64 image
+            const base64Data = canvas.toDataURL("image/png").split(",")[1];
+            
+            console.log("Successfully converted PDF page to image, sending to Vision API");
+            return await processImageWithOpenAI(base64Data, "image/png", args.categories);
+            
+          } catch (renderErr: any) {
+            console.error("Failed to render PDF as image:", renderErr);
+            throw new Error(
+              "PDF nie zawiera tekstu i nie udało się go przekonwertować na obraz. " +
+              "Spróbuj zrobić zdjęcie paragonu aparatem w aplikacji."
+            );
+          }
         }
         
         console.log(`PDF parsed successfully: ${pdfText.length} characters extracted`);
@@ -120,8 +158,8 @@ export const processReceiptWithAI = action({
           stack: err.stack?.substring(0, 200)
         });
         
-        // If it's our custom "no text" error, rethrow it
-        if (err.message?.includes("nie zawiera tekstu")) {
+        // If it's our custom error message, rethrow it
+        if (err.message?.includes("nie zawiera tekstu") || err.message?.includes("przekonwertować")) {
           throw err;
         }
         

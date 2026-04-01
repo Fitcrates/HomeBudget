@@ -3,6 +3,7 @@ import { useQuery, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { toast } from "sonner";
+import { Bot, Sparkles, Search } from "lucide-react";
 
 interface Props {
   householdId: Id<"households">;
@@ -63,7 +64,7 @@ export function InsightsCard({ householdId }: Props) {
     <div className={cardClass}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2 drop-shadow-sm">
-          <span className="text-[22px]">🤖</span>
+          <Bot className="w-6 h-6 text-[#c76823]" />
           <h3 className="text-[15px] font-extrabold text-[#2b180a]">Analiza AI</h3>
           {latest && (
             <span className="text-[10px] font-bold text-[#b89b87] bg-[#f5e5cf]/60 px-2 py-0.5 rounded-full">
@@ -71,26 +72,29 @@ export function InsightsCard({ householdId }: Props) {
             </span>
           )}
         </div>
-        <button
-          onClick={handleGenerate}
-          disabled={loading}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-            loading
-              ? "bg-[#f5e5cf] text-[#b89b87]"
-              : isStale
-              ? "bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white shadow-sm hover:scale-[1.02]"
-              : "bg-[#f5e5cf] text-[#8a7262] hover:bg-[#eedcc8]"
-          }`}
-        >
-          {loading ? (
-            <>
-              <span className="animate-spin rounded-full h-3 w-3 border-b border-[#b89b87]" />
-              Analizuję...
-            </>
-          ) : (
-            <>✨ {isStale ? "Analizuj" : "Odśwież"}</>
-          )}
-        </button>
+          <button
+            onClick={handleGenerate}
+            disabled={loading}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+              loading
+                ? "bg-[#f5e5cf] text-[#b89b87]"
+                : isStale
+                ? "bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white shadow-sm hover:scale-[1.02]"
+                : "bg-[#f5e5cf] text-[#8a7262] hover:bg-[#eedcc8]"
+            }`}
+          >
+            {loading ? (
+              <>
+                <span className="animate-spin rounded-full h-3 w-3 border-b border-[#b89b87]" />
+                Analizuję...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-3 h-3" />
+                <span>{isStale ? "Analizuj" : "Odśwież"}</span>
+              </>
+            )}
+          </button>
       </div>
 
       {latest === undefined ? (
@@ -99,7 +103,7 @@ export function InsightsCard({ householdId }: Props) {
         </div>
       ) : latest === null ? (
         <div className="text-center py-6">
-          <p className="text-4xl mb-3">🔍</p>
+          <Search className="w-12 h-12 text-[#b89b87] mx-auto mb-3" />
           <p className="text-sm font-bold text-[#8a7262] mb-1">Brak analizy</p>
           <p className="text-xs text-[#b89b87]">
             Kliknij „Analizuj", aby AI przeanalizowało Twoje wydatki

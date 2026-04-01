@@ -11,6 +11,7 @@ import {
   type Badge,
   type UserStats,
 } from "../../lib/badges";
+import { Award, BarChart3, Camera, Edit, Flame, CheckCircle, Sprout } from "lucide-react";
 
 interface Props {
   householdId: Id<"households">;
@@ -34,7 +35,7 @@ export function BadgesScreen({ householdId }: Props) {
       {/* Header */}
       <div className="pt-1">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-3xl drop-shadow-sm">🏅</span>
+          <Award className="w-8 h-8 text-[#c76823] drop-shadow-sm" />
           <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a] drop-shadow-sm">Osiągnięcia</h2>
         </div>
         <p className="text-[14px] text-[#6d4d38] font-bold ml-1 drop-shadow-sm">
@@ -75,7 +76,7 @@ export function BadgesScreen({ householdId }: Props) {
                   </p>
                   <p className="text-xs text-[#8a7262] font-semibold truncate">{member.email}</p>
                   <div className="flex items-center gap-1 mt-1">
-                    <span className="text-sm">🏅</span>
+                    <Award className="w-4 h-4 text-[#cf833f]" />
                     <span className="text-xs font-bold text-[#cf833f]">
                       {earned.length} / {ALL_BADGES.length} odznak
                     </span>
@@ -85,10 +86,10 @@ export function BadgesScreen({ householdId }: Props) {
 
               {/* Stats row */}
               <div className="grid grid-cols-4 gap-2">
-                <StatPill emoji="📊" value={member.totalExpenses} label="Wydatków" />
-                <StatPill emoji="📷" value={member.ocrExpenses} label="Skanów" />
-                <StatPill emoji="✍️" value={member.manualExpenses} label="Ręcznych" />
-                <StatPill emoji="🔥" value={member.streak} label="Dni z rzędu" />
+                <StatPill icon={BarChart3} value={member.totalExpenses} label="Wydatków" />
+                <StatPill icon={Camera} value={member.ocrExpenses} label="Skanów" />
+                <StatPill icon={Edit} value={member.manualExpenses} label="Ręcznych" />
+                <StatPill icon={Flame} value={member.streak} label="Dni z rzędu" />
               </div>
             </div>
 
@@ -122,7 +123,7 @@ export function BadgesScreen({ householdId }: Props) {
               </div>
             ) : (
               <div className="bg-[#fdf9f1] rounded-2xl p-5 text-center shadow-sm">
-                <p className="text-3xl mb-2">🌱</p>
+                <Sprout className="w-12 h-12 text-[#8a7262] mx-auto mb-2" />
                 <p className="text-sm font-bold text-[#8a7262]">
                   Brak odznak — zacznij dodawać wydatki!
                 </p>
@@ -150,17 +151,17 @@ export function BadgesScreen({ householdId }: Props) {
 }
 
 function StatPill({
-  emoji,
+  icon: Icon,
   value,
   label,
 }: {
-  emoji: string;
+  icon: any;
   value: number;
   label: string;
 }) {
   return (
     <div className="bg-white/60 backdrop-blur-md rounded-2xl p-2.5 flex flex-col items-center gap-0.5 border border-white/60 shadow-sm">
-      <span className="text-xl drop-shadow-sm">{emoji}</span>
+      <Icon className="w-5 h-5 text-[#c76823] drop-shadow-sm" />
       <span className="text-sm font-extrabold text-[#2b180a] mt-1">{value}</span>
       <span className="text-[9px] font-bold text-[#b89b87] text-center leading-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">{label}</span>
     </div>
@@ -204,7 +205,9 @@ function BadgeCard({ badge, earned }: { badge: Badge; earned: boolean }) {
           {badge.description}
         </p>
       </div>
-      {earned && <span className="text-xl shrink-0 drop-shadow-sm">✅</span>}
+      {earned && (
+        <CheckCircle className="w-5 h-5 text-green-500 shrink-0 drop-shadow-sm" />
+      )}
     </div>
   );
 }

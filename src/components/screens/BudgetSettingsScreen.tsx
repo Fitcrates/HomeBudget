@@ -5,6 +5,7 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { formatAmount } from "../../lib/format";
+import { Target, Calendar, Save } from "lucide-react";
 
 interface Props {
   householdId: Id<"households">;
@@ -82,7 +83,7 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
           >
             ←
           </button>
-          <span className="text-[26px] drop-shadow-sm">🎯</span>
+          <Target className="w-8 h-8 text-[#c76823] drop-shadow-sm" />
           <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a] drop-shadow-sm">
             Limity budżetu
           </h2>
@@ -180,25 +181,27 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
                               key={p}
                               type="button"
                               onClick={() => setEditPeriod(p)}
-                              className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                              className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                                 editPeriod === p
                                   ? "bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white shadow-sm"
                                   : "bg-white border border-[#f5e5cf] text-[#8a7262]"
                               }`}
                             >
-                              {p === "month" ? "📅 Miesięczny" : "📆 Tygodniowy"}
+                              <Calendar className="w-4 h-4" />
+                              <span>{p === "month" ? "Miesięczny" : "Tygodniowy"}</span>
                             </button>
                           ))}
                         </div>
                       </div>
 
-                      <button
-                        onClick={handleSave}
-                        disabled={saving || !editAmount}
-                        className="w-full py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-extrabold text-[14px] shadow-sm hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
-                      >
-                        {saving ? "Zapisywanie..." : "💾 Zapisz limit"}
-                      </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !editAmount}
+            className="w-full py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-extrabold text-[14px] shadow-sm hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            <Save className="w-4 h-4" />
+            <span>{saving ? "Zapisywanie..." : "Zapisz limit"}</span>
+          </button>
                     </div>
                   )}
                 </div>

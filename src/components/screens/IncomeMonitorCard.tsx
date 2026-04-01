@@ -4,6 +4,7 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { formatAmount } from "../../lib/format";
 import { toast } from "sonner";
+import { DollarSign, Zap, Check, Save } from "lucide-react";
 
 interface Props {
   householdId: Id<"households">;
@@ -77,7 +78,7 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
       <div className={cardClass}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2 drop-shadow-sm">
-            <span className="text-[22px]">💰</span>
+            <DollarSign className="w-6 h-6 text-[#c76823]" />
             <h3 className="text-[15px] font-extrabold text-[#2b180a]">Dochód miesięczny</h3>
           </div>
           <button
@@ -117,7 +118,7 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
     <div className={cardClass}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2 drop-shadow-sm">
-          <span className="text-[22px]">💰</span>
+          <DollarSign className="w-6 h-6 text-[#c76823]" />
           <h3 className="text-[15px] font-extrabold text-[#2b180a]">Dochód miesięczny</h3>
         </div>
         <div className="flex items-center gap-2">
@@ -161,9 +162,10 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
           <button
             onClick={handleSave}
             disabled={saving || !inputAmount}
-            className="w-full py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-extrabold text-[14px] shadow-sm hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+            className="w-full py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-extrabold text-[14px] shadow-sm hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {saving ? "Zapisywanie..." : "💾 Zapisz dochód"}
+            <Save className="w-4 h-4" />
+            <span>{saving ? "Zapisywanie..." : "Zapisz dochód"}</span>
           </button>
         </div>
       ) : (
@@ -220,7 +222,7 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
                 : "bg-[#f0fff4] text-green-700 border border-green-100"
             }`}
           >
-            <span>{isAheadOfPace ? "⚡" : "✅"}</span>
+            {isAheadOfPace ? <Zap className="w-4 h-4" /> : <Check className="w-4 h-4" />}
             <span>
               {isAheadOfPace
                 ? `Wydajesz szybciej niż planowano — oczekiwano ${formatAmount(Math.round(expectedSpend), currency)} na dzień ${dayOfMonth}.`
@@ -231,7 +233,7 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
           {/* Savings projection */}
           {!isOver && monthly > 0 && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-[#fffbeb] text-[#92610a] border border-yellow-100">
-              <span>🏦</span>
+              <DollarSign className="w-4 h-4" />
               <span>
                 Prognoza oszczędności:{" "}
                 <span className="text-[#cf833f]">

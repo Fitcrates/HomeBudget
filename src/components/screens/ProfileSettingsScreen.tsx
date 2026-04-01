@@ -4,6 +4,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { toast } from "sonner";
+import { User, Camera, Eye, EyeOff, LogOut, Trash2 } from "lucide-react";
 
 const cardStyle =
   "bg-white/40 backdrop-blur-xl border border-white/50 rounded-[2rem] p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
@@ -159,7 +160,7 @@ export function ProfileSettingsScreen() {
       {/* Header */}
       <div className="pt-1 pb-1 px-1">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-3xl drop-shadow-sm">👤</span>
+          <User className="w-8 h-8 text-[#c76823] drop-shadow-sm" />
           <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a] drop-shadow-sm">Mój Profil</h2>
         </div>
         {myProfile?.email && (
@@ -193,7 +194,7 @@ export function ProfileSettingsScreen() {
 
           <div className="flex flex-col gap-2 flex-1">
             <label className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white/60 backdrop-blur-sm border border-white/60 hover:border-[#cf833f] hover:bg-white transition-all cursor-pointer text-sm font-bold text-[#6d4d38] shadow-sm">
-              <span>📷</span>
+              <Camera className="w-4 h-4" />
               <span>{uploadingAvatar ? "Przesyłanie..." : "Zmień zdjęcie"}</span>
               <input
                 ref={fileInputRef}
@@ -208,9 +209,10 @@ export function ProfileSettingsScreen() {
               <button
                 type="button"
                 onClick={handleRemoveAvatar}
-                className="py-2.5 px-4 rounded-xl bg-white/60 backdrop-blur-sm border border-red-200/60 hover:border-red-400/80 hover:bg-red-50 transition-all text-sm font-bold text-red-500 shadow-sm"
+                className="py-2.5 px-4 rounded-xl bg-white/60 backdrop-blur-sm border border-red-200/60 hover:border-red-400/80 hover:bg-red-50 transition-all text-sm font-bold text-red-500 shadow-sm flex items-center justify-center gap-2"
               >
-                🗑 Usuń zdjęcie
+                <Trash2 className="w-4 h-4" />
+                <span>Usuń zdjęcie</span>
               </button>
             )}
           </div>
@@ -254,9 +256,9 @@ export function ProfileSettingsScreen() {
             <button
               type="button"
               onClick={() => setShowCurrent((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#b89b87] hover:text-[#cf833f] text-lg"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#b89b87] hover:text-[#cf833f]"
             >
-              {showCurrent ? "🙈" : "👁"}
+              {showCurrent ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
         </div>
@@ -275,9 +277,9 @@ export function ProfileSettingsScreen() {
             <button
               type="button"
               onClick={() => setShowNew((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#b89b87] hover:text-[#cf833f] text-lg"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#b89b87] hover:text-[#cf833f]"
             >
-              {showNew ? "🙈" : "👁"}
+              {showNew ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
           {strength && (
@@ -312,9 +314,9 @@ export function ProfileSettingsScreen() {
             <button
               type="button"
               onClick={() => setShowConfirm((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#b89b87] hover:text-[#cf833f] text-lg"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#b89b87] hover:text-[#cf833f]"
             >
-              {showConfirm ? "🙈" : "👁"}
+              {showConfirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
           {confirmPassword && confirmPassword !== newPassword && (
@@ -349,9 +351,10 @@ export function ProfileSettingsScreen() {
         <button
           type="button"
           onClick={() => void signOut()}
-          className="w-full py-3.5 rounded-2xl border border-[#e6c9b0]/50 bg-white/60 backdrop-blur-sm text-[#8a4f2a] font-bold text-[15px] hover:border-[#cf833f]/60 hover:bg-white transition-all shadow-sm"
+          className="w-full py-3.5 rounded-2xl border border-[#e6c9b0]/50 bg-white/60 backdrop-blur-sm text-[#8a4f2a] font-bold text-[15px] hover:border-[#cf833f]/60 hover:bg-white transition-all shadow-sm flex items-center justify-center gap-2"
         >
-          🚪 Wyloguj się
+          <LogOut className="w-5 h-5" />
+          <span>Wyloguj się</span>
         </button>
       </div>
     </div>

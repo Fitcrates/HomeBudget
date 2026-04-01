@@ -4,6 +4,7 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { ScannerIcon } from "../ui/icons/ScannerIcon";
+import { FileText, Image } from "lucide-react";
 
 interface Props {
   storageIds: Id<"_storage">[];
@@ -235,7 +236,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
               <div key={i} className="relative">
                 {url === "pdf" ? (
                   <div className="h-20 w-20 rounded-xl border-2 border-[#f2d6bf] shadow-sm bg-[#fff8f2] flex flex-col items-center justify-center gap-1">
-                    <span className="text-2xl">📄</span>
+                    <FileText className="w-8 h-8 text-[#cf833f]" />
                     <span className="text-[9px] font-bold text-[#cf833f]">PDF</span>
                   </div>
                 ) : (
@@ -294,7 +295,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                 : "border-[#d2bcad] bg-white/40 hover:border-orange-400 hover:bg-orange-50/50"
             }`}
           >
-            <span className="text-2xl">🖼️</span>
+            <Image className="w-6 h-6 text-[#8a7262]" />
             <span className="text-xs font-bold text-[#8a7262]">
               {uploading ? "Przesyłanie..." : "Galeria"}
             </span>
@@ -315,7 +316,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                 : "border-[#b8a8d8] bg-[#f5f0ff]/60 hover:border-[#8b6fd4] hover:bg-[#ede8ff]"
             }`}
           >
-            <span className="text-sm font-bold text-[#6b4fa8] px-2 py-1 bg-[#d8ccf5] rounded-lg">PDF</span>
+            <FileText className="w-6 h-6 text-[#6b4fa8]" />
             <span className="text-xs font-bold text-[#6b4fa8]">
               {uploading ? "Przesyłanie..." : "Dokument"}
             </span>
@@ -331,7 +332,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
 
         {hasPdf && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#f5f0ff] border border-[#d8ccf5] text-xs font-bold text-[#6b4fa8]">
-            <span>📄</span>
+            <FileText className="w-4 h-4" />
             <span>PDF wykryty — AI wyciągnie tekst i pozycje automatycznie</span>
           </div>
         )}

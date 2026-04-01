@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQuery as useQ } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { formatAmount } from "../../lib/format";
 import { toast } from "sonner";
+import { Mail, FileText, CheckCircle, XCircle } from "lucide-react";
 
 interface Props {
   householdId: Id<"households">;
@@ -108,7 +109,7 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
           >
             ←
           </button>
-          <span className="text-3xl drop-shadow-sm">📧</span>
+          <Mail className="w-8 h-8 text-[#c76823] drop-shadow-sm" />
           <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a] drop-shadow-sm">
             Skrzynka e-mail
           </h2>
@@ -124,7 +125,7 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
         </div>
       ) : pending.length === 0 ? (
         <div className={`${cardClass} text-center py-10`}>
-          <div className="text-5xl mb-4">📭</div>
+          <Mail className="w-16 h-16 text-[#b89b87] mx-auto mb-4" />
           <p className="text-[#3e2815] font-bold mb-1">Brak oczekujących maili</p>
           <p className="text-xs text-[#b89b87] font-semibold">
             Prześlij maila z potwierdzeniem zakupu na swój adres, a pojawi się tutaj.
@@ -157,7 +158,7 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 drop-shadow-sm">
-                        <span className="text-[22px]">📧</span>
+                        <Mail className="w-6 h-6 text-[#c76823]" />
                         <p className="text-[15px] font-extrabold text-[#2b180a] truncate">
                           {p.emailSubject || "(brak tematu)"}
                         </p>
@@ -287,8 +288,9 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                     {/* Raw email preview */}
                     {p.rawEmailText && (
                       <details className="group">
-                        <summary className="text-[11px] font-bold text-[#b89b87] cursor-pointer hover:text-[#8a7262] select-none">
-                          📄 Pokaż treść maila
+                        <summary className="text-[11px] font-bold text-[#b89b87] cursor-pointer hover:text-[#8a7262] select-none flex items-center gap-1">
+                          <FileText className="w-3 h-3" />
+                          <span>Pokaż treść maila</span>
                         </summary>
                         <div className="mt-2 bg-[#fffdf9] rounded-xl p-3 border border-[#ebd8c8]">
                           <p className="text-[10px] text-[#6d4d38] font-mono whitespace-pre-wrap leading-relaxed max-h-32 overflow-y-auto">
@@ -302,16 +304,24 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                     <div className="flex gap-3 pt-1">
                       <button
                         onClick={() => handleReject(p._id)}
-                        className="flex-1 py-3 text-sm text-[#e65a5a] font-bold bg-[#fffdf9] hover:bg-[#ffeaea] rounded-xl transition-colors border border-[#ffd2d2]"
+                        className="flex-1 py-3 text-sm text-[#e65a5a] font-bold bg-[#fffdf9] hover:bg-[#ffeaea] rounded-xl transition-colors border border-[#ffd2d2] flex items-center justify-center gap-1.5"
                       >
-                        ✕ Odrzuć
+                        <XCircle className="w-4 h-4" />
+                        <span>Odrzuć</span>
                       </button>
                       <button
                         onClick={() => handleApprove(p._id)}
                         disabled={saving === p._id}
-                        className="flex-[2] py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-xl font-extrabold text-sm shadow-sm hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                        className="flex-[2] py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-xl font-extrabold text-sm shadow-sm hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
                       >
-                        {saving === p._id ? "Zapisywanie..." : "✓ Zatwierdź i zapisz"}
+                        {saving === p._id ? (
+                          "Zapisywanie..."
+                        ) : (
+                          <>
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Zatwierdź i zapisz</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>

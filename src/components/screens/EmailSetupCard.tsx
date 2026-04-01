@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { toast } from "sonner";
+import { Mail, Camera, FileText, Edit, Clipboard, Lightbulb } from "lucide-react";
 
 interface Props {
   householdId: Id<"households">;
@@ -56,7 +57,7 @@ export function EmailSetupCard({ householdId, deploymentUrl }: Props) {
     <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-[2rem] p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)] space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 drop-shadow-sm">
-          <span className="text-[22px]">📧</span>
+          <Mail className="w-6 h-6 text-[#c76823]" />
           <h3 className="text-[15px] font-extrabold text-[#2b180a]">Automatyzacja emaili (zaawansowane)</h3>
         </div>
       </div>
@@ -67,7 +68,7 @@ export function EmailSetupCard({ householdId, deploymentUrl }: Props) {
 
       <div className="space-y-2 mt-4">
         <div className="bg-gradient-to-r from-[#10b981] to-[#059669] text-white rounded-xl p-3 flex items-center gap-3">
-          <span className="text-2xl">📷</span>
+          <Camera className="w-6 h-6" />
           <div className="flex-1">
             <p className="text-xs font-bold">Zrób zdjęcie paragonu</p>
             <p className="text-[10px] opacity-90">AI automatycznie odczyta produkty i ceny</p>
@@ -75,7 +76,7 @@ export function EmailSetupCard({ householdId, deploymentUrl }: Props) {
         </div>
 
         <div className="bg-gradient-to-r from-[#8b5cf6] to-[#7c3aed] text-white rounded-xl p-3 flex items-center gap-3">
-          <span className="text-2xl">📄</span>
+          <FileText className="w-6 h-6" />
           <div className="flex-1">
             <p className="text-xs font-bold">Prześlij PDF faktury</p>
             <p className="text-[10px] opacity-90">Obsługujemy faktury elektroniczne</p>
@@ -83,7 +84,7 @@ export function EmailSetupCard({ householdId, deploymentUrl }: Props) {
         </div>
 
         <div className="bg-gradient-to-r from-[#f59e0b] to-[#d97706] text-white rounded-xl p-3 flex items-center gap-3">
-          <span className="text-2xl">✍️</span>
+          <Edit className="w-6 h-6" />
           <div className="flex-1">
             <p className="text-xs font-bold">Wpisz ręcznie</p>
             <p className="text-[10px] opacity-90">Szybkie dodawanie pojedynczych wydatków</p>
@@ -115,7 +116,7 @@ export function EmailSetupCard({ householdId, deploymentUrl }: Props) {
                     onClick={copyWebhook}
                     className="px-3 py-2 bg-white/70 backdrop-blur-sm rounded-xl text-sm font-bold text-[#cf833f] border border-white/60 hover:bg-white transition-all shadow-sm"
                   >
-                    📋
+                    <Clipboard className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -133,7 +134,10 @@ export function EmailSetupCard({ householdId, deploymentUrl }: Props) {
 
           {/* Recommendation */}
           <div className="bg-gradient-to-r from-[#3b82f6] to-[#2563eb] text-white rounded-2xl p-4">
-            <p className="text-xs font-extrabold mb-2">💡 Nasza rekomendacja</p>
+            <div className="flex items-center gap-2 mb-2">
+              <Lightbulb className="w-5 h-5" />
+              <p className="text-xs font-extrabold">Nasza rekomendacja</p>
+            </div>
             <p className="text-[11px] font-semibold opacity-90">
               Zamiast konfigurować emaile, po prostu rób zdjęcia paragonów aparatem w aplikacji. To szybsze, prostsze i działa od razu!
             </p>

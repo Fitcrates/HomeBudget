@@ -3,6 +3,7 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { formatAmount } from "../../lib/format";
 import { DynamicIcon } from "../ui/DynamicIcon";
+import { Target, AlertTriangle, CheckCircle } from "lucide-react";
 
 interface Props {
   householdId: Id<"households">;
@@ -32,7 +33,7 @@ export function BudgetAlertsCard({
       <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-[2rem] p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2 drop-shadow-sm">
-            <span className="text-[22px]">🎯</span>
+            <Target className="w-6 h-6 text-[#c76823]" />
             <h3 className="text-[15px] font-extrabold text-[#2b180a]">Budżety kategorii</h3>
           </div>
           <button
@@ -67,7 +68,7 @@ export function BudgetAlertsCard({
     <div className="bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-[2rem] p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2 drop-shadow-sm">
-          <span className="text-[22px]">🎯</span>
+          <Target className="w-6 h-6 text-[#c76823]" />
           <h3 className="text-[15px] font-extrabold text-[#2b180a]">Budżety kategorii</h3>
         </div>
         <button
@@ -89,7 +90,7 @@ export function BudgetAlertsCard({
             ? "bg-yellow-400"
             : "bg-[#67c48a]";
 
-          const statusEmoji = isOver ? "🚨" : isWarning ? "⚠️" : "✅";
+          const statusEmoji = isOver ? <AlertTriangle className="w-4 h-4 text-red-500" /> : isWarning ? <AlertTriangle className="w-4 h-4 text-yellow-500" /> : <CheckCircle className="w-4 h-4 text-green-500" />;
           const statusText = isOver
             ? `Przekroczono o ${formatAmount(Math.abs(a.remaining), currency)}`
             : isWarning
@@ -133,7 +134,7 @@ function BudgetRow({
   limit: number;
   pct: number;
   barColor: string;
-  statusEmoji: string;
+  statusEmoji: React.ReactNode;
   statusText: string;
   currency: string;
 }) {
@@ -148,7 +149,7 @@ function BudgetRow({
           <span className="text-xs font-bold text-[#3e2815]">{cat?.name ?? "..."}</span>
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-xs">{statusEmoji}</span>
+          {statusEmoji}
           <span className="text-[10px] font-bold text-[#8a7262]">{statusText}</span>
         </div>
       </div>

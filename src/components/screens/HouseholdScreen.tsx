@@ -10,6 +10,7 @@ import { FireIcon } from "../ui/icons/FireIcon";
 import { AvatarMaleIcon } from "../ui/icons/AvatarMaleIcon";
 import { AvatarFemaleIcon } from "../ui/icons/AvatarFemaleIcon";
 import { AvatarGirlIcon } from "../ui/icons/AvatarGirlIcon";
+import { Home, Award, User, Clipboard, RefreshCw, X, UserPlus } from "lucide-react";
 
 interface Household {
   _id: Id<"households">;
@@ -111,21 +112,22 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
         <div className="flex bg-[#fdf9f1] rounded-2xl p-1 shadow-[0_4px_12px_rgba(180,120,80,0.1)] gap-1">
           {(
             [
-              { key: "household", label: "🏠 Dom" },
-              { key: "badges", label: "🏅 Odznaki" },
-              { key: "profile", label: "👤 Profil" },
-            ] as { key: Tab; label: string }[]
-          ).map(({ key, label }) => (
+              { key: "household", label: "Dom", icon: Home },
+              { key: "badges", label: "Odznaki", icon: Award },
+              { key: "profile", label: "Profil", icon: User },
+            ] as { key: Tab; label: string; icon: any }[]
+          ).map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               onClick={() => setTab(key)}
-              className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                 tab === key
                   ? "bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white shadow-sm"
                   : "text-[#8a7262] hover:text-[#cf833f]"
               }`}
             >
-              {label}
+              <Icon className="w-4 h-4" />
+              <span>{label}</span>
             </button>
           ))}
         </div>
@@ -167,7 +169,7 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
                             onClick={() => handleRemove(m.userId)}
                             className="absolute -top-1 -right-1 bg-white text-red-500 rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity border border-red-200 shadow-sm"
                           >
-                            ×
+                            <X className="w-4 h-4" />
                           </button>
                         )}
                       </div>
@@ -178,8 +180,8 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
                     onClick={() => setShowCode(!showCode)}
                     className="flex flex-col items-center gap-2 outline-none group"
                   >
-                    <div className="w-[72px] h-[72px] rounded-full flex items-center justify-center text-3xl shadow-sm border border-dashed border-[#d8c5bc] text-[#ccc2bc] bg-transparent group-hover:border-[#cf833f] group-hover:text-[#cf833f] transition-colors">
-                      +
+                    <div className="w-[72px] h-[72px] rounded-full flex items-center justify-center shadow-sm border border-dashed border-[#d8c5bc] text-[#ccc2bc] bg-transparent group-hover:border-[#cf833f] group-hover:text-[#cf833f] transition-colors">
+                      <UserPlus className="w-8 h-8" />
                     </div>
                     <span className="text-xs font-bold text-[#6d4d38] w-min whitespace-nowrap text-center">
                       Zaproś<br />członka
@@ -208,7 +210,7 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
                       className="p-3 bg-white rounded-xl text-[#3e2815] transition-colors shadow-sm font-bold border border-[#f1ecd4]"
                       title="Kopiuj"
                     >
-                      📋
+                      <Clipboard className="w-5 h-5" />
                     </button>
                     {household.role === "owner" && (
                       <button
@@ -216,7 +218,7 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
                         className="p-3 bg-white rounded-xl text-gray-500 transition-colors shadow-sm font-bold border border-[#f1ecd4]"
                         title="Generuj nowy"
                       >
-                        🔄
+                        <RefreshCw className="w-5 h-5" />
                       </button>
                     )}
                   </div>
