@@ -168,22 +168,20 @@ export const processReceiptWithAI = action({
           
         } catch (err: any) {
           // Log the actual error for debugging
-          console.error("PDF parsing error details:", {
-            message: err.message,
-            name: err.name,
-            stack: err.stack?.substring(0, 200)
-          });
+          console.error("=== PDF PARSING ERROR ===");
+          console.error("Error message:", err.message);
+          console.error("Error name:", err.name);
+          console.error("Error stack:", err.stack);
           
           // If it's our custom error message, rethrow it
           if (err.message?.includes("nie zawiera tekstu") || err.message?.includes("przekonwertować") || err.message?.includes("Błąd AI")) {
             throw err;
           }
           
-          // For any other error, provide generic message
-          throw new Error(
-            `Nie udało się odczytać PDF: ${err.message}. ` +
-            "Spróbuj użyć aparatu w aplikacji aby zrobić zdjęcie paragonu."
-          );
+          // For any other error, provide user-friendly message but log details
+          const userMessage = "Nie udało się odczytać pliku PDF. Spróbuj przesłać zdjęcie paragonu zamiast PDF.";
+          console.error("Throwing user-friendly error:", userMessage);
+          throw new Error(userMessage);
         }
       }
 

@@ -398,7 +398,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                     return (
                       <div
                         key={item.id}
-                        className="bg-white/60 backdrop-blur-md rounded-[1.5rem] p-3 shadow-sm border border-white/60"
+                        className="bg-white/60 backdrop-blur-md rounded-[1.5rem] p-4 shadow-sm border border-white/60"
                       >
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -427,19 +427,19 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                         className="flex-1 text-sm bg-white border border-[#f5e5cf] rounded-xl px-3 py-2 outline-none focus:border-[#cf833f] font-bold text-[#3e2815]"
                         placeholder="Opis produktu"
                       />
-                      <div className="relative w-24">
+                      <div className="relative w-32">
                         <input
                           type="text"
                           value={item.amount}
                           onChange={(e) => updateItem(item.id, { amount: e.target.value })}
-                          className={`w-full text-sm bg-white border rounded-xl px-3 py-2 outline-none font-bold text-right ${
+                          className={`w-full text-base bg-white border rounded-xl px-3 py-2.5 pr-8 outline-none font-bold text-right ${
                             uncertainPrice
                               ? "border-[#f3a086] text-[#b74210] focus:border-[#d95d27]"
                               : "border-[#f5e5cf] text-[#cf833f] focus:border-[#cf833f]"
                           }`}
                           placeholder="0.00"
                         />
-                        <span className="absolute right-3 top-2 text-xs font-bold text-[#b89b87] pointer-events-none">
+                        <span className="absolute right-3 top-2.5 text-sm font-bold text-[#b89b87] pointer-events-none">
                           zł
                         </span>
                       </div>
