@@ -84,12 +84,21 @@ export const processReceiptWithAI = action({
     isPdf: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<ProcessReceiptResult> => {
+    console.log("=== processReceiptWithAI START ===", {
+      storageIdCount: args.storageIds.length,
+      isPdf: args.isPdf,
+      firstStorageId: args.storageIds[0]
+    });
+    
     // PDF path: Extract text and process
     if (args.isPdf) {
       const url = await ctx.storage.getUrl(args.storageIds[0]);
       if (!url) throw new Error("File not found");
+      
+      console.log("Fetching PDF from storage");
       const res = await fetch(url);
       const arrayBuffer = await res.arrayBuffer();
+      console.log("PDF downloaded:", arrayBuffer.byteLength, "bytes");
       
       try {
         const pdfParseModule = await import("pdf-parse");
@@ -100,6 +109,12 @@ export const processReceiptWithAI = action({
         // Try parsing with minimal options
         const data = await pdfParse(buffer, { max: 0 });
         const pdfText = data?.text ?? "";
+        
+        console.log("PDF text extracted:", {
+          length: pdfText.length,
+          hasText: !!pdfText.trim(),
+          firstChars: pdfText.substring(0, 100)
+        });
         
         if (!pdfText.trim()) {
           // PDF parsed but no text - it's a scanned image
@@ -192,6 +207,13 @@ async function processTextWithOpenAI(
     prepareCategoryData(categories);
 
   const truncatedText = text.slice(0, 4000);
+  
+  console.log("Processing text with OpenAI:", {
+    textLength: text.length,
+    truncatedLength: truncatedText.length,
+    preview: truncatedText.substring(0, 200)
+  });
+  
   const prompt = buildPrompt(categoryPromptData, truncatedText);
 
   try {
@@ -202,7 +224,7 @@ async function processTextWithOpenAI(
       messages: [
         { 
           role: "system", 
-          content: "Jesteś ekspertem OCR specjalizującym się w odczycie paragonów. KRYTYCZNE: Gdy widzisz 'Opust' lub 'Rabat' pod produktem, MUSISZ użyć ceny z linii rabatu, NIE oryginalnej ceny. Zawsze używaj KOŃCOWEJ ceny po rabacie."
+          content: "Jesteś ekspertem OCR specjalizującym się w odczycie paragonów i faktur. KRYTYCZNE: Gdy widzisz 'Opust' lub 'Rabat' pod produktem, MUSISZ użyć ceny z linii rabatu, NIE oryginalnej ceny. Zawsze używaj KOŃCOWEJ ceny po rabacie. Dla faktur, czytaj pozycje z tabeli i używaj wartości z kolumny 'Kwota'."
         },
         { role: "user", content: prompt }
       ],
@@ -210,7 +232,18 @@ async function processTextWithOpenAI(
     });
 
     const content = resp.choices[0].message.content ?? "{}";
-    return parseAndNormalizeResponse(content, categoryIds, subcategoryIdsByCategory, DEFAULT_VISION_MODEL);
+    console.log("OpenAI response received:", {
+      contentLength: content.length,
+      preview: content.substring(0, 200)
+    });
+    
+    const result = parseAndNormalizeResponse(content, categoryIds, subcategoryIdsByCategory, DEFAULT_VISION_MODEL);
+    console.log("Parsed result:", {
+      itemCount: result.items.length,
+      items: result.items.map(i => ({ desc: i.description, amt: i.amount }))
+    });
+    
+    return result;
   } catch (err: any) {
     console.error("OpenAI error:", err);
     throw new Error(`Błąd AI: ${err?.message || "Nieznany błąd"}. Spróbuj ponownie.`);
@@ -301,58 +334,71 @@ function buildPrompt(categoryPromptData: any[], documentText?: string) {
     : "";
 
   return `Jesteś asystentem OCR i kategoryzacji wydatków domowych.
-Przeanalizuj ${documentText ? "poniższy tekst" : "obraz"} paragonu lub faktury (język polski) i zwróć pozycje zakupowe.
+Przeanalizuj ${documentText ? "poniższy tekst" : "obraz"} paragonu lub faktury (język polski lub angielski) i zwróć pozycje zakupowe.
 
-${textSection}KRYTYCZNE ZASADY ODCZYTU PARAGONU:
+${textSection}KRYTYCZNE ZASADY ODCZYTU:
 
-1) STRUKTURA KOLUMN - Typowy paragon ma kolumny:
+1) TYPY DOKUMENTÓW:
+   - PARAGON: Lista produktów z cenami, może zawierać rabaty
+   - FAKTURA: Dokument z pozycjami "Opis", "Ilość", "Cena jednostkowa", "Kwota"
+   
+2) DLA FAKTUR:
+   - Czytaj pozycje z tabeli faktury
+   - Kolumny: Opis, Ilość, Cena jednostkowa, Podatek, Kwota
+   - Użyj wartości z kolumny "Kwota" jako amount
+   - Ignoruj sumy częściowe, sumy końcowe, należne kwoty
+   - Przykład: "Extra Usage | 1 | 5,00 USD" → description="Extra Usage", amount="5.00"
+
+3) DLA PARAGONÓW - STRUKTURA KOLUMN:
    - Nazwa produktu (może być w wielu liniach)
    - PTU (stawka VAT: A, B, C, itp.)
    - Ilość (np. "1 x", "2 x", "0.385 x")
    - Cena jednostkowa
    - Wartość (cena końcowa dla tej pozycji)
 
-2) RABATY I OPUSTY - TO JEST NAJWAŻNIEJSZE:
+4) RABATY I OPUSTY - NAJWAŻNIEJSZE:
    - Jeśli pod produktem jest linia "Opust" lub "Rabat" - TO JEST RABAT, NIE OSOBNY PRODUKT
    - Wartość po rabacie jest w kolumnie "Wartość" w linii z rabatem
    - ZAWSZE używaj wartości KOŃCOWEJ (po rabacie) jako amount
    
    PRZYKŁAD Z PARAGONU:
-   Linia 1: SerekAlmeJogurt150g    C    3x    6.49    19.57
-   Linia 2:     Opust                                   12.98
+   Linia 1: SerekAlmeJogurt150g    C    3x    6.49    19.47
+   Linia 2:     Opust                                   -6.49
+   Linia 3:                                             12.98
    
    POPRAWNIE: description="Serek Alme Jogurt 150g", amount="12.98"
-   BŁĘDNIE: amount="19.57" ❌
-   
-   KOLEJNY PRZYKŁAD:
-   Linia 1: BananLuz               C  1.240x  6.99     8.67
-   Linia 2:     Opust                                    3.71
-   
-   POPRAWNIE: description="Banan Luz", amount="3.71"
-   BŁĘDNIE: amount="8.67" ❌
+   BŁĘDNIE: amount="19.47" ❌
 
-3) CZYTANIE LINIA PO LINII:
+5) CZYTANIE LINIA PO LINII:
    - Czytaj od góry do dołu
    - Dla każdego produktu znajdź jego KOŃCOWĄ wartość (ostatnia kolumna)
-   - Jeśli następna linia to "Opust" - użyj wartości z linii opustu zamiast oryginalnej ceny
+   - Jeśli następna linia to "Opust" - użyj wartości KOŃCOWEJ po rabacie
 
-4) IGNORUJ:
+6) IGNORUJ:
    - Linie z samym słowem "Opust" lub "Rabat" (to nie są produkty)
    - Sumy częściowe, VAT, "OPUSTY ŁĄCZNIE", "Suma PTU"
+   - "Suma częściowa", "Suma", "Należna kwota", "DO ZAPŁATY"
    - Płatność, reszta, kody kreskowe, numery transakcji
+   - Opakowania zwrotne (np. "But Plastik kaucja")
 
-5) NORMALIZACJA NAZW:
+7) NORMALIZACJA NAZW:
    - Usuń kody VAT z nazw (A, B, C)
    - Rozwiń skróty: "Sok1loBraSadoo.75l" → "Sok 1l Bra Sadoo 0,75l"
    - Popraw wielkość liter: "MLEKO" → "Mleko"
+   - Dla faktur: użyj dokładnej nazwy z kolumny "Opis"
 
-6) KATEGORYZACJA:
+8) WALUTY:
+   - Rozpoznaj walutę: PLN, USD, EUR, etc.
+   - Konwertuj do formatu z kropką: "5,00 USD" → "5.00"
+   - Zachowaj tylko liczbę bez waluty w amount
+
+9) KATEGORYZACJA:
    - Wybierz najlepsze categoryId i subcategoryId z listy poniżej
    - Jeżeli niepewne, wpisz null
 
 FORMAT ODPOWIEDZI:
-- amount: string z kropką jako separator dziesiętny, np. "12.98"
-- description: pełna, znormalizowana nazwa produktu
+- amount: string z kropką jako separator dziesiętny, np. "12.98" (bez waluty)
+- description: pełna, znormalizowana nazwa produktu lub usługi
 - ZAWSZE używaj ceny KOŃCOWEJ (po rabacie jeśli jest)
 
 Dozwolone kategorie i podkategorie:
@@ -363,7 +409,7 @@ Zwróć TYLKO poprawny JSON bez Markdown:
   "rawText": "krótka transkrypcja kluczowych linii",
   "items": [
     {
-      "description": "Pełna nazwa produktu",
+      "description": "Pełna nazwa produktu lub usługi",
       "amount": "12.98",
       "categoryId": "id_lub_null",
       "subcategoryId": "id_lub_null"
