@@ -344,82 +344,45 @@ function buildPrompt(categoryPromptData: any[], documentText?: string) {
     : "";
 
   return `Jesteś asystentem OCR i kategoryzacji wydatków domowych.
-Przeanalizuj ${documentText ? "poniższy tekst" : "obraz"} paragonu lub faktury (język polski lub angielski) i zwróć pozycje zakupowe.
+Przeanalizuj ${documentText ? "poniższy tekst" : "obraz"} paragonu lub faktury i zwróć WSZYSTKIE pozycje zakupowe.
 
-${textSection}KRYTYCZNE ZASADY ODCZYTU:
+${textSection}ZASADY ODCZYTU:
 
-1) TYPY DOKUMENTÓW:
-   - PARAGON: Lista produktów z cenami, może zawierać rabaty
-   - FAKTURA: Dokument z pozycjami "Opis", "Ilość", "Cena jednostkowa", "Kwota"
-   
-2) DLA FAKTUR:
-   - Czytaj pozycje z tabeli faktury
-   - Kolumny: Opis, Ilość, Cena jednostkowa, Podatek, Kwota
-   - Użyj wartości z kolumny "Kwota" jako amount
-   - Ignoruj sumy częściowe, sumy końcowe, należne kwoty
-   - Przykład: "Extra Usage | 1 | 5,00 USD" → description="Extra Usage", amount="5.00"
+1) CZYTAJ WSZYSTKIE PRODUKTY:
+   - Przeczytaj KAŻDY produkt z paragonu/faktury
+   - NIE pomijaj żadnych pozycji
+   - Dla paragonów: czytaj kolumnę "Wartość" (ostatnia kolumna z ceną)
+   - Dla faktur: czytaj kolumnę "Kwota"
 
-3) DLA PARAGONÓW - STRUKTURA KOLUMN:
-   - Nazwa produktu (może być w wielu liniach)
-   - PTU (stawka VAT: A, B, C, itp.)
-   - Ilość (np. "1 x", "2 x", "0.385 x")
-   - Cena jednostkowa
-   - Wartość (cena końcowa dla tej pozycji)
+2) RABATY (OPUST):
+   - Jeśli pod produktem jest "Opust" - użyj KOŃCOWEJ ceny (po rabacie)
+   - Przykład: Produkt 19.47 → Opust → 12.98 = użyj "12.98"
+   - NIE twórz osobnej pozycji dla "Opust"
 
-4) RABATY I OPUSTY - NAJWAŻNIEJSZE:
-   - Jeśli pod produktem jest linia "Opust" lub "Rabat" - TO JEST RABAT, NIE OSOBNY PRODUKT
-   - Wartość po rabacie jest w kolumnie "Wartość" w linii z rabatem
-   - ZAWSZE używaj wartości KOŃCOWEJ (po rabacie) jako amount
-   
-   PRZYKŁAD Z PARAGONU:
-   Linia 1: SerekAlmeJogurt150g    C    3x    6.49    19.47
-   Linia 2:     Opust                                   -6.49
-   Linia 3:                                             12.98
-   
-   POPRAWNIE: description="Serek Alme Jogurt 150g", amount="12.98"
-   BŁĘDNIE: amount="19.47" ❌
+3) IGNORUJ:
+   - Sumy ("Suma", "Suma PTU", "DO ZAPŁATY", "Należna kwota")
+   - Opakowania zwrotne ("But Plastik kaucja")
+   - Płatność, reszta, numery transakcji
 
-5) CZYTANIE LINIA PO LINII:
-   - Czytaj od góry do dołu
-   - Dla każdego produktu znajdź jego KOŃCOWĄ wartość (ostatnia kolumna)
-   - Jeśli następna linia to "Opust" - użyj wartości KOŃCOWEJ po rabacie
+4) FORMAT KWOTY:
+   - Tylko liczba z kropką: "12.98" (bez "zł", "PLN", "USD")
+   - Konwertuj przecinek na kropkę: "5,00" → "5.00"
 
-6) IGNORUJ:
-   - Linie z samym słowem "Opust" lub "Rabat" (to nie są produkty)
-   - Sumy częściowe, VAT, "OPUSTY ŁĄCZNIE", "Suma PTU"
-   - "Suma częściowa", "Suma", "Należna kwota", "DO ZAPŁATY"
-   - Płatność, reszta, kody kreskowe, numery transakcji
-   - Opakowania zwrotne (np. "But Plastik kaucja")
+5) KATEGORYZACJA:
+   - Wybierz categoryId i subcategoryId z listy poniżej
+   - Jeśli niepewne: null
 
-7) NORMALIZACJA NAZW:
-   - Usuń kody VAT z nazw (A, B, C)
-   - Rozwiń skróty: "Sok1loBraSadoo.75l" → "Sok 1l Bra Sadoo 0,75l"
-   - Popraw wielkość liter: "MLEKO" → "Mleko"
-   - Dla faktur: użyj dokładnej nazwy z kolumny "Opis"
-
-8) WALUTY:
-   - Rozpoznaj walutę: PLN, USD, EUR, etc.
-   - Konwertuj do formatu z kropką: "5,00 USD" → "5.00"
-   - Zachowaj tylko liczbę bez waluty w amount
-
-9) KATEGORYZACJA:
-   - Wybierz najlepsze categoryId i subcategoryId z listy poniżej
-   - Jeżeli niepewne, wpisz null
-
-FORMAT ODPOWIEDZI:
-- amount: string z kropką jako separator dziesiętny, np. "12.98" (bez waluty)
-- description: pełna, znormalizowana nazwa produktu lub usługi
-- ZAWSZE używaj ceny KOŃCOWEJ (po rabacie jeśli jest)
-
-Dozwolone kategorie i podkategorie:
+Dozwolone kategorie:
 ${JSON.stringify(categoryPromptData, null, 2)}
 
-Zwróć TYLKO poprawny JSON bez Markdown:
+WAŻNE: Zwróć WSZYSTKIE produkty z paragonu, nie pomijaj żadnych!
+
+Zwróć JSON:
 {
-  "rawText": "krótka transkrypcja kluczowych linii",
+  "rawText": "krótka transkrypcja",
   "items": [
     {
-      "description": "Pełna nazwa produktu lub usługi",
+      "description": "Nazwa produktu",
       "amount": "12.98",
       "categoryId": "id_lub_null",
       "subcategoryId": "id_lub_null"
