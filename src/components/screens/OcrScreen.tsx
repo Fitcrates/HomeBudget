@@ -385,10 +385,10 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           </button>
 
           <div>
-            <div className="bg-white/40 backdrop-blur-xl border border-white/50 shadow-[0_8px_32px_rgba(180,120,80,0.2)] rounded-[2rem] p-5 relative overflow-hidden">
+            <div className="bg-white/40 backdrop-blur-xl border border-white/50 shadow-[0_8px_32px_rgba(180,120,80,0.2)] rounded-[2rem] p-2 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/40 to-white/10 pointer-events-none" />
               <div className="relative z-10">
-                <h3 className="text-[14px] font-extrabold text-[#3e2815] mb-4">
+                <h3 className="text-[14px] font-extrabold text-[#3e2815] p-4">
                   OCR: Tekst wyodrębniony! ({items.length})
                 </h3>
                 <div className="space-y-4">
@@ -398,7 +398,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                     return (
                       <div
                         key={item.id}
-                        className="bg-white/60 backdrop-blur-md rounded-[1.5rem] p-4 shadow-sm border border-white/60"
+                        className="bg-white/60 backdrop-blur-md rounded-[1.5rem] p-2 shadow-sm border border-white/60"
                       >
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-2 flex-wrap">
