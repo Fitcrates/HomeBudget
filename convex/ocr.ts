@@ -84,118 +84,130 @@ export const processReceiptWithAI = action({
     isPdf: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<ProcessReceiptResult> => {
-    console.log("=== processReceiptWithAI START ===", {
-      storageIdCount: args.storageIds.length,
-      isPdf: args.isPdf,
-      firstStorageId: args.storageIds[0]
-    });
-    
-    // PDF path: Extract text and process
-    if (args.isPdf) {
+    try {
+      console.log("=== processReceiptWithAI START ===", {
+        storageIdCount: args.storageIds.length,
+        isPdf: args.isPdf,
+        firstStorageId: args.storageIds[0]
+      });
+      
+      // PDF path: Extract text and process
+      if (args.isPdf) {
+        const url = await ctx.storage.getUrl(args.storageIds[0]);
+        if (!url) throw new Error("File not found");
+        
+        console.log("Fetching PDF from storage");
+        const res = await fetch(url);
+        const arrayBuffer = await res.arrayBuffer();
+        console.log("PDF downloaded:", arrayBuffer.byteLength, "bytes");
+        
+        try {
+          const pdfParseModule = await import("pdf-parse");
+          // @ts-ignore
+          const pdfParse = pdfParseModule.default || pdfParseModule;
+          const buffer = Buffer.from(arrayBuffer);
+          
+          // Try parsing with minimal options
+          const data = await pdfParse(buffer, { max: 0 });
+          const pdfText = data?.text ?? "";
+          
+          console.log("PDF text extracted:", {
+            length: pdfText.length,
+            hasText: !!pdfText.trim(),
+            firstChars: pdfText.substring(0, 100)
+          });
+          
+          if (!pdfText.trim()) {
+            // PDF parsed but no text - it's a scanned image
+            // Fall through to Vision API by converting PDF to image
+            console.log("PDF has no text layer - treating as scanned image, using Vision API");
+            
+            try {
+              // Use pdfjs-dist to render the first page as an image
+              const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+              
+              // Load the PDF document
+              const loadingTask = pdfjsLib.getDocument({
+                data: new Uint8Array(arrayBuffer),
+              });
+              const pdfDoc = await loadingTask.promise;
+              
+              // Get the first page
+              const page = await pdfDoc.getPage(1);
+              const viewport = page.getViewport({ scale: 2.0 }); // 2x scale for better quality
+              
+              // Create a canvas using node-canvas
+              const { createCanvas } = await import("canvas");
+              const canvas = createCanvas(viewport.width, viewport.height);
+              const context = canvas.getContext("2d");
+              
+              // Render the page to canvas
+              await page.render({
+                canvasContext: context as any,
+                viewport: viewport,
+                canvas: canvas as any,
+              }).promise;
+              
+              // Convert canvas to base64 image
+              const base64Data = canvas.toDataURL("image/png").split(",")[1];
+              
+              console.log("Successfully converted PDF page to image, sending to Vision API");
+              return await processImageWithOpenAI(base64Data, "image/png", args.categories);
+              
+            } catch (renderErr: any) {
+              console.error("Failed to render PDF as image:", renderErr);
+              throw new Error(
+                "PDF nie zawiera tekstu i nie udało się go przekonwertować na obraz. " +
+                "Spróbuj zrobić zdjęcie paragonu aparatem w aplikacji."
+              );
+            }
+          }
+          
+          console.log(`PDF text extraction successful, processing with AI`);
+          return await processTextWithOpenAI(pdfText, args.categories);
+          
+        } catch (err: any) {
+          // Log the actual error for debugging
+          console.error("PDF parsing error details:", {
+            message: err.message,
+            name: err.name,
+            stack: err.stack?.substring(0, 200)
+          });
+          
+          // If it's our custom error message, rethrow it
+          if (err.message?.includes("nie zawiera tekstu") || err.message?.includes("przekonwertować") || err.message?.includes("Błąd AI")) {
+            throw err;
+          }
+          
+          // For any other error, provide generic message
+          throw new Error(
+            `Nie udało się odczytać PDF: ${err.message}. ` +
+            "Spróbuj użyć aparatu w aplikacji aby zrobić zdjęcie paragonu."
+          );
+        }
+      }
+
+      // Image path: use OpenAI vision
+      console.log("Processing as image");
       const url = await ctx.storage.getUrl(args.storageIds[0]);
       if (!url) throw new Error("File not found");
+
+      const imageRes = await fetch(url);
+      const arrayBuffer = await imageRes.arrayBuffer();
+      const base64Data = Buffer.from(arrayBuffer).toString('base64');
+      const mimeType = imageRes.headers.get("content-type") || "image/jpeg";
       
-      console.log("Fetching PDF from storage");
-      const res = await fetch(url);
-      const arrayBuffer = await res.arrayBuffer();
-      console.log("PDF downloaded:", arrayBuffer.byteLength, "bytes");
-      
-      try {
-        const pdfParseModule = await import("pdf-parse");
-        // @ts-ignore
-        const pdfParse = pdfParseModule.default || pdfParseModule;
-        const buffer = Buffer.from(arrayBuffer);
-        
-        // Try parsing with minimal options
-        const data = await pdfParse(buffer, { max: 0 });
-        const pdfText = data?.text ?? "";
-        
-        console.log("PDF text extracted:", {
-          length: pdfText.length,
-          hasText: !!pdfText.trim(),
-          firstChars: pdfText.substring(0, 100)
-        });
-        
-        if (!pdfText.trim()) {
-          // PDF parsed but no text - it's a scanned image
-          // Fall through to Vision API by converting PDF to image
-          console.log("PDF has no text layer - treating as scanned image, using Vision API");
-          
-          try {
-            // Use pdfjs-dist to render the first page as an image
-            const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-            
-            // Load the PDF document
-            const loadingTask = pdfjsLib.getDocument({
-              data: new Uint8Array(arrayBuffer),
-            });
-            const pdfDoc = await loadingTask.promise;
-            
-            // Get the first page
-            const page = await pdfDoc.getPage(1);
-            const viewport = page.getViewport({ scale: 2.0 }); // 2x scale for better quality
-            
-            // Create a canvas using node-canvas
-            const { createCanvas } = await import("canvas");
-            const canvas = createCanvas(viewport.width, viewport.height);
-            const context = canvas.getContext("2d");
-            
-            // Render the page to canvas
-            await page.render({
-              canvasContext: context as any,
-              viewport: viewport,
-              canvas: canvas as any,
-            }).promise;
-            
-            // Convert canvas to base64 image
-            const base64Data = canvas.toDataURL("image/png").split(",")[1];
-            
-            console.log("Successfully converted PDF page to image, sending to Vision API");
-            return await processImageWithOpenAI(base64Data, "image/png", args.categories);
-            
-          } catch (renderErr: any) {
-            console.error("Failed to render PDF as image:", renderErr);
-            throw new Error(
-              "PDF nie zawiera tekstu i nie udało się go przekonwertować na obraz. " +
-              "Spróbuj zrobić zdjęcie paragonu aparatem w aplikacji."
-            );
-          }
-        }
-        
-        console.log(`PDF parsed successfully: ${pdfText.length} characters extracted`);
-        return await processTextWithOpenAI(pdfText, args.categories);
-        
-      } catch (err: any) {
-        // Log the actual error for debugging
-        console.error("PDF parsing error details:", {
-          message: err.message,
-          name: err.name,
-          stack: err.stack?.substring(0, 200)
-        });
-        
-        // If it's our custom error message, rethrow it
-        if (err.message?.includes("nie zawiera tekstu") || err.message?.includes("przekonwertować")) {
-          throw err;
-        }
-        
-        // For any other error, provide generic message
-        throw new Error(
-          `Nie udało się odczytać PDF: ${err.message}. ` +
-          "Spróbuj użyć aparatu w aplikacji aby zrobić zdjęcie paragonu."
-        );
-      }
+      console.log("Image loaded, sending to Vision API");
+
+      return await processImageWithOpenAI(base64Data, mimeType, args.categories);
+    } catch (error: any) {
+      console.error("=== FATAL ERROR in processReceiptWithAI ===", {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      });
+      throw error;
     }
-
-    // Image path: use OpenAI vision
-    const url = await ctx.storage.getUrl(args.storageIds[0]);
-    if (!url) throw new Error("File not found");
-
-    const imageRes = await fetch(url);
-    const arrayBuffer = await imageRes.arrayBuffer();
-    const base64Data = Buffer.from(arrayBuffer).toString('base64');
-    const mimeType = imageRes.headers.get("content-type") || "image/jpeg";
-
-    return await processImageWithOpenAI(base64Data, mimeType, args.categories);
   }
 });
 
