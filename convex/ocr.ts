@@ -91,98 +91,13 @@ export const processReceiptWithAI = action({
         firstStorageId: args.storageIds[0]
       });
       
-      // PDF path: Extract text and process
+      // PDF path: Not supported - ask user to take photo
       if (args.isPdf) {
-        const url = await ctx.storage.getUrl(args.storageIds[0]);
-        if (!url) throw new Error("File not found");
-        
-        console.log("Fetching PDF from storage");
-        const res = await fetch(url);
-        const arrayBuffer = await res.arrayBuffer();
-        console.log("PDF downloaded:", arrayBuffer.byteLength, "bytes");
-        
-        try {
-          const pdfParseModule = await import("pdf-parse");
-          // @ts-ignore
-          const pdfParse = pdfParseModule.default || pdfParseModule;
-          const buffer = Buffer.from(arrayBuffer);
-          
-          // Try parsing with minimal options
-          const data = await pdfParse(buffer, { max: 0 });
-          const pdfText = data?.text ?? "";
-          
-          console.log("PDF text extracted:", {
-            length: pdfText.length,
-            hasText: !!pdfText.trim(),
-            firstChars: pdfText.substring(0, 100)
-          });
-          
-          if (!pdfText.trim()) {
-            // PDF parsed but no text - it's a scanned image
-            // Fall through to Vision API by converting PDF to image
-            console.log("PDF has no text layer - treating as scanned image, using Vision API");
-            
-            try {
-              // Use pdfjs-dist to render the first page as an image
-              const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-              
-              // Load the PDF document
-              const loadingTask = pdfjsLib.getDocument({
-                data: new Uint8Array(arrayBuffer),
-              });
-              const pdfDoc = await loadingTask.promise;
-              
-              // Get the first page
-              const page = await pdfDoc.getPage(1);
-              const viewport = page.getViewport({ scale: 2.0 }); // 2x scale for better quality
-              
-              // Create a canvas using node-canvas
-              const { createCanvas } = await import("canvas");
-              const canvas = createCanvas(viewport.width, viewport.height);
-              const context = canvas.getContext("2d");
-              
-              // Render the page to canvas
-              await page.render({
-                canvasContext: context as any,
-                viewport: viewport,
-                canvas: canvas as any,
-              }).promise;
-              
-              // Convert canvas to base64 image
-              const base64Data = canvas.toDataURL("image/png").split(",")[1];
-              
-              console.log("Successfully converted PDF page to image, sending to Vision API");
-              return await processImageWithOpenAI(base64Data, "image/png", args.categories);
-              
-            } catch (renderErr: any) {
-              console.error("Failed to render PDF as image:", renderErr);
-              throw new Error(
-                "PDF nie zawiera tekstu i nie udało się go przekonwertować na obraz. " +
-                "Spróbuj zrobić zdjęcie paragonu aparatem w aplikacji."
-              );
-            }
-          }
-          
-          console.log(`PDF text extraction successful, processing with AI`);
-          return await processTextWithOpenAI(pdfText, args.categories);
-          
-        } catch (err: any) {
-          // Log the actual error for debugging
-          console.error("=== PDF PARSING ERROR ===");
-          console.error("Error message:", err.message);
-          console.error("Error name:", err.name);
-          console.error("Error stack:", err.stack);
-          
-          // If it's our custom error message, rethrow it
-          if (err.message?.includes("nie zawiera tekstu") || err.message?.includes("przekonwertować") || err.message?.includes("Błąd AI")) {
-            throw err;
-          }
-          
-          // For any other error, provide user-friendly message but log details
-          const userMessage = "Nie udało się odczytać pliku PDF. Spróbuj przesłać zdjęcie paragonu zamiast PDF.";
-          console.error("Throwing user-friendly error:", userMessage);
-          throw new Error(userMessage);
-        }
+        console.log("PDF upload detected - rejecting (not supported)");
+        throw new Error(
+          "PDFy nie są obecnie obsługiwane. " +
+          "Użyj aparatu w aplikacji aby zrobić zdjęcie paragonu lub faktury."
+        );
       }
 
       // Image path: use OpenAI vision
@@ -268,9 +183,18 @@ async function processImageWithOpenAI(
   const { categoryPromptData, categoryIds, subcategoryIdsByCategory } = 
     prepareCategoryData(categories);
 
+  console.log("=== processImageWithOpenAI START ===", {
+    mimeType,
+    base64Length: base64Data.length,
+    categoryCount: categoryPromptData.length,
+    categories: categoryPromptData.map(c => ({ id: c.id, name: c.name, subCount: c.subcategories.length }))
+  });
+
   const prompt = buildPrompt(categoryPromptData);
+  console.log("Prompt length:", prompt.length);
 
   try {
+    console.log("Calling OpenAI Vision API...");
     const resp = await getOpenAI().chat.completions.create({
       model: DEFAULT_VISION_MODEL,
       temperature: 0.1,
@@ -297,9 +221,26 @@ async function processImageWithOpenAI(
     });
 
     const content = resp.choices[0].message.content ?? "{}";
-    return parseAndNormalizeResponse(content, categoryIds, subcategoryIdsByCategory, DEFAULT_VISION_MODEL);
+    console.log("=== OpenAI Vision Response ===", {
+      contentLength: content.length,
+      rawContent: content,
+      tokensUsed: resp.usage
+    });
+    
+    const result = parseAndNormalizeResponse(content, categoryIds, subcategoryIdsByCategory, DEFAULT_VISION_MODEL);
+    console.log("=== Parsed Result ===", {
+      itemCount: result.items.length,
+      items: result.items
+    });
+    
+    return result;
   } catch (err: any) {
-    console.error("OpenAI vision error:", err);
+    console.error("=== OpenAI vision error ===", {
+      message: err?.message,
+      error: err?.error,
+      status: err?.status,
+      stack: err?.stack
+    });
     throw new Error(`Błąd AI: ${err?.message || "Nieznany błąd"}. Spróbuj ponownie.`);
   }
 }
@@ -344,69 +285,45 @@ function buildPrompt(categoryPromptData: any[], documentText?: string) {
     : "";
 
   return `Jesteś asystentem OCR i kategoryzacji wydatków domowych.
-Przeanalizuj ${documentText ? "poniższy tekst" : "obraz"} paragonu lub faktury (język polski) i zwróć pozycje zakupowe.
+Przeanalizuj ${documentText ? "poniższy tekst" : "obraz"} paragonu lub faktury i zwróć WSZYSTKIE pozycje zakupowe.
 
-${textSection}KRYTYCZNE ZASADY ODCZYTU PARAGONU:
+${textSection}ZASADY ODCZYTU:
 
-1) STRUKTURA KOLUMN - Typowy paragon ma kolumny:
-   - Nazwa produktu (może być w wielu liniach)
-   - PTU (stawka VAT: A, B, C, itp.)
-   - Ilość (np. "1 x", "2 x", "0.385 x")
-   - Cena jednostkowa
-   - Wartość (cena końcowa dla tej pozycji)
+1) CZYTAJ WSZYSTKIE PRODUKTY:
+   - Przeczytaj KAŻDY produkt z paragonu/faktury
+   - NIE pomijaj żadnych pozycji
+   - Dla paragonów: czytaj kolumnę "Wartość" (ostatnia kolumna z ceną)
+   - Dla faktur: czytaj kolumnę "Kwota"
 
-2) RABATY I OPUSTY - TO JEST NAJWAŻNIEJSZE:
-   - Jeśli pod produktem jest linia "Opust" lub "Rabat" - TO JEST RABAT, NIE OSOBNY PRODUKT
-   - Wartość po rabacie jest w kolumnie "Wartość" w linii z rabatem
-   - ZAWSZE używaj wartości KOŃCOWEJ (po rabacie) jako amount
-   
-   PRZYKŁAD Z PARAGONU:
-   Linia 1: SerekAlmeJogurt150g    C    3x    6.49    19.57
-   Linia 2:     Opust                                   12.98
-   
-   POPRAWNIE: description="Serek Alme Jogurt 150g", amount="12.98"
-   BŁĘDNIE: amount="19.57" ❌
-   
-   KOLEJNY PRZYKŁAD:
-   Linia 1: BananLuz               C  1.240x  6.99     8.67
-   Linia 2:     Opust                                    3.71
-   
-   POPRAWNIE: description="Banan Luz", amount="3.71"
-   BŁĘDNIE: amount="8.67" ❌
+2) RABATY (OPUST):
+   - Jeśli pod produktem jest "Opust" - użyj KOŃCOWEJ ceny (po rabacie)
+   - Przykład: Produkt 19.47 → Opust → 12.98 = użyj "12.98"
+   - NIE twórz osobnej pozycji dla "Opust"
 
-3) CZYTANIE LINIA PO LINII:
-   - Czytaj od góry do dołu
-   - Dla każdego produktu znajdź jego KOŃCOWĄ wartość (ostatnia kolumna)
-   - Jeśli następna linia to "Opust" - użyj wartości z linii opustu zamiast oryginalnej ceny
+3) IGNORUJ:
+   - Sumy ("Suma", "Suma PTU", "DO ZAPŁATY", "Należna kwota")
+   - Opakowania zwrotne ("But Plastik kaucja")
+   - Płatność, reszta, numery transakcji
 
-4) IGNORUJ:
-   - Linie z samym słowem "Opust" lub "Rabat" (to nie są produkty)
-   - Sumy częściowe, VAT, "OPUSTY ŁĄCZNIE", "Suma PTU"
-   - Płatność, reszta, kody kreskowe, numery transakcji
+4) FORMAT KWOTY:
+   - Tylko liczba z kropką: "12.98" (bez "zł", "PLN", "USD")
+   - Konwertuj przecinek na kropkę: "5,00" → "5.00"
 
-5) NORMALIZACJA NAZW:
-   - Usuń kody VAT z nazw (A, B, C)
-   - Rozwiń skróty: "Sok1loBraSadoo.75l" → "Sok 1l Bra Sadoo 0,75l"
-   - Popraw wielkość liter: "MLEKO" → "Mleko"
+5) KATEGORYZACJA:
+   - Wybierz categoryId i subcategoryId z listy poniżej
+   - Jeśli niepewne: null
 
-6) KATEGORYZACJA:
-   - Wybierz najlepsze categoryId i subcategoryId z listy poniżej
-   - Jeżeli niepewne, wpisz null
-
-FORMAT ODPOWIEDZI:
-- amount: string z kropką jako separator dziesiętny, np. "12.98"
-- description: pełna, znormalizowana nazwa produktu
-- ZAWSZE używaj ceny KOŃCOWEJ (po rabacie jeśli jest)
-
-Dozwolone kategorie i podkategorie:
+Dozwolone kategorie:
 ${JSON.stringify(categoryPromptData, null, 2)}
 
-Zwróć TYLKO poprawny JSON bez Markdown:
+WAŻNE: Zwróć WSZYSTKIE produkty z paragonu, nie pomijaj żadnych!
+
+Zwróć JSON:
 {
-  "rawText": "krótka transkrypcja kluczowych linii",
+  "rawText": "krótka transkrypcja",
   "items": [
     {
-      "description": "Pełna nazwa produktu",
+      "description": "Nazwa produktu",
       "amount": "12.98",
       "categoryId": "id_lub_null",
       "subcategoryId": "id_lub_null"
@@ -421,17 +338,36 @@ function parseAndNormalizeResponse(
   subcategoryIdsByCategory: Map<string, Set<string>>,
   modelUsed: string
 ): ProcessReceiptResult {
+  console.log("=== parseAndNormalizeResponse START ===");
   try {
-    const parsed = JSON.parse(extractJsonBlock(content) || "{}");
+    const extracted = extractJsonBlock(content);
+    console.log("Extracted JSON block:", extracted.substring(0, 500));
+    
+    const parsed = JSON.parse(extracted || "{}");
+    console.log("Parsed object keys:", Object.keys(parsed));
+    
     const parsedItems = Array.isArray(parsed)
       ? parsed
       : Array.isArray(parsed?.items)
         ? parsed.items
         : [];
 
-    const normalizedItems = parsedItems.map((item: any) => {
+    console.log("Raw parsed items count:", parsedItems.length);
+    console.log("Raw parsed items:", JSON.stringify(parsedItems, null, 2));
+
+    const normalizedItems = parsedItems.map((item: any, index: number) => {
       const description = asString(item?.description) || "Nieznana pozycja";
-      const amount = normalizeAmount(item?.amount);
+      const rawAmount = item?.amount;
+      const amount = normalizeAmount(rawAmount);
+
+      console.log(`Item ${index}:`, {
+        rawDescription: item?.description,
+        description,
+        rawAmount,
+        amount,
+        rawCategoryId: item?.categoryId,
+        rawSubcategoryId: item?.subcategoryId
+      });
 
       const categoryIdCandidate = asString(item?.categoryId);
       const categoryId = categoryIds.has(categoryIdCandidate) ? categoryIdCandidate : null;
@@ -442,22 +378,33 @@ function parseAndNormalizeResponse(
         !!subcategoryIdCandidate &&
         !!subcategoryIdsByCategory.get(categoryId)?.has(subcategoryIdCandidate);
 
-      return {
+      const normalized = {
         description,
         amount,
         categoryId,
         subcategoryId: isSubcategoryAllowed ? subcategoryIdCandidate : null,
       };
+      
+      console.log(`Item ${index} normalized:`, normalized);
+      return normalized;
     });
 
     const rawText = asString(parsed?.rawText);
+    console.log("=== parseAndNormalizeResponse END ===", {
+      normalizedItemCount: normalizedItems.length,
+      rawTextLength: rawText.length
+    });
+    
     return {
       items: normalizedItems,
       rawText,
       modelUsed,
     };
   } catch (e) {
-    console.error("Failed to parse AI JSON:", content);
+    console.error("=== Failed to parse AI JSON ===", {
+      error: e,
+      content: content.substring(0, 1000)
+    });
     return {
       items: [],
       rawText: "",

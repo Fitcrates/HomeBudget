@@ -1,5 +1,7 @@
 {
   "node": {
-    "externalPackages": ["canvas"]
+    "externalPackages": [
+      "canvas"
+    ]
   }
 }

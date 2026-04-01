@@ -136,8 +136,8 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           subcategoryId: row.subcategoryId || null,
         }));
         setItems(generatedItems);
-        const source = isPdf ? "PDF" : "Groq";
-        toast.success(`AI (${source}) dopasowało ${generatedItems.length} pozycji!`);
+        const modelName = result?.modelUsed || "gpt-4o-mini";
+        toast.success(`AI (${modelName}) dopasowało ${generatedItems.length} pozycji!`);
       }
     } catch (err: any) {
       toast.error(err.message || "Błąd podczas łączenia z AI.");
