@@ -88,7 +88,10 @@ export const loadExpenseData = internalQuery({
       summary[key].total += e.amount;
     }
 
-    return Object.values(summary);
+    return Object.values(summary).map((s) => ({
+      ...s,
+      total: s.total / 100,
+    }));
   },
 });
 
@@ -105,7 +108,7 @@ export const loadBudgetData = internalQuery({
         const cat = await ctx.db.get(b.categoryId);
         return {
           categoryName: cat?.name ?? "Nieznana",
-          limitAmount: b.limitAmount,
+          limitAmount: b.limitAmount / 100,
           period: b.period,
         };
       })
