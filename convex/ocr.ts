@@ -205,23 +205,31 @@ ${textSection}
 
 ### KATEGORYZACJA
 Przypisz categoryId i subcategoryId z poniższej listy.
-Wskazówki kontekstowe:
+Wskazówki kontekstowe (ŚCIŚLE przestrzegaj):
 - Produkty spożywcze z supermarketu → "Żywność i napoje"
-  • Mleko, ser, masło, jaja, śmietana → podkategoria "Nabiał i jaja"
-  • Mięso, kiełbasa, szynka, kurczak → "Mięso i wędliny"
-  • Jabłka, pomidory, sałata → "Owoce i warzywa"
-  • Chleb, bułki → "Piekarnia"
-  • Woda, sok, cola → "Napoje bezalkoholowe"
-  • Piwo, wino, wódka → "Alkohol"
-  • Makaron, ryż, mąka → "Produkty sypkie"
-  • Czekolada, chipsy → "Słodycze i przekąski"
-  • Pizza mrożona, pierogi → "Mrożonki" lub "Gotowe dania"
+  • Mleko, ser, masło, jaja, śmietana, jogurt, kefir, twaróg → "Nabiał i jaja"
+  • Mięso, kiełbasa, szynka, kurczak, wołowina, wieprzowina, drób → "Mięso i wędliny"
+  • Jabłka, pomidory, sałata, ziemniaki, cebula, ogórek, marchew, owoce → "Owoce i warzywa"
+  • Chleb, bułki, bagietka, rogalik, ciasto drożdżowe → "Piekarnia"
+  • Woda, sok, cola, pepsi, fanta, napój energetyczny → "Napoje bezalkoholowe"
+  • Kawa, herbata, kakao → "Kawa i herbata"
+  • Piwo, wino, wódka, whisky, likier → "Alkohol"
+  • Makaron, ryż, mąka, kasza, płatki owsiane → "Produkty sypkie"
+  • Sos pomidorowy, ketchup, musztarda, majonez, ocet, olej, oliwa, sos sojowy → "Przyprawy i dodatki"
+  • Przyprawy (pieprz, sól, oregano, bazylia, curry) → "Przyprawy i dodatki"
+  • Konserwy (tuńczyk, kukurydza, groszek, fasola, pomidory krojone) → "Przyprawy i dodatki"
+  • Czekolada, chipsy, cukierki, ciastka, batony → "Słodycze i przekąski"
+  • Pizza mrożona, pierogi mrożone, warzywa mrożone, lody → "Mrożonki"
+  • Gotowe dania, sałatki gotowe, kanapki → "Gotowe dania"
+  • Produkty bio, eko, organic → "Produkty bio"
 - Środki czystości → "Chemia domowa i higiena"
-  • Proszek, płyn do prania → "Pranie"
-  • Płyn do naczyń → "Zmywanie"
-  • Pasta, szczoteczka → "Higiena osobista"
-- Leki bez recepty → "Zdrowie i uroda" → "Apteka"
-- Karma dla zwierząt → "Zwierzęta" → "Karma"
+  • Proszek, płyn do prania, kapsułki → "Pranie"
+  • Płyn do naczyń, tabletki do zmywarki → "Zmywanie"
+  • Pasta do zębów, szczoteczka, szampon, żel pod prysznic → "Higiena osobista"
+  • Papier toaletowy, ręczniki papierowe, chusteczki → "Papier i ręczniki"
+  • Płyn do podłóg, spray do kuchni/łazienki → "Środki czystości"
+- Leki bez recepty, witaminy, suplementy → "Zdrowie i uroda" → "Apteka"
+- Karma dla psa/kota, przysmaki, żwirek → "Zwierzęta" → "Karma"
 
 DOZWOLONE KATEGORIE I PODKATEGORIE (używaj TYLKO tych ID):
 ${JSON.stringify(categoryPromptData, null, 2)}
@@ -306,52 +314,8 @@ function parseAndNormalizeResponse(
   }
 }
 
-// ── PDF Text Extraction (using unpdf) ─────────────────────────────
-
-async function extractPdfText(
-  pdfBuffer: ArrayBuffer
-): Promise<{ text: string; pageCount: number }> {
-  try {
-    const { extractText } = await import("unpdf");
-    const result = await extractText(new Uint8Array(pdfBuffer), {
-      mergePages: true,
-    });
-
-    // unpdf returns string when mergePages:true, but we guard for safety
-    const rawText = result.text as unknown;
-    const text =
-      typeof rawText === "string"
-        ? rawText
-        : Array.isArray(rawText)
-          ? (rawText as string[]).join("\n")
-          : "";
-
-    console.log("unpdf extraction:", {
-      textLength: text.length,
-      totalPages: result.totalPages,
-      preview: text.substring(0, 200),
-    });
-
-    return { text: text.trim(), pageCount: result.totalPages ?? 1 };
-  } catch (error: any) {
-    const msg = error?.message ?? "";
-    console.error("unpdf extraction failed:", msg);
-
-    // Detect password-protected PDFs
-    if (
-      msg.toLowerCase().includes("password") ||
-      msg.toLowerCase().includes("encrypt")
-    ) {
-      throw new Error(
-        "Ten plik PDF jest chroniony hasłem. " +
-          "Odblokuj go przed przesłaniem lub zrób zdjęcie dokumentu aparatem."
-      );
-    }
-
-    // Re-throw with context for other failures
-    throw new Error(`PDF_EXTRACT_FAILED: ${msg}`);
-  }
-}
+// NOTE: No local PDF parsing — Convex runtime lacks DOMMatrix/Canvas.
+// All PDF processing goes directly through GPT-4o vision API.
 
 // ── AI Processing: Text ───────────────────────────────────────────
 
@@ -568,69 +532,102 @@ ${originalPrompt}`;
 }
 
 // ── PDF Processing Orchestrator ───────────────────────────────────
+// Strategy: Send PDF directly to GPT-4o as base64 via image_url.
+// No local parsing needed — avoids DOMMatrix/Canvas issues in Convex runtime.
 
 async function processPdfDocument(
-  pdfBuffer: ArrayBuffer,
   pdfBase64: string,
   categories: any
 ): Promise<ProcessReceiptResult> {
   const { categoryPromptData, categoryIds, subcategoryIdsByCategory } =
     prepareCategoryData(categories);
 
-  console.log("=== PDF Processing Pipeline ===", {
-    fileSize: pdfBuffer.byteLength,
+  console.log("=== PDF Processing Pipeline (direct vision) ===", {
+    base64Length: pdfBase64.length,
     categoryCount: categoryPromptData.length,
   });
 
-  // Step 1: Try text extraction with unpdf
-  let extractedText = "";
-  let extractionFailed = false;
-
+  // Primary: Send PDF as data URI to GPT-4o vision
   try {
-    const result = await extractPdfText(pdfBuffer);
-    extractedText = result.text;
-    console.log("Text extraction:", {
-      textLength: extractedText.length,
-      pageCount: result.pageCount,
-    });
-  } catch (error: any) {
-    // Password-protected → show error immediately
-    if (error.message?.includes("hasłem") || error.message?.includes("password")) {
-      throw error;
-    }
-    console.warn("Text extraction failed, will try vision:", error.message);
-    extractionFailed = true;
-  }
-
-  // Step 2: Route based on extracted text quality
-  const hasUsableText = extractedText.length > 80;
-
-  if (hasUsableText) {
-    console.log("→ Using TEXT-based processing (good text extraction)");
-    return await processTextWithAI(
-      extractedText,
-      categoryPromptData,
-      categoryIds,
-      subcategoryIdsByCategory
-    );
-  }
-
-  // Step 3: Try vision approach for scanned PDFs
-  console.log(
-    `→ Using VISION-based processing (${extractionFailed ? "extraction failed" : "minimal text found: " + extractedText.length + " chars"})`
-  );
-
-  try {
+    console.log("→ Attempting GPT-4o PDF vision (data:application/pdf)");
     return await processPdfAsVision(
       pdfBase64,
       categoryPromptData,
       categoryIds,
       subcategoryIdsByCategory
     );
-  } catch (visionError: any) {
-    // If vision also fails AND we had some text, try with what we have
-    if (extractedText.length > 20) {
-      console.log("Vision failed, falling back to partial text processing");
+  } catch (primaryError: any) {
+    console.warn("PDF vision primary failed:", primaryError.message);
+  }
+
+  // Fallback: Send PDF base64 as an image/* type (some proxies accept this)
+  try {
+    console.log("→ Fallback: sending PDF as image/png data URI");
+    const prompt = buildPrompt(categoryPromptData);
+    const resp = await getOpenAI().chat.completions.create({
+      model: VISION_MODEL,
+      temperature: 0.05,
+      max_tokens: 8192,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: [
+            { type: "text" as const, text: prompt },
+            {
+              type: "image_url" as const,
+              image_url: {
+                url: `data:image/png;base64,${pdfBase64}`,
+                detail: "high",
+              },
+            },
+          ],
+        },
+      ],
+      response_format: { type: "json_object" },
+    });
+
+    const content = resp.choices[0].message.content ?? "{}";
+    const result = parseAndNormalizeResponse(
+      content,
+      categoryIds,
+      subcategoryIdsByCategory,
+      `${VISION_MODEL} (pdf-fallback)`
+    );
+
+    if (result.items.length > 0) return result;
+  } catch (fallbackError: any) {
+    console.warn("PDF vision fallback also failed:", fallbackError.message);
+  }
+
+  // Last resort: Extract raw bytes as rough text and send to text model
+  try {
+    console.log("→ Last resort: raw PDF byte text extraction");
+    // Try decoding PDF as UTF-8 and extracting any readable text
+    const rawBytes = Buffer.from(pdfBase64, "base64");
+    const rawStr = rawBytes.toString("utf-8");
+    // Extract text between BT/ET markers (PDF text objects) and stream content
+    const textFragments: string[] = [];
+    // Simple regex to find text content in PDF streams
+    const streamMatches = rawStr.match(/stream[\r\n]([\s\S]*?)endstream/g) || [];
+    for (const stream of streamMatches) {
+      const cleaned = stream
+        .replace(/^stream[\r\n]/, "")
+        .replace(/endstream$/, "")
+        .replace(/[^\x20-\x7E\xC0-\xFF\u0100-\u024F]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (cleaned.length > 10) textFragments.push(cleaned);
+    }
+    
+    const extractedText = textFragments.join("\n").trim();
+    console.log("Raw text extraction:", {
+      fragmentCount: textFragments.length,
+      totalLength: extractedText.length,
+      preview: extractedText.substring(0, 200),
+    });
+
+    if (extractedText.length > 50) {
       return await processTextWithAI(
         extractedText,
         categoryPromptData,
@@ -638,8 +635,15 @@ async function processPdfDocument(
         subcategoryIdsByCategory
       );
     }
-    throw visionError;
+  } catch (textError: any) {
+    console.warn("Raw text extraction failed:", textError.message);
   }
+
+  throw new Error(
+    "Nie udało się odczytać tego pliku PDF. " +
+    "Możliwe przyczyny: plik jest zaszyfrowany, uszkodzony lub zawiera tylko zeskanowane obrazy. " +
+    "Spróbuj zrobić zdjęcie dokumentu aparatem i przesłać jako obraz."
+  );
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -703,7 +707,6 @@ export const processReceiptWithAI = action({
         }
 
         const result = await processPdfDocument(
-          pdfBuffer,
           pdfBase64,
           args.categories
         );

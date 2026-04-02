@@ -157,29 +157,43 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
 
   async function handleSaveAll() {
     if (!items || items.length === 0) return;
-    const invalidItem = items.find((i) => !i.amount || !i.categoryId || !i.subcategoryId);
-    if (invalidItem) {
-      toast.error("Wypełnij kategorie i kwoty dla wszystkich pozycji!");
-      return;
+
+    // Validate each item and give specific feedback
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const pos = i + 1;
+      const amountNum = parseFloat((item.amount || "").replace(",", "."));
+
+      if (!item.amount || !item.amount.trim() || isNaN(amountNum) || amountNum <= 0) {
+        toast.error(`Pozycja ${pos} ("${item.description}"): uzupełnij kwotę.`);
+        return;
+      }
+      if (!item.categoryId) {
+        toast.error(`Pozycja ${pos} ("${item.description}"): wybierz kategorię.`);
+        return;
+      }
+      if (!item.subcategoryId) {
+        toast.error(`Pozycja ${pos} ("${item.description}"): wybierz podkategorię.`);
+        return;
+      }
     }
+
     setSaving(true);
     let successCount = 0;
     try {
       for (const item of items) {
         const amountNum = parseFloat(item.amount.replace(",", "."));
-        if (!isNaN(amountNum) && amountNum > 0) {
-          await createExpense({
-            householdId,
-            categoryId: item.categoryId!,
-            subcategoryId: item.subcategoryId!,
-            amount: Math.round(amountNum * 100),
-            date: new Date(date).getTime(),
-            description: item.description,
-            receiptImageId: currentStorageIds[0],
-            ocrRawText: rawText,
-          });
-          successCount++;
-        }
+        await createExpense({
+          householdId,
+          categoryId: item.categoryId!,
+          subcategoryId: item.subcategoryId!,
+          amount: Math.round(amountNum * 100),
+          date: new Date(date).getTime(),
+          description: item.description,
+          receiptImageId: currentStorageIds[0],
+          ocrRawText: rawText,
+        });
+        successCount++;
       }
       toast.success(`Zapisano pomyślnie ${successCount} wydatków z paragonu!`);
       onDone();
@@ -427,19 +441,20 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                         className="flex-1 text-sm bg-white border border-[#f5e5cf] rounded-xl px-3 py-2 outline-none focus:border-[#cf833f] font-bold text-[#3e2815]"
                         placeholder="Opis produktu"
                       />
-                      <div className="relative w-32">
+                      <div className="relative w-[8.5rem]">
                         <input
                           type="text"
+                          inputMode="decimal"
                           value={item.amount}
                           onChange={(e) => updateItem(item.id, { amount: e.target.value })}
-                          className={`w-full text-base bg-white border rounded-xl px-3 py-2.5 pr-8 outline-none font-bold text-right ${
+                          className={`w-full text-[15px] bg-white border rounded-xl px-3 py-2.5 pr-9 outline-none font-bold text-right tabular-nums ${
                             uncertainPrice
                               ? "border-[#f3a086] text-[#b74210] focus:border-[#d95d27]"
                               : "border-[#f5e5cf] text-[#cf833f] focus:border-[#cf833f]"
                           }`}
                           placeholder="0.00"
                         />
-                        <span className="absolute right-3 top-2.5 text-sm font-bold text-[#b89b87] pointer-events-none">
+                        <span className="absolute right-3 top-2.5 text-[13px] font-bold text-[#b89b87] pointer-events-none">
                           zł
                         </span>
                       </div>
