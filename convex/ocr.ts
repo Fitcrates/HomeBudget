@@ -2,19 +2,9 @@
 
 import { v } from "convex/values";
 import { action } from "./_generated/server";
-import OpenAI from "openai";
-
 // ── Configuration ─────────────────────────────────────────────────
 
-function getOpenAI() {
-  return new OpenAI({
-    baseURL: process.env.CONVEX_OPENAI_BASE_URL,
-    apiKey: process.env.CONVEX_OPENAI_API_KEY,
-  });
-}
-
-// Proxy supports: gpt-4o-mini, gpt-4.1-nano
-const VISION_MODEL = "gpt-4o-mini";
+const VISION_MODEL = "gemini-1.5-flash";
 
 // ── System Prompt (short for speed) ───────────────────────────────
 
@@ -272,41 +262,54 @@ async function processImagesWithAI(
   categoriesArray: any[]
 ): Promise<ProcessReceiptResult> {
   const prompt = buildPrompt(compactCategories);
+  const apiKey = process.env.GEMINI_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error("Brak klucza API Gemini (GEMINI_API_KEY w ustawieniach Convex). Skonfiguruj go darmowo na stronie aistudio.google.com");
+  }
 
-  const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
-    { type: "text" as const, text: prompt },
-  ];
+  const parts: any[] = [{ text: prompt }];
 
   for (const img of imageDataList) {
-    contentParts.push({
-      type: "image_url" as const,
-      image_url: {
-        url: `data:${img.mimeType};base64,${img.base64}`,
-        detail: "high",
+    parts.push({
+      inline_data: {
+        mime_type: img.mimeType,
+        data: img.base64,
       },
     });
   }
 
-  console.log("→ GPT-4o-mini vision:", {
+  console.log("→ Gemini 1.5 Flash vision:", {
     imageCount: imageDataList.length,
     promptLength: prompt.length,
   });
 
-  const resp = await getOpenAI().chat.completions.create({
-    model: VISION_MODEL,
-    temperature: 0.05,
-    max_tokens: 4096,
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: contentParts },
-    ],
-    response_format: { type: "json_object" },
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${VISION_MODEL}:generateContent?key=${apiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts }],
+      systemInstruction: {
+        parts: [{ text: SYSTEM_PROMPT }]
+      },
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: "application/json",
+      }
+    })
   });
 
-  const content = resp.choices[0].message.content ?? "{}";
+  if (!res.ok) {
+    const errorBody = await res.text();
+    console.error("Gemini API error:", errorBody);
+    throw new Error(`Błąd Gemini API: ${res.statusText}`);
+  }
+
+  const data = await res.json();
+  const content = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+
   console.log("Vision response:", {
     len: content.length,
-    tokens: resp.usage,
   });
 
   return parseAndNormalizeResponse(content, categoriesArray, VISION_MODEL);
@@ -320,19 +323,36 @@ async function processTextWithAI(
   categoriesArray: any[]
 ): Promise<ProcessReceiptResult> {
   const prompt = buildPrompt(compactCategories, text.slice(0, 8000));
+  const apiKey = process.env.GEMINI_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error("Brak klucza API Gemini (GEMINI_API_KEY w ustawieniach Convex). Skonfiguruj go darmowo na stronie aistudio.google.com");
+  }
 
-  const resp = await getOpenAI().chat.completions.create({
-    model: VISION_MODEL,
-    temperature: 0.05,
-    max_tokens: 4096,
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: prompt },
-    ],
-    response_format: { type: "json_object" },
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${VISION_MODEL}:generateContent?key=${apiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      systemInstruction: {
+        parts: [{ text: SYSTEM_PROMPT }]
+      },
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: "application/json",
+      }
+    })
   });
 
-  const content = resp.choices[0].message.content ?? "{}";
+  if (!res.ok) {
+    const errorBody = await res.text();
+    console.error("Gemini API error:", errorBody);
+    throw new Error(`Błąd Gemini API: ${res.statusText}`);
+  }
+
+  const data = await res.json();
+  const content = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+
   return parseAndNormalizeResponse(content, categoriesArray, VISION_MODEL);
 }
 
@@ -375,14 +395,7 @@ export const processReceiptWithAI = action({
 
       const compactCategories = buildCompactCategoryList(categoriesArray);
 
-      // PDF path: client should have converted to images already.
-      // If somehow a raw PDF arrives, show helpful error.
-      if (args.isPdf) {
-        throw new Error(
-          "Przetwarzanie PDF odbywa się po stronie przeglądarki. " +
-            "Jeśli widzisz ten błąd, odśwież stronę i spróbuj ponownie."
-        );
-      }
+
 
       // Fetch ALL images
       const imageDataList: { base64: string; mimeType: string }[] = [];
