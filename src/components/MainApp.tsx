@@ -5,14 +5,17 @@ import { ExpensesScreen } from "./screens/ExpensesScreen";
 import { AddExpenseScreen } from "./screens/AddExpenseScreen";
 import { HouseholdScreen } from "./screens/HouseholdScreen";
 import { OcrScreen } from "./screens/OcrScreen";
+import { GoalsScreen } from "./screens/GoalsScreen";
+import { ChatScreen } from "./screens/ChatScreen";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { DashboardIcon } from "./ui/icons/DashboardIcon";
 import { ExpensesIcon } from "./ui/icons/ExpensesIcon";
 import { HomeIcon } from "./ui/icons/HomeIcon";
 import { ScannerIcon } from "./ui/icons/ScannerIcon";
+import { Star, Bot } from "lucide-react";
 
-type Screen = "dashboard" | "expenses" | "add" | "household" | "ocr";
+type Screen = "dashboard" | "expenses" | "add" | "household" | "ocr" | "goals" | "chat";
 
 interface Household {
   _id: Id<"households">;
@@ -54,7 +57,7 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
         {/* Screen Content */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden pt-8 pb-28 relative z-10 px-2 sm:px-4 space-y-6 scrollbar-hide">
           {screen === "dashboard" && (
-            <DashboardScreen householdId={household._id} currency={household.currency} />
+            <DashboardScreen householdId={household._id} currency={household.currency} onGoToHousehold={() => setScreen("household")} />
           )}
           {screen === "expenses" && (
             <ExpensesScreen householdId={household._id} currency={household.currency} />
@@ -81,6 +84,12 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
               onDone={() => setScreen("expenses")}
             />
           )}
+          {screen === "goals" && (
+            <GoalsScreen householdId={household._id} currency={household.currency} />
+          )}
+          {screen === "chat" && (
+            <ChatScreen householdId={household._id} />
+          )}
         </main>
       </div>
 
@@ -91,12 +100,12 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
           <NavBtn icon={<ExpensesIcon className="w-6 h-6 text-[#cf833f]" />} active={screen === "expenses"} onClick={() => setScreen("expenses")} />
           <button
             onClick={() => setScreen("add")}
-            className="flex flex-col items-center justify-center w-14 h-14 bg-gradient-to-br from-[#f19b55] to-[#db6d2c] rounded-full shadow-[0_8px_20px_rgba(219,109,44,0.4)] text-white hover:scale-[1.05] active:scale-95 transition-all outline-none border-2 border-white/20"
+            className="w-[60px] h-[60px] -mt-6 bg-gradient-to-tr from-[#de9241] to-[#ca782a] rounded-full flex flex-col items-center justify-center text-white shadow-[0_8px_20px_rgba(202,120,42,0.4)] border-4 border-[#fff1df] hover:scale-105 transition-transform"
           >
             <span className="text-3xl leading-none font-light mb-1">+</span>
           </button>
-          <NavBtn icon={<HomeIcon className="w-7 h-7 text-[#cf833f]" />} active={screen === "household"} onClick={() => setScreen("household")} />
-          <NavBtn icon={<ScannerIcon className="w-6 h-6 text-[#cf833f]" />} active={screen === "ocr"} onClick={() => setScreen("add")} />
+          <NavBtn icon={<Star className="w-[22px] h-[22px] text-[#cf833f]" strokeWidth={2.5} />} active={screen === "goals"} onClick={() => setScreen("goals")} />
+          <NavBtn icon={<Bot className="w-6 h-6 text-[#cf833f]" />} active={screen === "chat"} onClick={() => setScreen("chat")} />
         </nav>
       </div>
     </>

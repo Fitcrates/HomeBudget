@@ -12,9 +12,12 @@ import type * as analytics from "../analytics.js";
 import type * as auth from "../auth.js";
 import type * as budgets from "../budgets.js";
 import type * as categories from "../categories.js";
+import type * as chat from "../chat.js";
+import type * as chatNode from "../chatNode.js";
 import type * as emailIngest from "../emailIngest.js";
 import type * as emailTokens from "../emailTokens.js";
 import type * as expenses from "../expenses.js";
+import type * as goals from "../goals.js";
 import type * as households from "../households.js";
 import type * as http from "../http.js";
 import type * as income from "../income.js";
@@ -26,6 +29,7 @@ import type * as pendingExpenses from "../pendingExpenses.js";
 import type * as profile from "../profile.js";
 import type * as router from "../router.js";
 import type * as seed from "../seed.js";
+import type * as shopping from "../shopping.js";
 
 import type {
   ApiFromModules,
@@ -38,9 +42,12 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   budgets: typeof budgets;
   categories: typeof categories;
+  chat: typeof chat;
+  chatNode: typeof chatNode;
   emailIngest: typeof emailIngest;
   emailTokens: typeof emailTokens;
   expenses: typeof expenses;
+  goals: typeof goals;
   households: typeof households;
   http: typeof http;
   income: typeof income;
@@ -52,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   profile: typeof profile;
   router: typeof router;
   seed: typeof seed;
+  shopping: typeof shopping;
 }>;
 
 /**

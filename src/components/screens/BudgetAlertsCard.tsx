@@ -10,7 +10,6 @@ interface Props {
   currency: string;
   dateFrom: number;
   dateTo: number;
-  onManageBudgets: () => void;
 }
 
 export function BudgetAlertsCard({
@@ -18,7 +17,6 @@ export function BudgetAlertsCard({
   currency,
   dateFrom,
   dateTo,
-  onManageBudgets,
 }: Props) {
   const budgets = useQuery(api.budgets.listForHousehold, { householdId });
   const byCategory = useQuery(api.analytics.totalsPerCategory, {
@@ -36,15 +34,9 @@ export function BudgetAlertsCard({
             <Target className="w-6 h-6 text-[#c76823]" />
             <h3 className="text-[15px] font-extrabold text-[#2b180a]">Budżety kategorii</h3>
           </div>
-          <button
-            onClick={onManageBudgets}
-            className="text-xs font-bold text-[#cf833f] hover:underline"
-          >
-            Ustaw limity →
-          </button>
         </div>
         <p className="text-xs text-[#b89b87] font-semibold text-center py-3">
-          Brak ustawionych limitów. Kliknij „Ustaw limity", aby dodać budżety.
+          Brak ustawionych limitów. Kliknij ustawienia w sekcji Zarządzanie Domem, aby dodać budżety.
         </p>
       </div>
     );
@@ -71,12 +63,6 @@ export function BudgetAlertsCard({
           <Target className="w-6 h-6 text-[#c76823]" />
           <h3 className="text-[15px] font-extrabold text-[#2b180a]">Budżety kategorii</h3>
         </div>
-        <button
-          onClick={onManageBudgets}
-          className="text-xs font-bold text-[#cf833f] hover:underline"
-        >
-          Zarządzaj →
-        </button>
       </div>
 
       <div className="space-y-4">

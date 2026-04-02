@@ -161,6 +161,34 @@ const applicationTables = {
   })
     .index("by_household", ["householdId"])
     .index("by_household_and_status", ["householdId", "status"]),
+
+  // Savings goals
+  goals: defineTable({
+    householdId: v.id("households"),
+    name: v.string(),
+    targetAmount: v.number(), // in cents
+    currentAmount: v.number(), // in cents
+    deadline: v.optional(v.number()), // timestamp
+    icon: v.string(), // icon name or emoji
+    createdAt: v.number(),
+  }).index("by_household", ["householdId"]),
+
+  // Shopping list
+  shopping_items: defineTable({
+    householdId: v.id("households"),
+    name: v.string(),
+    isBought: v.boolean(),
+    addedByAction: v.optional(v.string()), // "AI", "User"
+    createdAt: v.number(),
+  }).index("by_household", ["householdId"]),
+
+  // AI Chat History
+  chat_messages: defineTable({
+    householdId: v.id("households"),
+    role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system")),
+    text: v.string(),
+    createdAt: v.number(),
+  }).index("by_household", ["householdId"]),
 };
 
 export default defineSchema({

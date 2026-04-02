@@ -8,7 +8,6 @@ import { BarChart } from "../charts/BarChart";
 import { formatAmount } from "../../lib/format";
 import { InsightsCard } from "./InsightsCard";
 import { BudgetAlertsCard } from "./BudgetAlertsCard";
-import { BudgetSettingsScreen } from "./BudgetSettingsScreen";
 import { IncomeMonitorCard } from "./IncomeMonitorCard";
 import { HomeIcon } from "../ui/icons/HomeIcon";
 import { ExpensesIcon } from "../ui/icons/ExpensesIcon";
@@ -18,13 +17,13 @@ import catLottie from "../../assets/Cat playing animation.lottie?url";
 interface Props {
   householdId: Id<"households">;
   currency: string;
+  onGoToHousehold: () => void;
 }
 
-export function DashboardScreen({ householdId, currency }: Props) {
+export function DashboardScreen({ householdId, currency, onGoToHousehold }: Props) {
   const [period, setPeriod] = useState<string>("month");
   const [customFrom, setCustomFrom] = useState<number | null>(null);
   const [customTo, setCustomTo] = useState<number | null>(null);
-  const [showBudgetSettings, setShowBudgetSettings] = useState(false);
 
   const { from, to } = useMemo(
     () => getPeriodRange(period, customFrom, customTo),
@@ -34,7 +33,7 @@ export function DashboardScreen({ householdId, currency }: Props) {
   // Always compute current month range for income monitor
   const now = new Date();
   const monthFrom = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-  const monthTo = now.getTime();
+  const monthTo = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).getTime();
 
   const summary = useQuery(api.analytics.summary, { householdId, dateFrom: from, dateTo: to });
   const monthlySummary = useQuery(api.analytics.summary, {
@@ -54,33 +53,31 @@ export function DashboardScreen({ householdId, currency }: Props) {
 
   const cardClass = "bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-[2rem] p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
 
-  if (showBudgetSettings) {
-    return (
-      <BudgetSettingsScreen
-        householdId={householdId}
-        currency={currency}
-        onBack={() => setShowBudgetSettings(false)}
-      />
-    );
-  }
-
   return (
     <div className="space-y-6">
-      <div className="pt-2 pb-1">
-        <div className="flex items-center gap-2 mb-2">
-          <HomeIcon className="w-9 h-9 text-[#c76823] drop-shadow-sm" />
-          <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a] drop-shadow-sm">Cześć, Rodzinko!</h2>
+      <div className="pt-2 pb-1 flex justify-between items-start">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <HomeIcon className="w-9 h-9 text-[#c76823] drop-shadow-sm" />
+            <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a] drop-shadow-sm">Cześć, Rodzinko!</h2>
+          </div>
+          <h3 className="text-[1.2rem] font-bold text-[#3e2815] mb-5 ml-1 drop-shadow-sm">Dashboard</h3>
         </div>
-        <h3 className="text-[1.2rem] font-bold text-[#3e2815] mb-5 ml-1 drop-shadow-sm">Dashboard</h3>
-        <PeriodSelector
-          value={period}
-          onChange={setPeriod}
-          customFrom={customFrom}
-          customTo={customTo}
-          onCustomFrom={setCustomFrom}
-          onCustomTo={setCustomTo}
-        />
+        <button
+          onClick={onGoToHousehold}
+          className="mt-2 text-xs font-bold text-[#cf833f] bg-white/70 hover:bg-white border border-[#f5e5cf] rounded-full px-3 py-1.5 shadow-sm transition-all"
+        >
+          ⚙️ Domostwo
+        </button>
       </div>
+      <PeriodSelector
+        value={period}
+        onChange={setPeriod}
+        customFrom={customFrom}
+        customTo={customTo}
+        onCustomFrom={setCustomFrom}
+        onCustomTo={setCustomTo}
+      />
 
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-12 gap-4">
@@ -139,7 +136,6 @@ export function DashboardScreen({ householdId, currency }: Props) {
             currency={currency}
             dateFrom={from}
             dateTo={to}
-            onManageBudgets={() => setShowBudgetSettings(true)}
           />
 
           {/* AI Insights */}

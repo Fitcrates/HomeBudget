@@ -5,12 +5,13 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ProfileSettingsScreen } from "./ProfileSettingsScreen";
 import { BadgesScreen } from "./BadgesScreen";
+import { BudgetSettingsScreen } from "./BudgetSettingsScreen";
 import { EmailSetupCard } from "./EmailSetupCard";
 import { FireIcon } from "../ui/icons/FireIcon";
 import { AvatarMaleIcon } from "../ui/icons/AvatarMaleIcon";
 import { AvatarFemaleIcon } from "../ui/icons/AvatarFemaleIcon";
 import { AvatarGirlIcon } from "../ui/icons/AvatarGirlIcon";
-import { Home, Award, User, Clipboard, RefreshCw, X, UserPlus } from "lucide-react";
+import { Home, Award, User, Clipboard, RefreshCw, X, UserPlus, Target } from "lucide-react";
 
 interface Household {
   _id: Id<"households">;
@@ -26,7 +27,7 @@ interface Props {
   onSwitchHousehold: (id: string) => void;
 }
 
-type Tab = "household" | "badges" | "profile";
+type Tab = "household" | "budget" | "badges" | "profile";
 
 export function HouseholdScreen({ household, households, onSwitchHousehold }: Props) {
   const [tab, setTab] = useState<Tab>("household");
@@ -113,6 +114,7 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
           {(
             [
               { key: "household", label: "Dom", icon: Home },
+              { key: "budget", label: "Budżety", icon: Target },
               { key: "badges", label: "Odznaki", icon: Award },
               { key: "profile", label: "Profil", icon: User },
             ] as { key: Tab; label: string; icon: any }[]
@@ -135,6 +137,13 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
 
       {tab === "profile" && <ProfileSettingsScreen />}
       {tab === "badges" && <BadgesScreen householdId={household._id} />}
+      {tab === "budget" && (
+        <BudgetSettingsScreen 
+          householdId={household._id} 
+          currency={household.currency} 
+          onBack={() => setTab("household")} 
+        />
+      )}
       {tab === "household" && (
         <div className="space-y-6">
           {/* Email Setup Card */}
