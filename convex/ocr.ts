@@ -385,14 +385,14 @@ export const processReceiptWithAI = action({
         const url = await ctx.storage.getUrl(storageId);
         if (!url) continue;
 
-        const res = await fetch(url);
-        if (!res.ok) continue;
+        const fileRes = await fetch(url);
+        if (!fileRes.ok) continue;
 
-        const buf = await res.arrayBuffer();
-        imageDataList.push({
-          base64: Buffer.from(buf).toString("base64"),
-          mimeType: res.headers.get("content-type") || "image/jpeg",
-        });
+        const arrayBuffer = await fileRes.arrayBuffer();
+        const base64 = Buffer.from(arrayBuffer).toString("base64");
+        const mimeType = (fileRes.headers.get("content-type") || "image/jpeg").split(";")[0].trim();
+        
+        imageDataList.push({ base64, mimeType });
       }
 
       if (imageDataList.length === 0) {

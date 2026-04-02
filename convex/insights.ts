@@ -49,7 +49,7 @@ export const generate = action({
       body: string;
       emoji: string;
       severity: "info" | "warning" | "danger";
-    }> = await ctx.runAction(internal.insightsNode.callOpenAI, {
+    }> = await ctx.runAction(internal.insightsNode.callAI, {
       expenses,
       budgets,
     });

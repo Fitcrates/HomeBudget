@@ -4,14 +4,18 @@ import { v } from "convex/values";
 import { internalAction } from "./_generated/server";
 import OpenAI from "openai";
 
-function getOpenAI() {
+function getGroq() {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    throw new Error("Brak klucza API Groq (GROQ_API_KEY)");
+  }
   return new OpenAI({
-    baseURL: process.env.CONVEX_OPENAI_BASE_URL,
-    apiKey: process.env.CONVEX_OPENAI_API_KEY,
+    baseURL: "https://api.groq.com/openai/v1",
+    apiKey,
   });
 }
 
-export const callOpenAI = internalAction({
+export const callAI = internalAction({
   args: {
     expenses: v.array(
       v.object({ categoryName: v.string(), month: v.string(), total: v.number() })
@@ -45,8 +49,8 @@ export const callOpenAI = internalAction({
       '{"insights":[{"type":"prediction","title":"Krotki tytul max 6 slow","body":"1-2 zdania z liczbami","emoji":"emoji","severity":"info"}]}',
     ].join("\n");
 
-    const resp = await getOpenAI().chat.completions.create({
-      model: "gpt-4o-mini",
+    const resp = await getGroq().chat.completions.create({
+      model: "llama-3.3-70b-versatile",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
     });

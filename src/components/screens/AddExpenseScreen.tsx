@@ -41,17 +41,17 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
   async function uploadFiles(files: File[]) {
     const uploadedStorageIds: Id<"_storage">[] = [];
     const mimeTypes: string[] = [];
-    
+
     const processedBlobs: { blob: Blob; type: string }[] = [];
     for (const file of files) {
-      if (file.type === PDF_MIME) {
+      if (file.type === PDF_MIME || file.name.toLowerCase().endsWith(".pdf")) {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         const numPages = Math.min(3, pdf.numPages);
-        
+
         for (let i = 1; i <= numPages; i++) {
           const page = await pdf.getPage(i);
-          const viewport = page.getViewport({ scale: 2.0 });
+          const viewport = page.getViewport({ scale: 1.5 });
           const canvas = document.createElement("canvas");
           const context = canvas.getContext("2d");
           if (!context) continue;
@@ -174,7 +174,7 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
               <p className="text-[11px] font-bold text-[#8a7262]">Opcjonalne. AI samo wypełni formularz.</p>
             </div>
           </div>
-          
+
           <div className="flex gap-4">
             <label className="flex-1 flex flex-col items-center justify-center gap-3 py-6 px-2 border-2 border-dashed border-[#de9241]/40 bg-white/60 hover:bg-white backdrop-blur-sm rounded-2xl cursor-pointer hover:border-[#de9241] transition-all shadow-sm group">
               <div className="bg-[#fcf4e4] text-[#ca782a] p-3 rounded-full group-hover:scale-110 transition-transform">
@@ -227,7 +227,8 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
             Kwota
           </label>
           <div className="flex items-center gap-3">
-            <span className="text-2xl font-bold text-[#b89b87]">zł</span>
+
+
             <input
               type="number"
               step="0.01"
@@ -238,6 +239,7 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
               className="flex-1 text-4xl font-bold text-[#4a3b32] outline-none bg-transparent w-full placeholder-[#e0c9b7]"
               required
             />
+            <span className="text-2xl font-bold text-[#b89b87]">zł</span>
           </div>
         </div>
 
@@ -285,11 +287,10 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
                   key={cat._id}
                   type="button"
                   onClick={() => { setCategoryId(cat._id); setSubcategoryId(null); }}
-                  className={`p-3 rounded-2xl flex flex-col items-center gap-1.5 transition-all outline-none ${
-                    categoryId === cat._id
-                      ? "border border-orange-400 bg-orange-100/50 shadow-inner scale-105"
-                      : "border border-white/60 bg-white/50 hover:bg-white/80 shadow-sm"
-                  }`}
+                  className={`p-3 rounded-2xl flex flex-col items-center gap-1.5 transition-all outline-none ${categoryId === cat._id
+                    ? "border border-orange-400 bg-orange-100/50 shadow-inner scale-105"
+                    : "border border-white/60 bg-white/50 hover:bg-white/80 shadow-sm"
+                    }`}
                 >
                   <DynamicIcon name={cat.icon} className="w-8 h-8 text-[#ca782a] drop-shadow-sm" />
                   <div className={`text-[10px] font-bold leading-tight text-center line-clamp-2 ${categoryId === cat._id ? "text-orange-900" : "text-[#8a7262]"}`}>{cat.name}</div>
@@ -311,11 +312,10 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
                   key={sub._id}
                   type="button"
                   onClick={() => setSubcategoryId(sub._id)}
-                  className={`p-3 rounded-2xl flex flex-col items-center gap-1.5 transition-all outline-none ${
-                    subcategoryId === sub._id
-                      ? "border border-orange-400 bg-orange-100/50 shadow-inner scale-105"
-                      : "border border-white/60 bg-white/50 hover:bg-white/80 shadow-sm"
-                  }`}
+                  className={`p-3 rounded-2xl flex flex-col items-center gap-1.5 transition-all outline-none ${subcategoryId === sub._id
+                    ? "border border-orange-400 bg-orange-100/50 shadow-inner scale-105"
+                    : "border border-white/60 bg-white/50 hover:bg-white/80 shadow-sm"
+                    }`}
                 >
                   <DynamicIcon name={sub.icon} className="w-8 h-8 text-[#ca782a] drop-shadow-sm" />
                   <div className={`text-[10px] font-bold leading-tight text-center line-clamp-2 ${subcategoryId === sub._id ? "text-orange-900" : "text-[#8a7262]"}`}>{sub.name}</div>

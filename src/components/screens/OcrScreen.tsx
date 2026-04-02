@@ -78,14 +78,14 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
       const processedBlobs: { blob: Blob; type: string }[] = [];
 
       for (const file of rawFiles) {
-        if (file.type === PDF_MIME) {
+        if (file.type === PDF_MIME || file.name.toLowerCase().endsWith(".pdf")) {
           const arrayBuffer = await file.arrayBuffer();
           const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
           const numPages = Math.min(3, pdf.numPages); // Limit to 3 pages
 
           for (let i = 1; i <= numPages; i++) {
             const page = await pdf.getPage(i);
-            const viewport = page.getViewport({ scale: 2.0 });
+            const viewport = page.getViewport({ scale: 1.5 });
             const canvas = document.createElement("canvas");
             const context = canvas.getContext("2d");
             if (!context) continue;
