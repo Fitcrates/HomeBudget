@@ -8,7 +8,7 @@ import { FileText, Image } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
-import catLottie from "../../../assets/Cat playing animation.lottie?url";
+import catLottie from "../../assets/Cat playing animation.lottie?url";
 
 // Set pdf.js worker source
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
