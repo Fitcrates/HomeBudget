@@ -12,6 +12,8 @@ import { BudgetSettingsScreen } from "./BudgetSettingsScreen";
 import { IncomeMonitorCard } from "./IncomeMonitorCard";
 import { HomeIcon } from "../ui/icons/HomeIcon";
 import { ExpensesIcon } from "../ui/icons/ExpensesIcon";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+import catLottie from "../../assets/Cat playing animation.lottie?url";
 
 interface Props {
   householdId: Id<"households">;
@@ -81,8 +83,17 @@ export function DashboardScreen({ householdId, currency }: Props) {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#d87635]" />
+        <div className="flex flex-col items-center justify-center py-12 gap-4">
+          <div className="w-32 h-32 relative flex items-center justify-center bg-[#fff8f2] rounded-full shadow-inner border border-[#f2d6bf]">
+            <div className="absolute inset-0 border-[4px] border-t-transparent border-[#de9241] rounded-full animate-spin" />
+            <div className="absolute inset-2 border-[4px] border-b-transparent border-[#ca782a] rounded-full animate-spin direction-reverse" />
+            <div className="w-24 h-24 rounded-full overflow-hidden absolute">
+              <DotLottieReact src={catLottie} loop autoplay />
+            </div>
+          </div>
+          <p className="text-[#8a7262] font-bold text-sm animate-pulse">
+            Ładowanie danych...
+          </p>
         </div>
       ) : (
         <div className="space-y-6">

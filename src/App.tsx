@@ -13,7 +13,7 @@ export default function App() {
     <div className="min-h-dvh w-full overflow-x-hidden flex flex-col bg-gradient-to-b from-[#f7e6cf] to-[#fcf4e4]">
       <Toaster position="top-center" richColors />
       <Authenticated>
-        <div className="w-full px-2 sm:px-4">
+        <div className="w-full mx-auto">
           <AuthenticatedApp />
         </div>
       </Authenticated>
@@ -28,7 +28,7 @@ export default function App() {
               <p className="text-[#6d4d38] mt-2 font-bold drop-shadow-sm">Zarządzaj budżetem domowym</p>
             </div>
             <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-[2rem] shadow-[0_8px_32px_rgba(180,120,80,0.15)] overflow-hidden p-6">
-            <SignInForm />
+              <SignInForm />
             </div>
           </div>
         </div>

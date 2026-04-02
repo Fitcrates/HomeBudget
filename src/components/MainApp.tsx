@@ -38,7 +38,8 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
     void syncDefaultCatalog({ householdId: household._id }).catch((err) => {
       console.warn("Category catalog sync failed", err);
     });
-  }, [household._id, syncDefaultCatalog]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [household._id]);
 
   function handleOcrCapture(storageIds: Id<"_storage">[], mimeTypes: string[] = []) {
     setOcrStorageIds(storageIds);
@@ -51,7 +52,7 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
       {/* Main Container */}
       <div className="w-full max-w-[420px] h-dvh flex flex-col mx-auto relative bg-gradient-to-b from-[#ebae69] via-[#faebcd] to-[#fcf4e4] text-[#2b180a] font-sans selection:bg-orange-200 lg:shadow-2xl lg:rounded-[2rem] lg:my-4 lg:h-[90vh]">
         {/* Screen Content */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden pt-8 pb-28 relative z-10 px-4 sm:px-5 space-y-6 scrollbar-hide">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden pt-8 pb-28 relative z-10 px-2 sm:px-4 space-y-6 scrollbar-hide">
           {screen === "dashboard" && (
             <DashboardScreen householdId={household._id} currency={household.currency} />
           )}
@@ -66,10 +67,10 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
             />
           )}
           {screen === "household" && (
-            <HouseholdScreen 
-              household={household} 
-              households={households} 
-              onSwitchHousehold={onSwitchHousehold} 
+            <HouseholdScreen
+              household={household}
+              households={households}
+              onSwitchHousehold={onSwitchHousehold}
             />
           )}
           {screen === "ocr" && ocrStorageIds.length > 0 && (
@@ -114,11 +115,10 @@ function NavBtn({
   return (
     <button
       onClick={onClick}
-      className={`relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all outline-none ${
-        active 
-          ? "bg-[#faebcd]/60 shadow-sm scale-105" 
+      className={`relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all outline-none ${active
+          ? "bg-[#faebcd]/60 shadow-sm scale-105"
           : "opacity-60 hover:opacity-100 hover:bg-[#faebcd]/30"
-      }`}
+        }`}
     >
       <div className={`transition-all duration-300 ${active ? "scale-110 drop-shadow-md" : "grayscale opacity-70 drop-shadow-sm"}`}>
         {icon}

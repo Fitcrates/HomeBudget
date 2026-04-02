@@ -4,6 +4,8 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { Bot, Sparkles, Search } from "lucide-react";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+import catLottie from "../../assets/Cat playing animation.lottie?url";
 
 interface Props {
   householdId: Id<"households">;
@@ -44,12 +46,18 @@ export function InsightsCard({ householdId }: Props) {
 
   async function handleGenerate() {
     setLoading(true);
+    const startTime = Date.now();
     try {
       await generate({ householdId });
       toast.success("Analiza AI gotowa!");
     } catch (err: any) {
       toast.error(err.message || "Błąd generowania analizy.");
     } finally {
+      const elapsed = Date.now() - startTime;
+      const minLoadingTime = 2000;
+      if (elapsed < minLoadingTime) {
+        await new Promise((resolve) => setTimeout(resolve, minLoadingTime - elapsed));
+      }
       setLoading(false);
     }
   }
@@ -97,11 +105,35 @@ export function InsightsCard({ householdId }: Props) {
           </button>
       </div>
 
-      {latest === undefined ? (
-        <div className="flex justify-center py-4">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#d87635]" />
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-6 gap-4">
+          <div className="w-28 h-28 relative flex items-center justify-center bg-[#fff8f2] rounded-full shadow-inner border border-[#f2d6bf]">
+            <div className="absolute inset-0 border-[4px] border-t-transparent border-[#de9241] rounded-full animate-spin" />
+            <div className="absolute inset-2 border-[4px] border-b-transparent border-[#ca782a] rounded-full animate-spin direction-reverse" />
+            <div className="w-20 h-20 rounded-full overflow-hidden absolute">
+              <DotLottieReact src={catLottie} loop autoplay />
+            </div>
+          </div>
+          <p className="text-[#8a7262] font-bold text-sm animate-pulse">
+            AI analizuje Twoje wydatki...
+          </p>
         </div>
-      ) : latest === null ? (
+      )}
+
+      {!loading && latest === undefined ? (
+        <div className="flex flex-col items-center justify-center py-6 gap-3">
+          <div className="w-24 h-24 relative flex items-center justify-center bg-[#fff8f2] rounded-full shadow-inner border border-[#f2d6bf]">
+            <div className="absolute inset-0 border-[3px] border-t-transparent border-[#de9241] rounded-full animate-spin" />
+            <div className="absolute inset-1.5 border-[3px] border-b-transparent border-[#ca782a] rounded-full animate-spin direction-reverse" />
+            <div className="w-18 h-18 rounded-full overflow-hidden absolute">
+              <DotLottieReact src={catLottie} loop autoplay />
+            </div>
+          </div>
+          <p className="text-[#8a7262] font-bold text-xs animate-pulse">
+            Ładowanie analizy...
+          </p>
+        </div>
+      ) : !loading && latest === null ? (
         <div className="text-center py-6">
           <Search className="w-12 h-12 text-[#b89b87] mx-auto mb-3" />
           <p className="text-sm font-bold text-[#8a7262] mb-1">Brak analizy</p>
@@ -109,7 +141,7 @@ export function InsightsCard({ householdId }: Props) {
             Kliknij „Analizuj", aby AI przeanalizowało Twoje wydatki
           </p>
         </div>
-      ) : (
+      ) : !loading && latest ? (
         <div className="space-y-3">
           {latest.insights.map((insight, i) => {
             const styles =
@@ -138,7 +170,7 @@ export function InsightsCard({ householdId }: Props) {
             );
           })}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

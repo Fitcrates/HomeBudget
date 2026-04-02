@@ -327,8 +327,8 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
         <div className="flex gap-3">
           <label
             className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-2xl transition-colors cursor-pointer ${currentStorageIds.length >= 3
-                ? "border-[#e0d0c0] opacity-40 cursor-not-allowed"
-                : "border-[#8bc5a0] bg-[#ebf7ef]/60 hover:border-[#67a57e] hover:bg-[#d8eedf]"
+              ? "border-[#e0d0c0] opacity-40 cursor-not-allowed"
+              : "border-[#8bc5a0] bg-[#ebf7ef]/60 hover:border-[#67a57e] hover:bg-[#d8eedf]"
               }`}
           >
             <ScannerIcon className="w-6 h-6 text-[#46825d]" />
@@ -349,8 +349,8 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
 
           <label
             className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-2xl transition-colors cursor-pointer ${currentStorageIds.length >= 3
-                ? "border-[#e0d0c0] opacity-40 cursor-not-allowed"
-                : "border-[#d2bcad] bg-white/40 hover:border-orange-400 hover:bg-orange-50/50"
+              ? "border-[#e0d0c0] opacity-40 cursor-not-allowed"
+              : "border-[#d2bcad] bg-white/40 hover:border-orange-400 hover:bg-orange-50/50"
               }`}
           >
             <Image className="w-6 h-6 text-[#8a7262]" />
@@ -369,8 +369,8 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
 
           <label
             className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-2xl transition-colors cursor-pointer ${currentStorageIds.length >= 3
-                ? "border-[#e0d0c0] opacity-40 cursor-not-allowed"
-                : "border-[#b8a8d8] bg-[#f5f0ff]/60 hover:border-[#8b6fd4] hover:bg-[#ede8ff]"
+              ? "border-[#e0d0c0] opacity-40 cursor-not-allowed"
+              : "border-[#b8a8d8] bg-[#f5f0ff]/60 hover:border-[#8b6fd4] hover:bg-[#ede8ff]"
               }`}
           >
             <FileText className="w-6 h-6 text-[#6b4fa8]" />
@@ -505,12 +505,13 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                               inputMode="decimal"
                               value={item.amount}
                               onChange={(e) => updateItem(item.id, { amount: e.target.value })}
-                              className={`w-full text-[15px] bg-white border rounded-xl px-3 py-2.5 pr-9 outline-none font-bold text-right tabular-nums ${uncertainPrice
-                                  ? "border-[#f3a086] text-[#b74210] focus:border-[#d95d27]"
-                                  : "border-[#f5e5cf] text-[#cf833f] focus:border-[#cf833f]"
+                              className={`w-full text-[15px] bg-white border rounded-xl px-3 py-2.5  outline-none font-bold text-right tabular-nums ${uncertainPrice
+                                ? "border-[#f3a086] text-[#b74210] focus:border-[#d95d27]"
+                                : "border-[#f5e5cf] text-[#cf833f] focus:border-[#cf833f]"
                                 }`}
                               placeholder="0.00"
                             />
+
 
                           </div>
                         </div>
