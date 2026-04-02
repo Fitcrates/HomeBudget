@@ -70,3 +70,21 @@ export const resolvePendingAction = mutation({
     }
   },
 });
+
+export const clearHistory = mutation({
+  args: { householdId: v.id("households") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    await assertMember(ctx, args.householdId, userId);
+
+    const messages = await ctx.db
+      .query("chat_messages")
+      .withIndex("by_household", (q) => q.eq("householdId", args.householdId))
+      .collect();
+
+    for (const msg of messages) {
+      await ctx.db.delete(msg._id);
+    }
+  },
+});

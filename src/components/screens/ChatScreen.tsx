@@ -22,9 +22,15 @@ export function ChatScreen({ householdId }: Props) {
     <div className="flex flex-col h-[calc(100vh-140px)] pb-2 relative">
       {/* Header and Toggle */}
       <div className="pt-2 pb-4 flex-shrink-0">
-        <div className="flex items-center gap-2 mb-4 drop-shadow-sm">
-          <Bot className="w-8 h-8 text-[#c76823]" />
-          <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a]">Agent</h2>
+        <div className="flex items-center justify-between w-full mb-3">
+          <div className="flex items-center gap-2 drop-shadow-sm">
+            <Bot className="w-8 h-8 text-[#c76823]" />
+            <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a]">Agent</h2>
+          </div>
+          
+          {tab === "chat" && (
+            <ClearChatButton householdId={householdId} />
+          )}
         </div>
 
         <div className="flex bg-[#fdf9f1] rounded-2xl p-1 shadow-[0_4px_12px_rgba(180,120,80,0.1)] gap-1">
@@ -60,6 +66,27 @@ export function ChatScreen({ householdId }: Props) {
 
       {tab === "chat" ? <ChatView householdId={householdId} /> : <ShoppingListView householdId={householdId} items={shoppingList} />}
     </div>
+  );
+}
+
+function ClearChatButton({ householdId }: { householdId: Id<"households"> }) {
+  const clearChat = useMutation(api.chat.clearHistory);
+
+  async function handleClear() {
+    if (confirm("Rozpocząć nową rozmowę i wyczyścić historię chatu w tym domostwie?")) {
+      await clearChat({ householdId });
+      toast.success("Rozpoczęto nową rozmowę.");
+    }
+  }
+
+  return (
+    <button
+      onClick={handleClear}
+      className="text-xs font-bold text-red-400 bg-red-400/10 hover:bg-red-400/20 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1"
+    >
+      <Trash2 className="w-3 h-3" />
+      Wyczyść czat
+    </button>
   );
 }
 
@@ -125,8 +152,28 @@ function ChatView({ householdId }: { householdId: Id<"households"> }) {
                   {isMe ? (
                     <span className="text-[13px] font-semibold block leading-relaxed">{msg.text}</span>
                   ) : (
-                    <div className="text-[13px] font-medium leading-relaxed prose prose-sm prose-orange">
-                      <ReactMarkdown>{msg.text}</ReactMarkdown>
+                    <div className="text-[14px] font-medium leading-relaxed prose prose-sm prose-orange max-w-none text-[#2b180a]">
+                      <ReactMarkdown
+                        components={{
+                          li: ({ children, ...props }) => {
+                            const [done, setDone] = useState(false);
+                            return (
+                              <li 
+                                {...props} 
+                                onClick={() => setDone(!done)} 
+                                className={`cursor-pointer transition-all hover:bg-black/5 p-1 rounded-lg list-none flex items-start gap-2.5 -ml-6 mb-1 ${done ? 'opacity-50' : ''}`}
+                              >
+                                <span className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded-full border border-current flex items-center justify-center transition-colors ${done ? 'bg-current' : 'opacity-70'}`}>
+                                  {done && <Check className="w-3 h-3 text-white" />}
+                                </span>
+                                <span className={`${done ? 'line-through' : ''}`}>
+                                  {children}
+                                </span>
+                              </li>
+                            );
+                          }
+                        }}
+                      >{msg.text}</ReactMarkdown>
                     </div>
                   )}
                 </div>

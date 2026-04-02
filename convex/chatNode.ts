@@ -20,22 +20,43 @@ export const sendMessage = action({
     const history = await ctx.runQuery(api.chat.listForHousehold, { householdId: args.householdId });
     const shoppingList = await ctx.runQuery(api.shopping.listForHousehold, { householdId: args.householdId });
 
+    const now = new Date();
+    const monthFrom = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const monthTo = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).getTime();
+
+    const totals = await ctx.runQuery(api.analytics.totalsPerCategory, {
+      householdId: args.householdId,
+      dateFrom: monthFrom,
+      dateTo: monthTo,
+    });
+    const categories = await ctx.runQuery(api.categories.listForHousehold, {
+      householdId: args.householdId,
+    });
+    const categoryMap = new Map(categories.map(c => [c._id.toString(), c.name]));
+    const financialInfo = totals.length > 0 
+      ? totals.map(t => `- ${categoryMap.get(t.id.toString()) || 'Inne'}: ${(t.total/100).toFixed(2)} PLN`).join("\n")
+      : "Brak wydatków w tym miesiącu.";
+
     // 3. Prepare system prompt
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
     
     const unboughtItems = shoppingList.filter(i => !i.isBought).map(i => i.name).join(", ");
     
-    const systemPrompt = `Jesteś domowym asystentem AI ds. budżetu i zakupów. Jesteś pomocny, ciepły i zwięzły w swoich wypowiedziach.
-Twoje główne zadania to pomaganie w planowaniu posiłków, sugerowaniu oszczędności oraz doradzanie w zakupach.
+    const systemPrompt = `Jesteś bardzo bystrym, domowym asystentem AI ds. budżetu i zakupów. Jesteś pomocny, ciepły i zwięzły w swoich wypowiedziach.
+Twoje główne zadania to pomaganie w planowaniu posiłków, sugerowaniu oszczędności, analizie wydatków oraz doradzaniu.
+
+Masz dostęp do finansów rodziny na ten miesiąc:
+${financialInfo}
 
 Masz dostęp do aktualnej LISTY ZAKUPÓW: [${unboughtItems || "Pusta"}]
 
+Jeśli użytkownik pyta o finanse, odnieś się do powyższych wydatków. Wyczuwaj nastroje - jeśli dużo wydali na rozrywkę, zasugeruj np. spędzenie czasu w domu i podsuń przepis.
 Jeśli użytkownik poprosi o dodanie czegoś do listy zakupów (lub odczytasz, że potrzebuje składników do przepisu, który mu podałeś), MUSISZ na samym końcu swojej odpowiedzi dopisać specjalny blok JSON w tagach <JSON>...</JSON>. Możesz też poprosić o wyczyszczenie całej aktualnej listy jeśli użytkownik o to poprosi:
 <JSON>
 { "shopping_add": ["mleko", "jajka", "chleb"], "shopping_clear": true }
 </JSON>
 
-Nigdy nie wymieniaj w bloku JSON elementów, które już są na liście zakupów. Bądź miły. Zawsze używaj języka polskiego. Jeśli użytkownik prosi o usunięcie poprzednich produktów (np. bo zmieniono przepis), dodaj w JSON klucz "shopping_clear": true. Nigdy nie usuwasz sam - zawsze po prostu to sugerujesz przez JSON.`;
+Nigdy nie wymieniaj w bloku JSON elementów, które już są na liście zakupów. Bądź miły. Zawsze używaj języka polskiego. Jeśli użytkownik prosi o usunięcie poprzednich produktów (np. bo zmieniono przepis), dodaj w JSON klucz "shopping_clear": true. Nigdy nie usuwasz sam - zawsze po prostu to sugerujesz przez JSON. Podając przepisy, wymieniaj kroki przygotowania jako lista numerowana lub wypunktowana.`;
 
     const messages: any[] = [
       { role: "system", content: systemPrompt },
