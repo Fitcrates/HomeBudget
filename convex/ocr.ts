@@ -17,8 +17,8 @@ function getGroq() {
   });
 }
 
-// 11B is fast and supports vision. 90B is better but you can switch to `llama-3.2-90b-vision-preview`
-const VISION_MODEL = "llama-3.2-90b-vision-preview";
+// Groq replaced 11b and 90b vision with Llama 4 Scout
+const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
 
 // ── System Prompt (short for speed) ───────────────────────────────
 
