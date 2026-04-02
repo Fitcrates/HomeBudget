@@ -5,6 +5,12 @@ import { Id } from "../../../convex/_generated/dataModel";
 import { DynamicIcon } from "../ui/DynamicIcon";
 import { toast } from "sonner";
 import { DollarSign, CloudUpload, FileText, Image as ImageIcon } from "lucide-react";
+import * as pdfjsLib from "pdfjs-dist";
+
+// Set pdf.js worker source
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+
+const PDF_MIME = "application/pdf";
 
 interface Props {
   householdId: Id<"households">;
@@ -35,16 +41,42 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
   async function uploadFiles(files: File[]) {
     const uploadedStorageIds: Id<"_storage">[] = [];
     const mimeTypes: string[] = [];
+    
+    const processedBlobs: { blob: Blob; type: string }[] = [];
     for (const file of files) {
+      if (file.type === PDF_MIME) {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const numPages = Math.min(3, pdf.numPages);
+        
+        for (let i = 1; i <= numPages; i++) {
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: 2.0 });
+          const canvas = document.createElement("canvas");
+          const context = canvas.getContext("2d");
+          if (!context) continue;
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          await page.render({ canvasContext: context, canvas, viewport }).promise;
+          const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.9));
+          if (blob) processedBlobs.push({ blob, type: "image/jpeg" });
+        }
+      } else {
+        processedBlobs.push({ blob: file, type: file.type });
+      }
+    }
+
+    const toUpload = processedBlobs.slice(0, 3);
+    for (const item of toUpload) {
       const uploadUrl = await generateUploadUrl();
       const res = await fetch(uploadUrl, {
         method: "POST",
-        headers: { "Content-Type": file.type },
-        body: file,
+        headers: { "Content-Type": item.type },
+        body: item.blob,
       });
       const { storageId } = await res.json();
       uploadedStorageIds.push(storageId as Id<"_storage">);
-      mimeTypes.push(file.type);
+      mimeTypes.push(item.type);
     }
     return { storageIds: uploadedStorageIds, mimeTypes };
   }

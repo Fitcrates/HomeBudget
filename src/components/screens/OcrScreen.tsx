@@ -415,8 +415,17 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
               )}
             </button>
             {processing && (
-              <div className="mt-4 w-40 h-40">
-                <DotLottieReact src={catLottie} loop autoplay />
+              <div className="mt-4 flex flex-col items-center justify-center gap-4">
+                <div className="w-32 h-32 relative flex items-center justify-center bg-[#fff8f2] rounded-full shadow-inner border border-[#f2d6bf]">
+                  <div className="absolute inset-0 border-[4px] border-t-transparent border-[#de9241] rounded-full animate-spin" />
+                  <div className="absolute inset-2 border-[4px] border-b-transparent border-[#ca782a] rounded-full animate-spin direction-reverse" />
+                  <div className="w-24 h-24 rounded-full overflow-hidden absolute">
+                    <DotLottieReact src={catLottie} loop autoplay />
+                  </div>
+                </div>
+                <p className="text-[#8a7262] font-bold text-sm animate-pulse">
+                  Czytanie dokumentu z Groq Llama 3.2...
+                </p>
               </div>
             )}
           </div>

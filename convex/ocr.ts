@@ -2,9 +2,23 @@
 
 import { v } from "convex/values";
 import { action } from "./_generated/server";
+import OpenAI from "openai";
+
 // ── Configuration ─────────────────────────────────────────────────
 
-const VISION_MODEL = "gemini-1.5-flash";
+function getGroq() {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    throw new Error("Brak klucza API Groq (GROQ_API_KEY). Skonfiguruj go w ustawieniach Convex.");
+  }
+  return new OpenAI({
+    baseURL: "https://api.groq.com/openai/v1",
+    apiKey,
+  });
+}
+
+// 11B is fast and supports vision. 90B is better but you can switch to `llama-3.2-90b-vision-preview`
+const VISION_MODEL = "llama-3.2-11b-vision-preview";
 
 // ── System Prompt (short for speed) ───────────────────────────────
 
@@ -262,54 +276,39 @@ async function processImagesWithAI(
   categoriesArray: any[]
 ): Promise<ProcessReceiptResult> {
   const prompt = buildPrompt(compactCategories);
-  const apiKey = process.env.GEMINI_API_KEY;
-  
-  if (!apiKey) {
-    throw new Error("Brak klucza API Gemini (GEMINI_API_KEY w ustawieniach Convex). Skonfiguruj go darmowo na stronie aistudio.google.com");
-  }
 
-  const parts: any[] = [{ text: prompt }];
+  const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+    { type: "text", text: prompt },
+  ];
 
   for (const img of imageDataList) {
-    parts.push({
-      inline_data: {
-        mime_type: img.mimeType,
-        data: img.base64,
+    contentParts.push({
+      type: "image_url",
+      image_url: {
+        url: `data:${img.mimeType};base64,${img.base64}`
       },
     });
   }
 
-  console.log("→ Gemini 1.5 Flash vision:", {
+  console.log(`→ Groq vision (${VISION_MODEL}):`, {
     imageCount: imageDataList.length,
     promptLength: prompt.length,
   });
 
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${VISION_MODEL}:generateContent?key=${apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts }],
-      systemInstruction: {
-        parts: [{ text: SYSTEM_PROMPT }]
-      },
-      generationConfig: {
-        temperature: 0.1,
-        responseMimeType: "application/json",
-      }
-    })
+  const resp = await getGroq().chat.completions.create({
+    model: VISION_MODEL,
+    temperature: 0.1,
+    max_tokens: 4096,
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: contentParts },
+    ],
   });
 
-  if (!res.ok) {
-    const errorBody = await res.text();
-    console.error("Gemini API error:", errorBody);
-    throw new Error(`Błąd Gemini API: ${res.statusText}`);
-  }
-
-  const data = await res.json();
-  const content = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
-
+  const content = resp.choices[0].message.content ?? "{}";
   console.log("Vision response:", {
     len: content.length,
+    model: resp.model
   });
 
   return parseAndNormalizeResponse(content, categoriesArray, VISION_MODEL);
@@ -323,36 +322,18 @@ async function processTextWithAI(
   categoriesArray: any[]
 ): Promise<ProcessReceiptResult> {
   const prompt = buildPrompt(compactCategories, text.slice(0, 8000));
-  const apiKey = process.env.GEMINI_API_KEY;
-  
-  if (!apiKey) {
-    throw new Error("Brak klucza API Gemini (GEMINI_API_KEY w ustawieniach Convex). Skonfiguruj go darmowo na stronie aistudio.google.com");
-  }
 
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${VISION_MODEL}:generateContent?key=${apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      systemInstruction: {
-        parts: [{ text: SYSTEM_PROMPT }]
-      },
-      generationConfig: {
-        temperature: 0.1,
-        responseMimeType: "application/json",
-      }
-    })
+  const resp = await getGroq().chat.completions.create({
+    model: VISION_MODEL, // Vision model can also accept pure text
+    temperature: 0.1,
+    max_tokens: 4096,
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: prompt },
+    ],
   });
 
-  if (!res.ok) {
-    const errorBody = await res.text();
-    console.error("Gemini API error:", errorBody);
-    throw new Error(`Błąd Gemini API: ${res.statusText}`);
-  }
-
-  const data = await res.json();
-  const content = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
-
+  const content = resp.choices[0].message.content ?? "{}";
   return parseAndNormalizeResponse(content, categoriesArray, VISION_MODEL);
 }
 
