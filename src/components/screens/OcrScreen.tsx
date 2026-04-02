@@ -76,24 +76,24 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
     setUploading(true);
     try {
       const processedBlobs: { blob: Blob; type: string }[] = [];
-      
+
       for (const file of rawFiles) {
         if (file.type === PDF_MIME) {
           const arrayBuffer = await file.arrayBuffer();
           const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
           const numPages = Math.min(3, pdf.numPages); // Limit to 3 pages
-          
+
           for (let i = 1; i <= numPages; i++) {
             const page = await pdf.getPage(i);
             const viewport = page.getViewport({ scale: 2.0 });
             const canvas = document.createElement("canvas");
             const context = canvas.getContext("2d");
             if (!context) continue;
-            
+
             canvas.width = viewport.width;
             canvas.height = viewport.height;
             await page.render({ canvasContext: context, canvas, viewport }).promise;
-            
+
             const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.9));
             if (blob) processedBlobs.push({ blob, type: "image/jpeg" });
           }
@@ -326,11 +326,10 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
         {/* Upload buttons */}
         <div className="flex gap-3">
           <label
-            className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-2xl transition-colors cursor-pointer ${
-              currentStorageIds.length >= 3
+            className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-2xl transition-colors cursor-pointer ${currentStorageIds.length >= 3
                 ? "border-[#e0d0c0] opacity-40 cursor-not-allowed"
                 : "border-[#8bc5a0] bg-[#ebf7ef]/60 hover:border-[#67a57e] hover:bg-[#d8eedf]"
-            }`}
+              }`}
           >
             <ScannerIcon className="w-6 h-6 text-[#46825d]" />
             <span className="text-xs font-bold text-[#46825d]">
@@ -349,11 +348,10 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           </label>
 
           <label
-            className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-2xl transition-colors cursor-pointer ${
-              currentStorageIds.length >= 3
+            className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-2xl transition-colors cursor-pointer ${currentStorageIds.length >= 3
                 ? "border-[#e0d0c0] opacity-40 cursor-not-allowed"
                 : "border-[#d2bcad] bg-white/40 hover:border-orange-400 hover:bg-orange-50/50"
-            }`}
+              }`}
           >
             <Image className="w-6 h-6 text-[#8a7262]" />
             <span className="text-xs font-bold text-[#8a7262]">
@@ -370,11 +368,10 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           </label>
 
           <label
-            className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-2xl transition-colors cursor-pointer ${
-              currentStorageIds.length >= 3
+            className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-2xl transition-colors cursor-pointer ${currentStorageIds.length >= 3
                 ? "border-[#e0d0c0] opacity-40 cursor-not-allowed"
                 : "border-[#b8a8d8] bg-[#f5f0ff]/60 hover:border-[#8b6fd4] hover:bg-[#ede8ff]"
-            }`}
+              }`}
           >
             <FileText className="w-6 h-6 text-[#6b4fa8]" />
             <span className="text-xs font-bold text-[#6b4fa8]">
@@ -475,122 +472,119 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                         key={item.id}
                         className="bg-white/60 backdrop-blur-md rounded-[1.5rem] p-2 shadow-sm border border-white/60"
                       >
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] font-bold text-[#b89b87] bg-[#f5e5cf]/50 px-2 py-1 rounded-lg">
-                          Pozycja {index + 1}
-                        </span>
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold text-[#b89b87] bg-[#f5e5cf]/50 px-2 py-1 rounded-lg">
+                              Pozycja {index + 1}
+                            </span>
+                            {uncertainPrice && (
+                              <span className="text-[10px] font-bold text-[#9a2b00] bg-[#ffe1d6] border border-[#ffc2af] px-2 py-1 rounded-lg">
+                                Niepewna cena
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => removeItem(item.id)}
+                            className="text-red-400 hover:text-red-500 text-xs font-bold p-1"
+                          >
+                            Usuń
+                          </button>
+                        </div>
+
+                        <div className="flex gap-2 mb-3">
+                          <input
+                            type="text"
+                            value={item.description}
+                            onChange={(e) => updateItem(item.id, { description: e.target.value })}
+                            className="flex-1 text-sm bg-white border border-[#f5e5cf] rounded-xl px-3 py-2 outline-none focus:border-[#cf833f] font-bold text-[#3e2815]"
+                            placeholder="Opis produktu"
+                          />
+                          <div className="relative w-[8.5rem]">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={item.amount}
+                              onChange={(e) => updateItem(item.id, { amount: e.target.value })}
+                              className={`w-full text-[15px] bg-white border rounded-xl px-3 py-2.5 pr-9 outline-none font-bold text-right tabular-nums ${uncertainPrice
+                                  ? "border-[#f3a086] text-[#b74210] focus:border-[#d95d27]"
+                                  : "border-[#f5e5cf] text-[#cf833f] focus:border-[#cf833f]"
+                                }`}
+                              placeholder="0.00"
+                            />
+
+                          </div>
+                        </div>
+
                         {uncertainPrice && (
-                          <span className="text-[10px] font-bold text-[#9a2b00] bg-[#ffe1d6] border border-[#ffc2af] px-2 py-1 rounded-lg">
-                            Niepewna cena
-                          </span>
+                          <p className="text-[11px] font-semibold text-[#a94d22] bg-[#fff2ec] border border-[#ffd4c4] rounded-lg px-2 py-1 mb-2">
+                            OCR nie był pewny kwoty. Uzupełnij ręcznie przed zapisem.
+                          </p>
                         )}
+
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          <select
+                            className="w-full text-xs bg-white border border-[#f5e5cf] rounded-xl px-2 py-2.5 outline-none font-bold text-[#6d4d38]"
+                            value={item.categoryId || ""}
+                            onChange={(e) =>
+                              updateItem(item.id, {
+                                categoryId: e.target.value as Id<"categories">,
+                                subcategoryId: null,
+                              })
+                            }
+                          >
+                            <option value="" disabled>
+                              Wybierz kateg...
+                            </option>
+                            {categories?.map((c) => (
+                              <option key={c._id} value={c._id}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </select>
+
+                          <select
+                            className="w-full text-xs bg-white border border-[#f5e5cf] rounded-xl px-2 py-2.5 outline-none font-bold text-[#6d4d38]"
+                            value={item.subcategoryId || ""}
+                            onChange={(e) =>
+                              updateItem(item.id, {
+                                subcategoryId: e.target.value as Id<"subcategories">,
+                              })
+                            }
+                            disabled={!item.categoryId}
+                          >
+                            <option value="" disabled>
+                              Podkategoria...
+                            </option>
+                            {selectedCat?.subcategories.map((s: any) => (
+                              <option key={s._id} value={s._id}>
+                                {s.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
-                      <button
-                        onClick={() => removeItem(item.id)}
-                        className="text-red-400 hover:text-red-500 text-xs font-bold p-1"
-                      >
-                        Usuń
-                      </button>
-                    </div>
+                    );
+                  })}
+                </div>
 
-                    <div className="flex gap-2 mb-3">
-                      <input
-                        type="text"
-                        value={item.description}
-                        onChange={(e) => updateItem(item.id, { description: e.target.value })}
-                        className="flex-1 text-sm bg-white border border-[#f5e5cf] rounded-xl px-3 py-2 outline-none focus:border-[#cf833f] font-bold text-[#3e2815]"
-                        placeholder="Opis produktu"
-                      />
-                      <div className="relative w-[8.5rem]">
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={item.amount}
-                          onChange={(e) => updateItem(item.id, { amount: e.target.value })}
-                          className={`w-full text-[15px] bg-white border rounded-xl px-3 py-2.5 pr-9 outline-none font-bold text-right tabular-nums ${
-                            uncertainPrice
-                              ? "border-[#f3a086] text-[#b74210] focus:border-[#d95d27]"
-                              : "border-[#f5e5cf] text-[#cf833f] focus:border-[#cf833f]"
-                          }`}
-                          placeholder="0.00"
-                        />
-                        <span className="absolute right-3 top-2.5 text-[13px] font-bold text-[#b89b87] pointer-events-none">
-                          zł
-                        </span>
-                      </div>
-                    </div>
-
-                    {uncertainPrice && (
-                      <p className="text-[11px] font-semibold text-[#a94d22] bg-[#fff2ec] border border-[#ffd4c4] rounded-lg px-2 py-1 mb-2">
-                        OCR nie był pewny kwoty. Uzupełnij ręcznie przed zapisem.
-                      </p>
-                    )}
-
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                      <select
-                        className="w-full text-xs bg-white border border-[#f5e5cf] rounded-xl px-2 py-2.5 outline-none font-bold text-[#6d4d38]"
-                        value={item.categoryId || ""}
-                        onChange={(e) =>
-                          updateItem(item.id, {
-                            categoryId: e.target.value as Id<"categories">,
-                            subcategoryId: null,
-                          })
-                        }
-                      >
-                        <option value="" disabled>
-                          Wybierz kateg...
-                        </option>
-                        {categories?.map((c) => (
-                          <option key={c._id} value={c._id}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-
-                      <select
-                        className="w-full text-xs bg-white border border-[#f5e5cf] rounded-xl px-2 py-2.5 outline-none font-bold text-[#6d4d38]"
-                        value={item.subcategoryId || ""}
-                        onChange={(e) =>
-                          updateItem(item.id, {
-                            subcategoryId: e.target.value as Id<"subcategories">,
-                          })
-                        }
-                        disabled={!item.categoryId}
-                      >
-                        <option value="" disabled>
-                          Podkategoria...
-                        </option>
-                        {selectedCat?.subcategories.map((s: any) => (
-                          <option key={s._id} value={s._id}>
-                            {s.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <button
-              onClick={() =>
-                setItems([
-                  ...items,
-                  {
-                    id: crypto.randomUUID(),
-                    description: "",
-                    amount: "",
-                    categoryId: null,
-                    subcategoryId: null,
-                  },
-                ])
-              }
-              className="mt-4 w-full py-3 border-2 border-dashed border-[#d2bcad]/60 text-[#8a7262] bg-white/30 rounded-2xl font-bold text-sm hover:border-[#cf833f]/50 hover:bg-white/50 transition-colors"
-            >
-              + Dodaj kolejną pozycję ręcznie
-            </button>
-            </div>
+                <button
+                  onClick={() =>
+                    setItems([
+                      ...items,
+                      {
+                        id: crypto.randomUUID(),
+                        description: "",
+                        amount: "",
+                        categoryId: null,
+                        subcategoryId: null,
+                      },
+                    ])
+                  }
+                  className="mt-4 w-full py-3 border-2 border-dashed border-[#d2bcad]/60 text-[#8a7262] bg-white/30 rounded-2xl font-bold text-sm hover:border-[#cf833f]/50 hover:bg-white/50 transition-colors"
+                >
+                  + Dodaj kolejną pozycję ręcznie
+                </button>
+              </div>
             </div>
           </div>
 
