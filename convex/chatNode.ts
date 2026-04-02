@@ -24,18 +24,46 @@ export const sendMessage = action({
     const monthFrom = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
     const monthTo = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).getTime();
 
-    const totals = await ctx.runQuery(api.analytics.totalsPerCategory, {
+    const monthExpenses = await ctx.runQuery(api.expenses.list, {
       householdId: args.householdId,
       dateFrom: monthFrom,
       dateTo: monthTo,
+      limit: 500,
     });
-    const categories = await ctx.runQuery(api.categories.listForHousehold, {
-      householdId: args.householdId,
-    });
-    const categoryMap = new Map(categories.map(c => [c._id.toString(), c.name]));
-    const financialInfo = totals.length > 0 
-      ? totals.map(t => `- ${categoryMap.get(t.id.toString()) || 'Inne'}: ${(t.total/100).toFixed(2)} PLN`).join("\n")
-      : "Brak wydatków w tym miesiącu.";
+
+    // Group expenses by category and then subcategory
+    const catMap = new Map<string, { total: number; name: string; subs: Map<string, { total: number; name: string }> }>();
+    
+    for (const exp of monthExpenses) {
+      if (!exp.category) continue;
+      const catId = exp.category._id;
+      const catName = exp.category.name;
+      const subName = exp.subcategory?.name || "Inne";
+      const amount = exp.amount; // stored in cents
+
+      if (!catMap.has(catId)) {
+        catMap.set(catId, { total: 0, name: catName, subs: new Map() });
+      }
+      const c = catMap.get(catId)!;
+      c.total += amount;
+
+      if (!c.subs.has(subName)) {
+        c.subs.set(subName, { total: 0, name: subName });
+      }
+      c.subs.get(subName)!.total += amount;
+    }
+
+    let financialInfo = "";
+    if (catMap.size === 0) {
+      financialInfo = "Brak wydatków w tym miesiącu.";
+    } else {
+      for (const [_, c] of Array.from(catMap.entries())) {
+         financialInfo += `- ${c.name} (Razem: ${(c.total / 100).toFixed(2)} PLN)\n`;
+         for (const [_, s] of Array.from(c.subs.entries())) {
+           financialInfo += `   * ${s.name}: ${(s.total / 100).toFixed(2)} PLN\n`;
+         }
+      }
+    }
 
     // 3. Prepare system prompt
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });

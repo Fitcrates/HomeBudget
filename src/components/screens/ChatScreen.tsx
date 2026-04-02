@@ -155,7 +155,11 @@ function ChatView({ householdId }: { householdId: Id<"households"> }) {
                     <div className="text-[14px] font-medium leading-relaxed prose prose-sm prose-orange max-w-none text-[#2b180a]">
                       <ReactMarkdown
                         components={{
-                          li: ({ children, ...props }) => {
+                          li: ({ children, ordered, ...props }: any) => {
+                            if (!ordered) {
+                              return <li className="ml-6 mb-1.5 list-disc pl-1 break-words marker:text-[#cf833f]">{children}</li>;
+                            }
+                            
                             const [done, setDone] = useState(false);
                             return (
                               <li 
@@ -166,7 +170,7 @@ function ChatView({ householdId }: { householdId: Id<"households"> }) {
                                 <span className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded-full border border-current flex items-center justify-center transition-colors ${done ? 'bg-current' : 'opacity-70'}`}>
                                   {done && <Check className="w-3 h-3 text-white" />}
                                 </span>
-                                <span className={`${done ? 'line-through' : ''}`}>
+                                <span className={`${done ? 'line-through break-words' : 'break-words'}`}>
                                   {children}
                                 </span>
                               </li>
