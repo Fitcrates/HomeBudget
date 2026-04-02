@@ -146,6 +146,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
       return;
     }
     setProcessing(true);
+    const startTime = Date.now();
     try {
       // Zwracamy zawsze isPdf: false, bo PDF został już przerobiony na obrazy w przeglądarce
       const result = (await processAI({
@@ -191,6 +192,11 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
         },
       ]);
     } finally {
+      const elapsed = Date.now() - startTime;
+      const minLoadingTime = 2000;
+      if (elapsed < minLoadingTime) {
+        await new Promise((resolve) => setTimeout(resolve, minLoadingTime - elapsed));
+      }
       setProcessing(false);
     }
   }

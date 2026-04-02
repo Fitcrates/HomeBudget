@@ -18,7 +18,7 @@ function getGroq() {
 }
 
 // 11B is fast and supports vision. 90B is better but you can switch to `llama-3.2-90b-vision-preview`
-const VISION_MODEL = "llama-3.2-11b-vision-preview";
+const VISION_MODEL = "llama-3.2-90b-vision-preview";
 
 // ── System Prompt (short for speed) ───────────────────────────────
 
