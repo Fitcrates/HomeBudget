@@ -4,6 +4,8 @@ import { v } from "convex/values";
 import { action } from "./_generated/server";
 import OpenAI from "openai";
 
+// ── Configuration ─────────────────────────────────────────────────
+
 function getOpenAI() {
   return new OpenAI({
     baseURL: process.env.CONVEX_OPENAI_BASE_URL,
@@ -11,9 +13,76 @@ function getOpenAI() {
   });
 }
 
-const DEFAULT_VISION_MODEL = "gpt-4o-mini";
+/**
+ * GPT-4o provides dramatically better OCR accuracy than gpt-4o-mini:
+ * - Better at reading small/blurry text on receipts
+ * - Better at understanding Polish abbreviations on receipts
+ * - Better at categorization of products
+ * - Supports high-detail image processing
+ */
+const VISION_MODEL = "gpt-4o";
 
-function extractJsonBlock(text: string) {
+/**
+ * System prompt engineered for maximum receipt OCR accuracy.
+ * Key principles:
+ * - Explicit rules about reading ALL items
+ * - Discount/rebate handling (common on Polish receipts: "Opust")
+ * - Category assignment guidance with Polish product name understanding
+ */
+const SYSTEM_PROMPT = `Jesteś światowej klasy ekspertem OCR specjalizującym się w odczycie polskich paragonów, faktur i rachunków.
+
+ABSOLUTNE ZASADY (nigdy ich nie łam):
+
+1. WYODRĘBNIJ KAŻDY PRODUKT — nie pomijaj ŻADNEJ pozycji zakupowej
+2. Używaj KOŃCOWEJ ceny po rabacie:
+   - Gdy pod produktem jest "Opust" lub "Rabat" → użyj ceny PO obniżce
+   - NIE twórz osobnej pozycji dla linii rabatu
+3. Czytaj kolumnę "Wartość"/"Wart." (wartość ŁĄCZNA = ilość × cena), NIE cenę jednostkową
+4. Ignoruj: sumy, podatki PTU/VAT, kaucje za opakowania, informacje o płatności
+5. Przypisuj kategorie precyzyjnie — rozumiesz polskie skróty na paragonach
+6. Jeśli produkt jest w ilości >1, podaj ŁĄCZNĄ wartość (np. 3 × 2.50 = "7.50")
+
+ROZUMIENIE POLSKICH SKRÓTÓW NA PARAGONACH:
+- "MLK" = mleko → Nabiał i jaja
+- "SER" = ser → Nabiał i jaja  
+- "MSO" / "MIĘS" = mięso → Mięso i wędliny
+- "WAR" / "WARZ" = warzywa → Owoce i warzywa
+- "OW" / "OWOC" = owoce → Owoce i warzywa
+- "PIW" = piwo → Alkohol
+- "SOK" = sok → Napoje bezalkoholowe
+- "CHLEB" / "BUŁ" = pieczywo → Piekarnia
+- "MRO" / "MROZ" = mrożonki → Mrożonki
+- "ŚR.CZ" / "ŚROD" = środek czystości → Chemia domowa
+- "PRAL" / "PŁYN" = pranie/płyn → Chemia domowa
+- "KARM" = karma → Zwierzęta
+- "PIEL" = pieluchy/pielęgnacja → kontekstowo
+
+Zawsze staraj się przypisać kategorię — null tylko gdy absolutnie nie wiadomo.`;
+
+// ── Type Definitions ──────────────────────────────────────────────
+
+interface ProcessedReceiptItem {
+  description: string;
+  amount: string;
+  categoryId: string | null;
+  subcategoryId: string | null;
+}
+
+interface ProcessReceiptResult {
+  items: ProcessedReceiptItem[];
+  rawText: string;
+  modelUsed: string;
+}
+
+interface CategoryPromptItem {
+  id: string;
+  name: string;
+  subcategories: { id: string; name: string }[];
+}
+
+// ── Utility Functions ─────────────────────────────────────────────
+
+function extractJsonBlock(text: string): string {
   const trimmed = text.trim();
   if (!trimmed) return "";
 
@@ -42,7 +111,7 @@ function extractJsonBlock(text: string) {
   return withoutFences;
 }
 
-function normalizeAmount(value: unknown) {
+function normalizeAmount(value: unknown): string {
   if (typeof value !== "string" && typeof value !== "number") return "";
   const text = String(value).replace(",", ".").replace(/[^\d.-]/g, "").trim();
   if (!text) return "";
@@ -51,167 +120,393 @@ function normalizeAmount(value: unknown) {
   return parsed.toFixed(2);
 }
 
-function asString(value: unknown) {
+function asString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-export const getFileUrl = action({
-  args: { storageId: v.id("_storage") },
-  handler: async (ctx, args) => {
-    const url = await ctx.storage.getUrl(args.storageId);
-    if (!url) return null;
-    return url;
-  },
-});
+// ── Category Data Preparation ─────────────────────────────────────
 
-interface ProcessedReceiptItem {
-  description: string;
-  amount: string;
-  categoryId: string | null;
-  subcategoryId: string | null;
-}
+function prepareCategoryData(categories: any) {
+  const categoriesArray = Array.isArray(categories) ? categories : [];
+  const categoryIds = new Set<string>();
+  const subcategoryIdsByCategory = new Map<string, Set<string>>();
 
-interface ProcessReceiptResult {
-  items: ProcessedReceiptItem[];
-  rawText: string;
-  modelUsed: string;
-}
+  const categoryPromptData: CategoryPromptItem[] = categoriesArray.map(
+    (category: any) => {
+      const categoryId = asString(category?._id);
+      const categoryName = asString(category?.name);
+      const subs = Array.isArray(category?.subcategories)
+        ? category.subcategories
+        : [];
 
-export const processReceiptWithAI = action({
-  args: {
-    storageIds: v.array(v.id("_storage")),
-    categories: v.any(),
-    isPdf: v.optional(v.boolean()),
-  },
-  handler: async (ctx, args): Promise<ProcessReceiptResult> => {
-    try {
-      console.log("=== processReceiptWithAI START ===", {
-        storageIdCount: args.storageIds.length,
-        isPdf: args.isPdf,
-        firstStorageId: args.storageIds[0]
+      if (categoryId) categoryIds.add(categoryId);
+
+      const subSet = new Set<string>();
+      const subcategories = subs.map((sub: any) => {
+        const subId = asString(sub?._id);
+        const subName = asString(sub?.name);
+        if (subId) subSet.add(subId);
+        return { id: subId, name: subName };
       });
-      
-      // PDF path: Not supported - ask user to take photo
-      if (args.isPdf) {
-        console.log("PDF upload detected - rejecting (not supported)");
-        throw new Error(
-          "PDFy nie są obecnie obsługiwane. " +
-          "Użyj aparatu w aplikacji aby zrobić zdjęcie paragonu lub faktury."
-        );
+
+      if (categoryId) {
+        subcategoryIdsByCategory.set(categoryId, subSet);
       }
 
-      // Image path: use OpenAI vision
-      console.log("Processing as image");
-      const url = await ctx.storage.getUrl(args.storageIds[0]);
-      if (!url) throw new Error("File not found");
-
-      const imageRes = await fetch(url);
-      const arrayBuffer = await imageRes.arrayBuffer();
-      const base64Data = Buffer.from(arrayBuffer).toString('base64');
-      const mimeType = imageRes.headers.get("content-type") || "image/jpeg";
-      
-      console.log("Image loaded, sending to Vision API");
-
-      return await processImageWithOpenAI(base64Data, mimeType, args.categories);
-    } catch (error: any) {
-      console.error("=== FATAL ERROR in processReceiptWithAI ===", {
-        message: error.message,
-        name: error.name,
-        stack: error.stack
-      });
-      throw error;
+      return { id: categoryId, name: categoryName, subcategories };
     }
+  );
+
+  return { categoryPromptData, categoryIds, subcategoryIdsByCategory };
+}
+
+// ── Prompt Builder ────────────────────────────────────────────────
+
+function buildPrompt(
+  categoryPromptData: CategoryPromptItem[],
+  documentText?: string
+): string {
+  const sourceDescription = documentText
+    ? "poniższy tekst wyodrębniony z dokumentu"
+    : "załączony obraz/obrazy paragonu lub faktury";
+
+  const textSection = documentText
+    ? `\nTEKST DOKUMENTU DO ANALIZY:\n"""\n${documentText}\n"""\n`
+    : "";
+
+  return `Przeanalizuj ${sourceDescription} i wyodrębnij WSZYSTKIE pozycje zakupowe.
+${textSection}
+## ZASADY EKSTRAKCJI:
+
+### CZYTANIE POZYCJI
+- Wyodrębnij ABSOLUTNIE KAŻDY produkt/usługę z dokumentu
+- Jeśli widzisz wiele obrazów, przeanalizuj je WSZYSTKIE łącznie jako jeden paragon/fakturę
+- Dla tabel: czytaj kolumnę "Wartość" / "Wart." / "Kwota brutto" (wartość końcowa)
+- NIE czytaj kolumny z ceną jednostkową — czytaj WARTOŚĆ (ilość × cena)
+- Jeśli "3 x 2.50" → podaj jedną pozycję za "7.50"
+
+### RABATY I OPUSTY
+- "Opust" / "Rabat" pod produktem → użyj CENY PO RABACIE
+- Przykład: Masło 7.99 → Opust -2.00 → podaj "5.99"
+- NIE twórz osobnej pozycji dla rabatu
+
+### FORMAT KWOTY
+- Tylko liczba: "12.98" (kropka jako separator dziesiętny)
+- Konwertuj przecinek: "5,99" → "5.99"
+- Bez walut: nie dodawaj "zł", "PLN"
+
+### IGNORUJ (NIE twórz pozycji):
+- Sumy: "Suma", "SUMA PTU", "DO ZAPŁATY", "Razem", "Należność"
+- Podatek: linie VAT/PTU (A=, B=, C=)
+- Opakowania: "kaucja", "But Plastik kaucja"
+- Płatność: informacje o karcie, gotówce, reszcie
+- Nagłówki: nazwa sklepu, adres, NIP, data, numer paragonu
+- "Sprzedaż opodatkowana", "Rabat łączny"
+
+### KATEGORYZACJA
+Przypisz categoryId i subcategoryId z poniższej listy.
+Wskazówki kontekstowe:
+- Produkty spożywcze z supermarketu → "Żywność i napoje"
+  • Mleko, ser, masło, jaja, śmietana → podkategoria "Nabiał i jaja"
+  • Mięso, kiełbasa, szynka, kurczak → "Mięso i wędliny"
+  • Jabłka, pomidory, sałata → "Owoce i warzywa"
+  • Chleb, bułki → "Piekarnia"
+  • Woda, sok, cola → "Napoje bezalkoholowe"
+  • Piwo, wino, wódka → "Alkohol"
+  • Makaron, ryż, mąka → "Produkty sypkie"
+  • Czekolada, chipsy → "Słodycze i przekąski"
+  • Pizza mrożona, pierogi → "Mrożonki" lub "Gotowe dania"
+- Środki czystości → "Chemia domowa i higiena"
+  • Proszek, płyn do prania → "Pranie"
+  • Płyn do naczyń → "Zmywanie"
+  • Pasta, szczoteczka → "Higiena osobista"
+- Leki bez recepty → "Zdrowie i uroda" → "Apteka"
+- Karma dla zwierząt → "Zwierzęta" → "Karma"
+
+DOZWOLONE KATEGORIE I PODKATEGORIE (używaj TYLKO tych ID):
+${JSON.stringify(categoryPromptData, null, 2)}
+
+## WYMAGANY FORMAT ODPOWIEDZI (ścisły JSON):
+{
+  "rawText": "Nazwa sklepu, data zakupu, adres (krótka transkrypcja nagłówka, max 200 znaków)",
+  "items": [
+    {
+      "description": "Pełna nazwa produktu (przepisz z paragonu)",
+      "amount": "12.98",
+      "categoryId": "id_kategorii_lub_null",
+      "subcategoryId": "id_podkategorii_lub_null"
+    }
+  ]
+}
+
+KRYTYCZNE: Zwróć KOMPLETNĄ listę WSZYSTKICH produktów. Lepiej dodać pozycję za dużo niż pominąć cokolwiek!`;
+}
+
+// ── Response Parser & Normalizer ──────────────────────────────────
+
+function parseAndNormalizeResponse(
+  content: string,
+  categoryIds: Set<string>,
+  subcategoryIdsByCategory: Map<string, Set<string>>,
+  modelUsed: string
+): ProcessReceiptResult {
+  try {
+    const extracted = extractJsonBlock(content);
+    const parsed = JSON.parse(extracted || "{}");
+
+    const parsedItems = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.items)
+        ? parsed.items
+        : [];
+
+    console.log(`AI returned ${parsedItems.length} raw items`);
+
+    const normalizedItems: ProcessedReceiptItem[] = parsedItems
+      .map((item: any) => {
+        const description = asString(item?.description) || "Nieznana pozycja";
+        const amount = normalizeAmount(item?.amount);
+
+        const categoryIdCandidate = asString(item?.categoryId);
+        const categoryId = categoryIds.has(categoryIdCandidate)
+          ? categoryIdCandidate
+          : null;
+
+        const subcategoryIdCandidate = asString(item?.subcategoryId);
+        const isSubcategoryAllowed =
+          !!categoryId &&
+          !!subcategoryIdCandidate &&
+          !!subcategoryIdsByCategory
+            .get(categoryId)
+            ?.has(subcategoryIdCandidate);
+
+        return {
+          description,
+          amount,
+          categoryId,
+          subcategoryId: isSubcategoryAllowed ? subcategoryIdCandidate : null,
+        };
+      })
+      .filter(
+        (item: ProcessedReceiptItem) =>
+          item.amount || item.description !== "Nieznana pozycja"
+      );
+
+    const rawText = asString(parsed?.rawText);
+
+    console.log(
+      `Normalized to ${normalizedItems.length} valid items (model: ${modelUsed})`
+    );
+
+    return { items: normalizedItems, rawText, modelUsed };
+  } catch (e) {
+    console.error("Failed to parse AI JSON:", e);
+    console.error("Raw content preview:", content.substring(0, 500));
+    return { items: [], rawText: "", modelUsed };
   }
-});
+}
 
-async function processTextWithOpenAI(
+// ── PDF Text Extraction (using unpdf) ─────────────────────────────
+
+async function extractPdfText(
+  pdfBuffer: ArrayBuffer
+): Promise<{ text: string; pageCount: number }> {
+  try {
+    const { extractText } = await import("unpdf");
+    const result = await extractText(new Uint8Array(pdfBuffer), {
+      mergePages: true,
+    });
+
+    // unpdf returns string when mergePages:true, but we guard for safety
+    const rawText = result.text as unknown;
+    const text =
+      typeof rawText === "string"
+        ? rawText
+        : Array.isArray(rawText)
+          ? (rawText as string[]).join("\n")
+          : "";
+
+    console.log("unpdf extraction:", {
+      textLength: text.length,
+      totalPages: result.totalPages,
+      preview: text.substring(0, 200),
+    });
+
+    return { text: text.trim(), pageCount: result.totalPages ?? 1 };
+  } catch (error: any) {
+    const msg = error?.message ?? "";
+    console.error("unpdf extraction failed:", msg);
+
+    // Detect password-protected PDFs
+    if (
+      msg.toLowerCase().includes("password") ||
+      msg.toLowerCase().includes("encrypt")
+    ) {
+      throw new Error(
+        "Ten plik PDF jest chroniony hasłem. " +
+          "Odblokuj go przed przesłaniem lub zrób zdjęcie dokumentu aparatem."
+      );
+    }
+
+    // Re-throw with context for other failures
+    throw new Error(`PDF_EXTRACT_FAILED: ${msg}`);
+  }
+}
+
+// ── AI Processing: Text ───────────────────────────────────────────
+
+async function processTextWithAI(
   text: string,
-  categories: any
+  categoryPromptData: CategoryPromptItem[],
+  categoryIds: Set<string>,
+  subcategoryIdsByCategory: Map<string, Set<string>>
 ): Promise<ProcessReceiptResult> {
-  const { categoryPromptData, categoryIds, subcategoryIdsByCategory } = 
-    prepareCategoryData(categories);
-
-  const truncatedText = text.slice(0, 4000);
-  
-  console.log("Processing text with OpenAI:", {
-    textLength: text.length,
-    truncatedLength: truncatedText.length,
-    preview: truncatedText.substring(0, 200)
-  });
-  
+  const truncatedText = text.slice(0, 10000);
   const prompt = buildPrompt(categoryPromptData, truncatedText);
+
+  console.log("Sending extracted text to GPT-4o:", {
+    textLength: truncatedText.length,
+  });
 
   try {
     const resp = await getOpenAI().chat.completions.create({
-      model: DEFAULT_VISION_MODEL,
-      temperature: 0.1,
-      max_tokens: 4096,
+      model: VISION_MODEL,
+      temperature: 0.05,
+      max_tokens: 8192,
       messages: [
-        { 
-          role: "system", 
-          content: "Jesteś ekspertem OCR specjalizującym się w odczycie paragonów. KRYTYCZNE: Gdy widzisz 'Opust' lub 'Rabat' pod produktem, MUSISZ użyć ceny z linii rabatu, NIE oryginalnej ceny. Zawsze używaj KOŃCOWEJ ceny po rabacie."
-        },
-        { role: "user", content: prompt }
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: prompt },
       ],
       response_format: { type: "json_object" },
     });
 
     const content = resp.choices[0].message.content ?? "{}";
-    console.log("OpenAI response received:", {
-      contentLength: content.length,
-      preview: content.substring(0, 200)
-    });
-    
-    const result = parseAndNormalizeResponse(content, categoryIds, subcategoryIdsByCategory, DEFAULT_VISION_MODEL);
-    console.log("Parsed result:", {
-      itemCount: result.items.length,
-      items: result.items.map(i => ({ desc: i.description, amt: i.amount }))
-    });
-    
+    const result = parseAndNormalizeResponse(
+      content,
+      categoryIds,
+      subcategoryIdsByCategory,
+      VISION_MODEL
+    );
+
+    // Verification pass: if suspiciously few items from substantial text, retry
+    if (result.items.length < 2 && text.length > 300) {
+      console.log(
+        `Only ${result.items.length} items from ${text.length} chars of text — retrying with emphasis`
+      );
+      return await retryWithEmphasis(
+        prompt,
+        categoryIds,
+        subcategoryIdsByCategory
+      );
+    }
+
     return result;
   } catch (err: any) {
-    console.error("OpenAI error:", err);
-    throw new Error(`Błąd AI: ${err?.message || "Nieznany błąd"}. Spróbuj ponownie.`);
+    console.error("GPT-4o text processing error:", err?.message);
+    throw new Error(
+      `Błąd przetwarzania AI: ${err?.message || "Nieznany błąd"}. Spróbuj ponownie.`
+    );
   }
 }
 
-async function processImageWithOpenAI(
-  base64Data: string,
-  mimeType: string,
-  categories: any
-): Promise<ProcessReceiptResult> {
-  const { categoryPromptData, categoryIds, subcategoryIdsByCategory } = 
-    prepareCategoryData(categories);
+// ── AI Processing: Vision (Images) ────────────────────────────────
 
-  console.log("=== processImageWithOpenAI START ===", {
-    mimeType,
-    base64Length: base64Data.length,
-    categoryCount: categoryPromptData.length,
-    categories: categoryPromptData.map(c => ({ id: c.id, name: c.name, subCount: c.subcategories.length }))
+async function processImagesWithAI(
+  imageDataList: { base64: string; mimeType: string }[],
+  categoryPromptData: CategoryPromptItem[],
+  categoryIds: Set<string>,
+  subcategoryIdsByCategory: Map<string, Set<string>>
+): Promise<ProcessReceiptResult> {
+  const prompt = buildPrompt(categoryPromptData);
+
+  // Build content array with ALL images for a single comprehensive analysis
+  const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+    { type: "text" as const, text: prompt },
+  ];
+
+  for (const img of imageDataList) {
+    contentParts.push({
+      type: "image_url" as const,
+      image_url: {
+        url: `data:${img.mimeType};base64,${img.base64}`,
+        detail: "high", // Critical for small receipt text
+      },
+    });
+  }
+
+  console.log("Sending to GPT-4o vision:", {
+    imageCount: imageDataList.length,
+    totalBase64Bytes: imageDataList.reduce((s, i) => s + i.base64.length, 0),
   });
 
+  try {
+    const resp = await getOpenAI().chat.completions.create({
+      model: VISION_MODEL,
+      temperature: 0.05,
+      max_tokens: 8192,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: contentParts },
+      ],
+      response_format: { type: "json_object" },
+    });
+
+    const content = resp.choices[0].message.content ?? "{}";
+    console.log("GPT-4o vision response:", {
+      contentLength: content.length,
+      usage: resp.usage,
+    });
+
+    const result = parseAndNormalizeResponse(
+      content,
+      categoryIds,
+      subcategoryIdsByCategory,
+      VISION_MODEL
+    );
+
+    console.log(
+      `Vision extracted ${result.items.length} items from ${imageDataList.length} image(s)`
+    );
+    return result;
+  } catch (err: any) {
+    console.error("GPT-4o vision error:", err?.message);
+    throw new Error(
+      `Błąd AI Vision: ${err?.message || "Nieznany błąd"}. Spróbuj ponownie.`
+    );
+  }
+}
+
+// ── AI Processing: PDF as Vision (fallback for scanned PDFs) ──────
+
+async function processPdfAsVision(
+  pdfBase64: string,
+  categoryPromptData: CategoryPromptItem[],
+  categoryIds: Set<string>,
+  subcategoryIdsByCategory: Map<string, Set<string>>
+): Promise<ProcessReceiptResult> {
   const prompt = buildPrompt(categoryPromptData);
-  console.log("Prompt length:", prompt.length);
+
+  console.log("Attempting PDF vision (scanned PDF fallback):", {
+    pdfBase64Length: pdfBase64.length,
+  });
 
   try {
-    console.log("Calling OpenAI Vision API...");
+    // GPT-4o can accept PDFs as data URIs in the image_url field
     const resp = await getOpenAI().chat.completions.create({
-      model: DEFAULT_VISION_MODEL,
-      temperature: 0.1,
-      max_tokens: 4096,
+      model: VISION_MODEL,
+      temperature: 0.05,
+      max_tokens: 8192,
       messages: [
-        {
-          role: "system",
-          content: "Jesteś ekspertem OCR specjalizującym się w odczycie paragonów. KRYTYCZNE: Gdy widzisz 'Opust' lub 'Rabat' pod produktem, MUSISZ użyć ceny z linii rabatu, NIE oryginalnej ceny. Zawsze używaj KOŃCOWEJ ceny po rabacie."
-        },
+        { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
           content: [
-            { type: "text", text: prompt },
+            { type: "text" as const, text: prompt },
             {
-              type: "image_url",
+              type: "image_url" as const,
               image_url: {
-                url: `data:${mimeType};base64,${base64Data}`,
+                url: `data:application/pdf;base64,${pdfBase64}`,
+                detail: "high",
               },
             },
           ],
@@ -221,194 +516,258 @@ async function processImageWithOpenAI(
     });
 
     const content = resp.choices[0].message.content ?? "{}";
-    console.log("=== OpenAI Vision Response ===", {
-      contentLength: content.length,
-      rawContent: content,
-      tokensUsed: resp.usage
-    });
-    
-    const result = parseAndNormalizeResponse(content, categoryIds, subcategoryIdsByCategory, DEFAULT_VISION_MODEL);
-    console.log("=== Parsed Result ===", {
-      itemCount: result.items.length,
-      items: result.items
-    });
-    
-    return result;
+    return parseAndNormalizeResponse(
+      content,
+      categoryIds,
+      subcategoryIdsByCategory,
+      `${VISION_MODEL} (pdf-vision)`
+    );
   } catch (err: any) {
-    console.error("=== OpenAI vision error ===", {
-      message: err?.message,
-      error: err?.error,
-      status: err?.status,
-      stack: err?.stack
-    });
-    throw new Error(`Błąd AI: ${err?.message || "Nieznany błąd"}. Spróbuj ponownie.`);
+    console.error("PDF vision fallback failed:", err?.message);
+    throw new Error(
+      "Nie udało się odczytać tego PDF-a. " +
+        "Plik może zawierać zeskanowane obrazy w nieobsługiwanym formacie. " +
+        "Spróbuj zrobić zdjęcie dokumentu aparatem i przesłać jako obraz."
+    );
   }
 }
 
-function prepareCategoryData(categories: any) {
-  const categoriesArray = Array.isArray(categories) ? categories : [];
-  const categoryIds = new Set<string>();
-  const subcategoryIdsByCategory = new Map<string, Set<string>>();
-  
-  const categoryPromptData = categoriesArray.map((category: any) => {
-    const categoryId = asString(category?._id);
-    const categoryName = asString(category?.name);
-    const subs = Array.isArray(category?.subcategories) ? category.subcategories : [];
+// ── Retry Logic ───────────────────────────────────────────────────
 
-    if (categoryId) categoryIds.add(categoryId);
+async function retryWithEmphasis(
+  originalPrompt: string,
+  categoryIds: Set<string>,
+  subcategoryIdsByCategory: Map<string, Set<string>>
+): Promise<ProcessReceiptResult> {
+  const retryPrompt = `UWAGA: Poprzednia analiza mogła pominąć pozycje. Przeczytaj PONOWNIE, DOKŁADNIEJ.
+Szukaj KAŻDEJ linii z ceną. Nawet jeśli tekst jest nieczytelny, spróbuj go odczytać.
+Upewnij się, że masz WSZYSTKIE produkty!
 
-    const subSet = new Set<string>();
-    const subcategories = subs.map((sub: any) => {
-      const subId = asString(sub?._id);
-      const subName = asString(sub?.name);
-      if (subId) subSet.add(subId);
-      return { id: subId, name: subName };
-    });
+${originalPrompt}`;
 
-    if (categoryId) {
-      subcategoryIdsByCategory.set(categoryId, subSet);
-    }
+  console.log("Retry with emphasis...");
 
-    return {
-      id: categoryId,
-      name: categoryName,
-      subcategories,
-    };
+  const resp = await getOpenAI().chat.completions.create({
+    model: VISION_MODEL,
+    temperature: 0.1,
+    max_tokens: 8192,
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: retryPrompt },
+    ],
+    response_format: { type: "json_object" },
   });
 
-  return { categoryPromptData, categoryIds, subcategoryIdsByCategory };
+  const content = resp.choices[0].message.content ?? "{}";
+  return parseAndNormalizeResponse(
+    content,
+    categoryIds,
+    subcategoryIdsByCategory,
+    `${VISION_MODEL} (retry)`
+  );
 }
 
-function buildPrompt(categoryPromptData: any[], documentText?: string) {
-  const textSection = documentText 
-    ? `Tekst dokumentu:\n${documentText}\n\n`
-    : "";
+// ── PDF Processing Orchestrator ───────────────────────────────────
 
-  return `Jesteś asystentem OCR i kategoryzacji wydatków domowych.
-Przeanalizuj ${documentText ? "poniższy tekst" : "obraz"} paragonu lub faktury i zwróć WSZYSTKIE pozycje zakupowe.
+async function processPdfDocument(
+  pdfBuffer: ArrayBuffer,
+  pdfBase64: string,
+  categories: any
+): Promise<ProcessReceiptResult> {
+  const { categoryPromptData, categoryIds, subcategoryIdsByCategory } =
+    prepareCategoryData(categories);
 
-${textSection}ZASADY ODCZYTU:
+  console.log("=== PDF Processing Pipeline ===", {
+    fileSize: pdfBuffer.byteLength,
+    categoryCount: categoryPromptData.length,
+  });
 
-1) CZYTAJ WSZYSTKIE PRODUKTY:
-   - Przeczytaj KAŻDY produkt z paragonu/faktury
-   - NIE pomijaj żadnych pozycji
-   - Dla paragonów: czytaj kolumnę "Wartość" (ostatnia kolumna z ceną)
-   - Dla faktur: czytaj kolumnę "Kwota"
+  // Step 1: Try text extraction with unpdf
+  let extractedText = "";
+  let extractionFailed = false;
 
-2) RABATY (OPUST):
-   - Jeśli pod produktem jest "Opust" - użyj KOŃCOWEJ ceny (po rabacie)
-   - Przykład: Produkt 19.47 → Opust → 12.98 = użyj "12.98"
-   - NIE twórz osobnej pozycji dla "Opust"
-
-3) IGNORUJ:
-   - Sumy ("Suma", "Suma PTU", "DO ZAPŁATY", "Należna kwota")
-   - Opakowania zwrotne ("But Plastik kaucja")
-   - Płatność, reszta, numery transakcji
-
-4) FORMAT KWOTY:
-   - Tylko liczba z kropką: "12.98" (bez "zł", "PLN", "USD")
-   - Konwertuj przecinek na kropkę: "5,00" → "5.00"
-
-5) KATEGORYZACJA:
-   - Wybierz categoryId i subcategoryId z listy poniżej
-   - Jeśli niepewne: null
-
-Dozwolone kategorie:
-${JSON.stringify(categoryPromptData, null, 2)}
-
-WAŻNE: Zwróć WSZYSTKIE produkty z paragonu, nie pomijaj żadnych!
-
-Zwróć JSON:
-{
-  "rawText": "krótka transkrypcja",
-  "items": [
-    {
-      "description": "Nazwa produktu",
-      "amount": "12.98",
-      "categoryId": "id_lub_null",
-      "subcategoryId": "id_lub_null"
-    }
-  ]
-}`;
-}
-
-function parseAndNormalizeResponse(
-  content: string,
-  categoryIds: Set<string>,
-  subcategoryIdsByCategory: Map<string, Set<string>>,
-  modelUsed: string
-): ProcessReceiptResult {
-  console.log("=== parseAndNormalizeResponse START ===");
   try {
-    const extracted = extractJsonBlock(content);
-    console.log("Extracted JSON block:", extracted.substring(0, 500));
-    
-    const parsed = JSON.parse(extracted || "{}");
-    console.log("Parsed object keys:", Object.keys(parsed));
-    
-    const parsedItems = Array.isArray(parsed)
-      ? parsed
-      : Array.isArray(parsed?.items)
-        ? parsed.items
-        : [];
-
-    console.log("Raw parsed items count:", parsedItems.length);
-    console.log("Raw parsed items:", JSON.stringify(parsedItems, null, 2));
-
-    const normalizedItems = parsedItems.map((item: any, index: number) => {
-      const description = asString(item?.description) || "Nieznana pozycja";
-      const rawAmount = item?.amount;
-      const amount = normalizeAmount(rawAmount);
-
-      console.log(`Item ${index}:`, {
-        rawDescription: item?.description,
-        description,
-        rawAmount,
-        amount,
-        rawCategoryId: item?.categoryId,
-        rawSubcategoryId: item?.subcategoryId
-      });
-
-      const categoryIdCandidate = asString(item?.categoryId);
-      const categoryId = categoryIds.has(categoryIdCandidate) ? categoryIdCandidate : null;
-
-      const subcategoryIdCandidate = asString(item?.subcategoryId);
-      const isSubcategoryAllowed =
-        !!categoryId &&
-        !!subcategoryIdCandidate &&
-        !!subcategoryIdsByCategory.get(categoryId)?.has(subcategoryIdCandidate);
-
-      const normalized = {
-        description,
-        amount,
-        categoryId,
-        subcategoryId: isSubcategoryAllowed ? subcategoryIdCandidate : null,
-      };
-      
-      console.log(`Item ${index} normalized:`, normalized);
-      return normalized;
+    const result = await extractPdfText(pdfBuffer);
+    extractedText = result.text;
+    console.log("Text extraction:", {
+      textLength: extractedText.length,
+      pageCount: result.pageCount,
     });
+  } catch (error: any) {
+    // Password-protected → show error immediately
+    if (error.message?.includes("hasłem") || error.message?.includes("password")) {
+      throw error;
+    }
+    console.warn("Text extraction failed, will try vision:", error.message);
+    extractionFailed = true;
+  }
 
-    const rawText = asString(parsed?.rawText);
-    console.log("=== parseAndNormalizeResponse END ===", {
-      normalizedItemCount: normalizedItems.length,
-      rawTextLength: rawText.length
-    });
-    
-    return {
-      items: normalizedItems,
-      rawText,
-      modelUsed,
-    };
-  } catch (e) {
-    console.error("=== Failed to parse AI JSON ===", {
-      error: e,
-      content: content.substring(0, 1000)
-    });
-    return {
-      items: [],
-      rawText: "",
-      modelUsed,
-    };
+  // Step 2: Route based on extracted text quality
+  const hasUsableText = extractedText.length > 80;
+
+  if (hasUsableText) {
+    console.log("→ Using TEXT-based processing (good text extraction)");
+    return await processTextWithAI(
+      extractedText,
+      categoryPromptData,
+      categoryIds,
+      subcategoryIdsByCategory
+    );
+  }
+
+  // Step 3: Try vision approach for scanned PDFs
+  console.log(
+    `→ Using VISION-based processing (${extractionFailed ? "extraction failed" : "minimal text found: " + extractedText.length + " chars"})`
+  );
+
+  try {
+    return await processPdfAsVision(
+      pdfBase64,
+      categoryPromptData,
+      categoryIds,
+      subcategoryIdsByCategory
+    );
+  } catch (visionError: any) {
+    // If vision also fails AND we had some text, try with what we have
+    if (extractedText.length > 20) {
+      console.log("Vision failed, falling back to partial text processing");
+      return await processTextWithAI(
+        extractedText,
+        categoryPromptData,
+        categoryIds,
+        subcategoryIdsByCategory
+      );
+    }
+    throw visionError;
   }
 }
+
+// ══════════════════════════════════════════════════════════════════
+// ██ PUBLIC ACTIONS
+// ══════════════════════════════════════════════════════════════════
+
+export const getFileUrl = action({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, args) => {
+    return (await ctx.storage.getUrl(args.storageId)) ?? null;
+  },
+});
+
+export const processReceiptWithAI = action({
+  args: {
+    storageIds: v.array(v.id("_storage")),
+    categories: v.any(),
+    isPdf: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args): Promise<ProcessReceiptResult> => {
+    const startTime = Date.now();
+
+    try {
+      console.log("=== processReceiptWithAI START ===", {
+        storageIdCount: args.storageIds.length,
+        isPdf: args.isPdf,
+      });
+
+      if (args.storageIds.length === 0) {
+        throw new Error("Nie przesłano żadnych plików.");
+      }
+
+      const { categoryPromptData, categoryIds, subcategoryIdsByCategory } =
+        prepareCategoryData(args.categories);
+
+      if (categoryPromptData.length === 0) {
+        throw new Error(
+          "Brak kategorii. Dodaj kategorie w ustawieniach przed skanowaniem."
+        );
+      }
+
+      // ── PDF Path ──
+      if (args.isPdf) {
+        console.log("Processing PDF document...");
+        const url = await ctx.storage.getUrl(args.storageIds[0]);
+        if (!url) throw new Error("Nie znaleziono pliku PDF w magazynie.");
+
+        const pdfRes = await fetch(url);
+        if (!pdfRes.ok) {
+          throw new Error(`Błąd pobierania PDF: HTTP ${pdfRes.status}`);
+        }
+
+        const pdfBuffer = await pdfRes.arrayBuffer();
+        const pdfBase64 = Buffer.from(pdfBuffer).toString("base64");
+
+        // Validate file size (50MB limit for OpenAI)
+        if (pdfBuffer.byteLength > 50 * 1024 * 1024) {
+          throw new Error(
+            "Plik PDF jest za duży (max 50MB). Zmniejsz rozmiar lub zrób zdjęcie."
+          );
+        }
+
+        const result = await processPdfDocument(
+          pdfBuffer,
+          pdfBase64,
+          args.categories
+        );
+
+        const elapsed = Date.now() - startTime;
+        console.log(
+          `=== PDF Processing DONE === ${result.items.length} items in ${elapsed}ms`
+        );
+        return result;
+      }
+
+      // ── Image Path ──
+      console.log("Processing image(s)...");
+
+      // Fetch ALL images (not just the first one!)
+      const imageDataList: { base64: string; mimeType: string }[] = [];
+
+      for (const storageId of args.storageIds) {
+        const url = await ctx.storage.getUrl(storageId);
+        if (!url) {
+          console.warn(`Storage URL not found for ${storageId}, skipping`);
+          continue;
+        }
+
+        const imageRes = await fetch(url);
+        if (!imageRes.ok) {
+          console.warn(
+            `Failed to fetch image ${storageId}: HTTP ${imageRes.status}`
+          );
+          continue;
+        }
+
+        const arrayBuffer = await imageRes.arrayBuffer();
+        const base64Data = Buffer.from(arrayBuffer).toString("base64");
+        const mimeType =
+          imageRes.headers.get("content-type") || "image/jpeg";
+
+        imageDataList.push({ base64: base64Data, mimeType });
+      }
+
+      if (imageDataList.length === 0) {
+        throw new Error("Nie udało się załadować żadnych obrazów.");
+      }
+
+      const result = await processImagesWithAI(
+        imageDataList,
+        categoryPromptData,
+        categoryIds,
+        subcategoryIdsByCategory
+      );
+
+      const elapsed = Date.now() - startTime;
+      console.log(
+        `=== Image Processing DONE === ${result.items.length} items in ${elapsed}ms`
+      );
+      return result;
+    } catch (error: any) {
+      const elapsed = Date.now() - startTime;
+      console.error("=== FATAL ERROR ===", {
+        message: error.message,
+        elapsed: `${elapsed}ms`,
+        stack: error.stack?.substring(0, 500),
+      });
+      throw error;
+    }
+  },
+});

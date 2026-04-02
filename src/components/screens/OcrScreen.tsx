@@ -136,7 +136,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           subcategoryId: row.subcategoryId || null,
         }));
         setItems(generatedItems);
-        const modelName = result?.modelUsed || "gpt-4o-mini";
+        const modelName = result?.modelUsed || "gpt-4o";
         toast.success(`AI (${modelName}) dopasowało ${generatedItems.length} pozycji!`);
       }
     } catch (err: any) {
