@@ -5,6 +5,13 @@ import { Id } from "../../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { ScannerIcon } from "../ui/icons/ScannerIcon";
 import { FileText, Image } from "lucide-react";
+import * as pdfjsLib from "pdfjs-dist";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+
+import catLottie from "../../../assets/Cat playing animation.lottie?url";
+
+// Set pdf.js worker source
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 interface Props {
   storageIds: Id<"_storage">[];
@@ -64,36 +71,69 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
     previewTypes.some((t) => t === PDF_MIME);
 
   async function handleAddImages(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []).slice(0, 3 - currentStorageIds.length);
-    if (files.length === 0) return;
+    const rawFiles = Array.from(e.target.files ?? []);
+    if (rawFiles.length === 0) return;
     setUploading(true);
     try {
+      const processedBlobs: { blob: Blob; type: string }[] = [];
+      
+      for (const file of rawFiles) {
+        if (file.type === PDF_MIME) {
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          const numPages = Math.min(3, pdf.numPages); // Limit to 3 pages
+          
+          for (let i = 1; i <= numPages; i++) {
+            const page = await pdf.getPage(i);
+            const viewport = page.getViewport({ scale: 2.0 });
+            const canvas = document.createElement("canvas");
+            const context = canvas.getContext("2d");
+            if (!context) continue;
+            
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            await page.render({ canvasContext: context, canvas, viewport }).promise;
+            
+            const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.9));
+            if (blob) processedBlobs.push({ blob, type: "image/jpeg" });
+          }
+        } else {
+          processedBlobs.push({ blob: file, type: file.type });
+        }
+      }
+
+      const toUpload = processedBlobs.slice(0, 3 - currentStorageIds.length);
+      if (toUpload.length === 0) {
+        toast.error("Osiągnięto limit 3 stron/plików.");
+        setUploading(false);
+        return;
+      }
+
       const newIds: Id<"_storage">[] = [];
       const newPreviews: string[] = [];
       const newTypes: string[] = [];
-      for (const file of files) {
+
+      for (const item of toUpload) {
         const uploadUrl = await generateUploadUrl();
         const res = await fetch(uploadUrl, {
           method: "POST",
-          headers: { "Content-Type": file.type },
-          body: file,
+          headers: { "Content-Type": item.type },
+          body: item.blob,
         });
         const { storageId } = await res.json();
         newIds.push(storageId as Id<"_storage">);
-        newTypes.push(file.type);
-        if (file.type === PDF_MIME) {
-          newPreviews.push("pdf");
-        } else {
-          newPreviews.push(URL.createObjectURL(file));
-        }
+        newTypes.push(item.type);
+        newPreviews.push(URL.createObjectURL(item.blob));
       }
+
       setCurrentStorageIds((prev) => [...prev, ...newIds]);
       setCurrentMimeTypes((prev) => [...prev, ...newTypes]);
       setPreviewUrls((prev) => [...prev, ...newPreviews]);
       setPreviewTypes((prev) => [...prev, ...newTypes]);
       toast.success(`Dodano ${newIds.length} plik(i).`);
-    } catch {
-      toast.error("Błąd przesyłania pliku.");
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Błąd przetwarzania pliku. Spróbuj powtórzyć.");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -107,11 +147,11 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
     }
     setProcessing(true);
     try {
-      const isPdf = currentMimeTypes[0] === PDF_MIME || previewTypes[0] === PDF_MIME;
+      // Zwracamy zawsze isPdf: false, bo PDF został już przerobiony na obrazy w przeglądarce
       const result = (await processAI({
         storageIds: currentStorageIds,
         categories,
-        isPdf,
+        isPdf: false,
       })) as ProcessReceiptResult;
       const detectedItems = Array.isArray(result?.items) ? result.items : [];
       setRawText(result?.rawText || "");
@@ -358,22 +398,28 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           </div>
         )}
 
-        {/* Analyse button */}
+        {/* Analyse button & Animation loading state */}
         {!items && (
-          <button
-            onClick={handleExtract}
-            disabled={processing || !categories || currentStorageIds.length === 0}
-            className="w-full py-3.5 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-extrabold text-[15px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none disabled:opacity-50 mt-1"
-          >
-            {processing ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white" />
-                {hasPdf ? "Czytam PDF..." : "Skanowanie AI..."}
-              </span>
-            ) : (
-              `🔍 Analizuj ${hasPdf ? "PDF" : "paragon"}`
+          <div className="flex flex-col items-center">
+            <button
+              onClick={handleExtract}
+              disabled={processing || !categories || currentStorageIds.length === 0}
+              className="w-full py-3.5 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-extrabold text-[15px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none disabled:opacity-50 mt-1"
+            >
+              {processing ? (
+                <span className="flex items-center justify-center gap-2">
+                  Przetwarzanie AI... 🤖
+                </span>
+              ) : (
+                `🔍 Analizuj paragony/faktury`
+              )}
+            </button>
+            {processing && (
+              <div className="mt-4 w-40 h-40">
+                <DotLottieReact src={catLottie} loop autoplay />
+              </div>
             )}
-          </button>
+          </div>
         )}
       </div>
 
