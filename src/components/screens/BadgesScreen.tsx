@@ -18,7 +18,7 @@ interface Props {
   householdId: Id<"households">;
 }
 
-const TIER_ORDER = ["diamond", "platinum", "gold", "silver", "bronze"] as const;
+const TIER_ORDER = ["bronze", "silver", "gold", "platinum", "diamond"] as const;
 
 export function BadgesScreen({ householdId }: Props) {
   const memberStats = useQuery(api.analytics.householdMemberStats, { householdId });

@@ -123,15 +123,12 @@ Nigdy nie wymieniaj w bloku JSON elementów, które już są na liście zakupów
            const actions = JSON.parse(jsonMatch[1]);
            if (actions.shopping_clear) {
               pendingAction = { type: "clear_shopping_list", status: "pending" };
-           }
-           if (actions.shopping_add && Array.isArray(actions.shopping_add)) {
-              for (const item of actions.shopping_add) {
-                await ctx.runMutation(api.shopping.add, {
-                  householdId: args.householdId,
-                  name: String(item),
-                  addedByAction: "AI_Agent",
-                });
-              }
+           } else if (actions.shopping_add && Array.isArray(actions.shopping_add) && actions.shopping_add.length > 0) {
+              pendingAction = { 
+                type: "add_shopping_list", 
+                status: "pending", 
+                data: { items: actions.shopping_add } 
+              };
            }
          } catch (e) {
            console.error("Failed to parse AI action JSON", e);

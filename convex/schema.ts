@@ -189,8 +189,9 @@ const applicationTables = {
     text: v.string(),
     pendingAction: v.optional(
       v.object({
-        type: v.literal("clear_shopping_list"),
+        type: v.union(v.literal("clear_shopping_list"), v.literal("add_shopping_list")),
         status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+        data: v.optional(v.any()),
       })
     ),
     createdAt: v.number(),

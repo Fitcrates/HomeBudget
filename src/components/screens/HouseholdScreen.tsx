@@ -46,8 +46,15 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
     setInviting(true);
     try {
       await inviteByEmail({ householdId: household._id, email: inviteEmail.trim() });
+      
+      const subject = encodeURIComponent("Zaproszenie do my home budget");
+      const body = encodeURIComponent(
+        `Cześć!\n\nDołącz do mojego gospodarstwa domowego w aplikacji!\n\nTwój kod zaproszenia to: ${household.inviteCode}\n\nAplikacja: ${window.location.origin}`
+      );
+      window.location.href = `mailto:${inviteEmail.trim()}?subject=${subject}&body=${body}`;
+
       setInviteEmail("");
-      toast.success("Zaproszenie wysłane!");
+      toast.success("Otwarto klienta poczty z zaproszeniem!");
     } catch (err: any) {
       toast.error(err.message);
     } finally {

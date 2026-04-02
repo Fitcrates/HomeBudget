@@ -69,6 +69,24 @@ export function ChatScreen({ householdId }: Props) {
   );
 }
 
+function InteractiveListItem({ children, ...props }: any) {
+  const [done, setDone] = useState(false);
+  return (
+    <li 
+      {...props} 
+      onClick={() => setDone(!done)} 
+      className={`cursor-pointer transition-all hover:bg-[#cf833f]/10 p-1.5 rounded-xl list-none flex items-start gap-2.5 -ml-4 mb-1.5 ${done ? 'opacity-40' : ''} border border-transparent hover:border-[#cf833f]/20 active:scale-[0.98] select-none touch-manipulation`}
+    >
+      <span className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded-full border-[2px] transition-all flex items-center justify-center ${done ? 'bg-[#cf833f] border-[#cf833f]' : 'border-[#cf833f]/40'}`}>
+        {done && <Check className="w-3.5 h-3.5 text-white stroke-[3px]" />}
+      </span>
+      <span className={`text-[14px] leading-relaxed transition-all break-words w-full pr-1 ${done ? 'line-through text-[#8a7262]' : 'text-[#2b180a]'}`}>
+        {children}
+      </span>
+    </li>
+  );
+}
+
 function ClearChatButton({ householdId }: { householdId: Id<"households"> }) {
   const clearChat = useMutation(api.chat.clearHistory);
 
@@ -94,12 +112,12 @@ function ChatView({ householdId }: { householdId: Id<"households"> }) {
   const messages = useQuery(api.chat.listForHousehold, { householdId });
   const sendMessage = useAction(api.chatNode.sendMessage);
   const resolveAction = useMutation(api.chat.resolvePendingAction);
-  const clearAll = useMutation(api.shopping.clearAll);
-
   
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  
+  const addItem = useMutation(api.shopping.add);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -119,18 +137,6 @@ function ChatView({ householdId }: { householdId: Id<"households"> }) {
        toast.error("Błąd podczas wysyłania wiadomości.");
     } finally {
        setIsTyping(false);
-    }
-  }
-
-  async function handleResolve(messageId: Id<"chat_messages">, status: "approved" | "rejected") {
-    try {
-      if (status === "approved") {
-        await clearAll({ householdId });
-      }
-      await resolveAction({ householdId, messageId, status });
-      toast.success(status === "approved" ? "Wyczyszczono listę zakupów" : "Odrzucono zmianę");
-    } catch(err) {
-      toast.error("Wystąpił błąd");
     }
   }
 
@@ -155,60 +161,71 @@ function ChatView({ householdId }: { householdId: Id<"households"> }) {
                     <div className="text-[14px] font-medium leading-relaxed prose prose-sm prose-orange max-w-none text-[#2b180a]">
                       <ReactMarkdown
                         components={{
-                          li: ({ children, ordered, ...props }: any) => {
-                            if (!ordered) {
-                              return <li className="ml-6 mb-1.5 list-disc pl-1 break-words marker:text-[#cf833f]">{children}</li>;
-                            }
-                            
-                            const [done, setDone] = useState(false);
-                            return (
-                              <li 
-                                {...props} 
-                                onClick={() => setDone(!done)} 
-                                className={`cursor-pointer transition-all hover:bg-black/5 p-1 rounded-lg list-none flex items-start gap-2.5 -ml-6 mb-1 ${done ? 'opacity-50' : ''}`}
-                              >
-                                <span className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded-full border border-current flex items-center justify-center transition-colors ${done ? 'bg-current' : 'opacity-70'}`}>
-                                  {done && <Check className="w-3 h-3 text-white" />}
-                                </span>
-                                <span className={`${done ? 'line-through break-words' : 'break-words'}`}>
-                                  {children}
-                                </span>
-                              </li>
-                            );
-                          }
+                          li: InteractiveListItem
                         }}
                       >{msg.text}</ReactMarkdown>
                     </div>
                   )}
                 </div>
                 
-                {msg.pendingAction && msg.pendingAction.type === "clear_shopping_list" && (
+                {msg.pendingAction && (
                   <div className="ml-2 bg-[#fdf9f1] border border-[#f5e5cf] rounded-xl p-3 shadow-sm flex flex-col gap-2 max-w-[85%]">
                     <div className="flex items-center gap-1.5 text-[12px] font-bold text-[#8a7262]">
                       <ShoppingCart className="w-4 h-4 text-[#c76823]" />
-                      <span>Agent sugeruje uaktualnienie listy</span>
+                      {msg.pendingAction.type === "clear_shopping_list" && (
+                        <>
+                          <p className="text-xs font-bold text-[#cf833f] text-center w-full mb-1">
+                            Agent proponuje WYCZYSZCZENIE listy zakupów. Zgadzasz się?
+                          </p>
+                          <div className="flex gap-2 w-full mt-2">
+                            <button
+                              onClick={() => resolveAction({ householdId, messageId: msg._id, status: "approved" })}
+                              className="flex-1 bg-gradient-to-r from-red-400 to-red-500 text-white rounded-xl py-2 font-black text-[13px]"
+                            >
+                              Wyczyść
+                            </button>
+                            <button
+                              onClick={() => resolveAction({ householdId, messageId: msg._id, status: "rejected" })}
+                              className="flex-1 bg-black/5 text-[#8a7262] rounded-xl py-2 font-black text-[13px]"
+                            >
+                              Odrzuć
+                            </button>
+                          </div>
+                        </>
+                      )}
+                      {msg.pendingAction.type === "add_shopping_list" && (
+                        <>
+                          <p className="text-xs font-bold text-[#cf833f] text-center w-full mb-1">
+                            Agent proponuje dodanie {msg.pendingAction.data?.items?.length} produktów do listy.
+                          </p>
+                          <div className="flex gap-2 w-full mt-2">
+                            <button
+                              onClick={async () => {
+                                 for (const item of msg.pendingAction?.data?.items || []) {
+                                   await addItem({ householdId, name: String(item), addedByAction: "AI_Agent" });
+                                 }
+                                 await resolveAction({ householdId, messageId: msg._id, status: "approved" });
+                                 toast.success("Produkty dodane na listę.");
+                              }}
+                              className="flex-1 bg-gradient-to-r from-orange-400 to-orange-500 text-white rounded-xl py-2 font-black text-[13px]"
+                            >
+                              Zgoda
+                            </button>
+                            <button
+                              onClick={() => resolveAction({ householdId, messageId: msg._id, status: "rejected" })}
+                              className="flex-1 bg-black/5 text-[#8a7262] rounded-xl py-2 font-black text-[13px]"
+                            >
+                              Odrzuć
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
-                    <p className="text-[11px] text-[#2b180a] font-medium leading-snug">
-                      Zauważyłem zmianę przepisu. Czy wyczyścić starą listę zakupów, aby nie pomieszać składników?
-                    </p>
-                    
-                    {msg.pendingAction.status === "pending" && (
-                      <div className="flex gap-2 mt-1">
-                        <button onClick={() => handleResolve(msg._id, "approved")} className="flex-1 px-3 py-1.5 bg-[#cf833f] hover:bg-[#c76823] text-white text-[11px] font-bold rounded-lg transition-colors">
-                          Wyczyść starą listę
-                        </button>
-                        <button onClick={() => handleResolve(msg._id, "rejected")} className="flex-1 px-3 py-1.5 bg-white border border-[#f5e5cf] text-[#8a7262] text-[11px] font-bold rounded-lg hover:text-[#2b180a] transition-colors">
-                          Zostaw jak jest
-                        </button>
-                      </div>
-                    )}
-                    
                     {msg.pendingAction.status === "approved" && (
                       <div className="text-[11px] font-extrabold text-[#4aad6f] flex items-center gap-1 bg-[#dcfce7]/50 px-2 py-1 rounded w-max">
                         <Check className="w-3 h-3" /> Zgoda wydana
                       </div>
                     )}
-                    
                     {msg.pendingAction.status === "rejected" && (
                       <div className="text-[11px] font-extrabold text-red-400 flex items-center gap-1 bg-red-50 px-2 py-1 rounded w-max">
                         <X className="w-3 h-3" /> Odrzucono
