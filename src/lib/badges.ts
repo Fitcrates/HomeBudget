@@ -4,7 +4,7 @@ export interface Badge {
   name: string;
   description: string;
   condition: (stats: UserStats) => boolean;
-  tier: "bronze" | "silver" | "gold" | "platinum";
+  tier: "bronze" | "silver" | "gold" | "platinum" | "diamond";
 }
 
 export interface UserStats {
@@ -165,7 +165,7 @@ export const ALL_BADGES: Badge[] = [
     id: "streak_3",
     emoji: "🔥",
     name: "Rozgrzany",
-    description: "3 dni z rzędu z wydatkami. Ogień w portfelu!",
+    description: "3 dni z rzędu z wydatkami.",
     condition: (s) => s.streak >= 3,
     tier: "bronze",
   },
@@ -173,7 +173,7 @@ export const ALL_BADGES: Badge[] = [
     id: "streak_7",
     emoji: "⚡",
     name: "Tygodniowy Maniak",
-    description: "7 dni z rzędu. Tydzień bez przerwy — imponujące.",
+    description: "7 dni z rzędu wydawania.",
     condition: (s) => s.streak >= 7,
     tier: "silver",
   },
@@ -181,7 +181,7 @@ export const ALL_BADGES: Badge[] = [
     id: "streak_30",
     emoji: "🌙",
     name: "Miesięczny Obsesjonat",
-    description: "30 dni z rzędu. Czy Ty w ogóle masz wolne?",
+    description: "30 dni z rzędu w aplikacji.",
     condition: (s) => s.streak >= 30,
     tier: "gold",
   },
@@ -189,45 +189,147 @@ export const ALL_BADGES: Badge[] = [
     id: "streak_100",
     emoji: "💯",
     name: "Sto Dni Chwały",
-    description: "100 dni z rzędu. Psychiatra na linii.",
+    description: "100 dni z rzędu. Jesteś maszyną.",
     condition: (s) => s.streak >= 100,
     tier: "platinum",
   },
+  {
+    id: "streak_365",
+    emoji: "🌌",
+    name: "Strażnik Czasu",
+    description: "Rok bez dnia przerwy. Szacunek.",
+    condition: (s) => s.streak >= 365,
+    tier: "diamond",
+  },
 
-  // --- FUNNY SPECIAL ---
+  // --- BIG SPENDER / FUNNY SPECIAL ---
   {
     id: "ocr_lover",
     emoji: "😍",
-    name: "Zakochany w OCR",
-    description: "Ponad 80% Twoich wydatków to skany. Aparat to Twój najlepszy przyjaciel.",
-    condition: (s) =>
-      s.totalExpenses >= 10 && s.ocrExpenses / s.totalExpenses > 0.8,
+    name: "Zakochany w aparat",
+    description: "Ponad 80% Twoich wydatków to skany.",
+    condition: (s) => s.totalExpenses >= 10 && s.ocrExpenses / s.totalExpenses > 0.8,
     tier: "silver",
   },
   {
     id: "manual_purist",
     emoji: "🖊️",
     name: "Purytanin",
-    description: "Ponad 80% wpisów ręcznie. Technologia? Nie, dziękuję.",
-    condition: (s) =>
-      s.totalExpenses >= 10 && s.manualExpenses / s.totalExpenses > 0.8,
+    description: "Wpisujesz ręcznie 80% rachunków.",
+    condition: (s) => s.totalExpenses >= 10 && s.manualExpenses / s.totalExpenses > 0.8,
     tier: "silver",
-  },
-  {
-    id: "night_owl",
-    emoji: "🦉",
-    name: "Nocna Sowa",
-    description: "Pierwsze kroki w aplikacji. Sowa budżetowa.",
-    condition: (s) => s.totalExpenses >= 5,
-    tier: "bronze",
   },
   {
     id: "big_spender_day",
     emoji: "🎰",
-    name: "Hazardzista",
-    description: "Łącznie ponad 5 000 zł. Kasyno domowe otwarte.",
+    name: "Gruby Portfel",
+    description: "Wydałeś dziś absurdalnie dużo.",
     condition: (s) => s.totalAmount >= 500000,
     tier: "silver",
+  },
+  {
+    id: "millionaire",
+    emoji: "👑",
+    name: "Szejk",
+    description: "Zaewidencjonowałeś ponad 1 000 000 zł.",
+    condition: (s) => s.totalAmount >= 100000000,
+    tier: "diamond",
+  },
+  {
+    id: "addict_diamond",
+    emoji: "♾️",
+    name: "Nieskończoność",
+    description: "Zapisałeś 5000 wydatków w aplikacji.",
+    condition: (s) => s.totalExpenses >= 5000,
+    tier: "diamond",
+  },
+  {
+    id: "scanner_diamond",
+    emoji: "👁️",
+    name: "Wszechwidzący OCR",
+    description: "Zeskanowałeś 1000 paragonów.",
+    condition: (s) => s.ocrExpenses >= 1000,
+    tier: "diamond",
+  },
+  {
+    id: "manual_diamond",
+    emoji: "📜",
+    name: "Mnich z Shaolin",
+    description: "1000 ręcznych wpisów. Cierpliwość anioła.",
+    condition: (s) => s.manualExpenses >= 1000,
+    tier: "diamond",
+  },
+  {
+    id: "half_thousand",
+    emoji: "🥉",
+    name: "500-klub",
+    description: "Wydałeś równe 50 000 PLN.",
+    condition: (s) => s.totalAmount >= 5000000,
+    tier: "gold",
+  },
+  {
+    id: "early_adopter",
+    emoji: "🚀",
+    name: "Pioneer",
+    description: "Pierwsze 100 zł zaliczone.",
+    condition: (s) => s.totalAmount >= 10000,
+    tier: "bronze",
+  },
+  {
+    id: "fast_clicks",
+    emoji: "⚡",
+    name: "Błyskawica",
+    description: "Skan 10 paragonów w systemie.",
+    condition: (s) => s.ocrExpenses >= 10,
+    tier: "bronze",
+  },
+  {
+    id: "obsessed_with_stats",
+    emoji: "🤓",
+    name: "Statystyk",
+    description: "50 wpisów skrupulatnie wpisanych ręcznie.",
+    condition: (s) => s.manualExpenses >= 50,
+    tier: "silver",
+  },
+  {
+    id: "heavy_shopper",
+    emoji: "🛒",
+    name: "Król Marketu",
+    description: "Zanotowałeś 75 opłat.",
+    condition: (s) => s.totalExpenses >= 75,
+    tier: "silver",
+  },
+  {
+    id: "shopaholic_elite",
+    emoji: "🏙️",
+    name: "VIP",
+    description: "System odnotował 350 Twoich zakupów.",
+    condition: (s) => s.totalExpenses >= 350,
+    tier: "gold",
+  },
+  {
+    id: "paper_hater",
+    emoji: "🚮",
+    name: "Niszczyciel Paragonów",
+    description: "Przetworzyłeś 50 zdjęć paragonu.",
+    condition: (s) => s.ocrExpenses >= 50,
+    tier: "silver",
+  },
+  {
+    id: "eco_friendly",
+    emoji: "🌲",
+    name: "Las Równikowy",
+    description: "Przetworzyłeś 500 zdjęć, omijasz tusz i papier.",
+    condition: (s) => s.ocrExpenses >= 500,
+    tier: "platinum",
+  },
+  {
+    id: "master_of_coins",
+    emoji: "🪙",
+    name: "Mistrz Monet",
+    description: "Budżet na poziomie 250 000 PLN.",
+    condition: (s) => s.totalAmount >= 25000000,
+    tier: "platinum",
   },
 ];
 
@@ -236,6 +338,7 @@ export const TIER_COLORS: Record<Badge["tier"], string> = {
   silver: "from-[#c0c0c0] to-[#808080]",
   gold: "from-[#ffd700] to-[#b8860b]",
   platinum: "from-[#e5e4e2] to-[#9e9e9e]",
+  diamond: "from-[#b9f2ff] to-[#60d6f8]",
 };
 
 export const TIER_BG: Record<Badge["tier"], string> = {
@@ -243,6 +346,7 @@ export const TIER_BG: Record<Badge["tier"], string> = {
   silver: "bg-[#f5f5f5]/70 backdrop-blur-sm border-[#c0c0c0]/60",
   gold: "bg-[#fffbe6]/70 backdrop-blur-sm border-[#ffd700]/60",
   platinum: "bg-[#f0f0f8]/70 backdrop-blur-sm border-[#b0b0d0]/60",
+  diamond: "bg-[#f0fcff]/80 backdrop-blur-sm border-[#95e6fd]/60",
 };
 
 export const TIER_LABEL: Record<Badge["tier"], string> = {
@@ -250,6 +354,7 @@ export const TIER_LABEL: Record<Badge["tier"], string> = {
   silver: "Srebro",
   gold: "Złoto",
   platinum: "Platyna",
+  diamond: "Diament",
 };
 
 export function getEarnedBadges(stats: UserStats): Badge[] {

@@ -1,4 +1,5 @@
 import { useQuery } from "convex/react";
+import { useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import {
@@ -17,10 +18,11 @@ interface Props {
   householdId: Id<"households">;
 }
 
-const TIER_ORDER = ["platinum", "gold", "silver", "bronze"] as const;
+const TIER_ORDER = ["diamond", "platinum", "gold", "silver", "bronze"] as const;
 
 export function BadgesScreen({ householdId }: Props) {
   const memberStats = useQuery(api.analytics.householdMemberStats, { householdId });
+  const [tab, setTab] = useState<"achievements" | "fame" | "all">("achievements");
 
   if (!memberStats) {
     return (
@@ -41,9 +43,41 @@ export function BadgesScreen({ householdId }: Props) {
         <p className="text-[14px] text-[#6d4d38] font-bold ml-1 drop-shadow-sm">
           Zbieraj odznaki za aktywność w domowym budżecie
         </p>
+        <div className="flex bg-[#fdf9f1] rounded-2xl p-1 shadow-[0_4px_12px_rgba(180,120,80,0.1)] gap-1">
+          <button
+            onClick={() => setTab("achievements")}
+            className={`flex-1 py-2.5 text-[13px] font-extrabold rounded-xl transition-all ${
+              tab === "achievements"
+                ? "bg-white text-[#cf833f] shadow-sm ring-1 ring-[#ede0d4]/60"
+                : "text-[#aa9382] hover:text-[#cf833f] hover:bg-[#f6eedf]"
+            }`}
+          >
+            Zdobyte
+          </button>
+          <button
+            onClick={() => setTab("fame")}
+            className={`flex-1 py-2.5 text-[13px] font-extrabold rounded-xl transition-all ${
+              tab === "fame"
+                ? "bg-white text-[#cf833f] shadow-sm ring-1 ring-[#ede0d4]/60"
+                : "text-[#aa9382] hover:text-[#cf833f] hover:bg-[#f6eedf]"
+            }`}
+          >
+            Ranking
+          </button>
+          <button
+            onClick={() => setTab("all")}
+            className={`flex-1 py-2.5 text-[13px] font-extrabold rounded-xl transition-all ${
+              tab === "all"
+                ? "bg-white text-[#cf833f] shadow-sm ring-1 ring-[#ede0d4]/60"
+                : "text-[#aa9382] hover:text-[#cf833f] hover:bg-[#f6eedf]"
+            }`}
+          >
+            Pełna Lista
+          </button>
+        </div>
       </div>
 
-      {memberStats.map((member) => {
+      {tab === "achievements" && memberStats.map((member) => {
         const stats: UserStats = {
           totalExpenses: member.totalExpenses,
           ocrExpenses: member.ocrExpenses,
@@ -146,6 +180,94 @@ export function BadgesScreen({ householdId }: Props) {
           </div>
         );
       })}
+
+      {tab === "fame" && (
+        <div className="space-y-4">
+          <div className="bg-gradient-to-br from-[#2b180a] to-[#4a2e1b] rounded-[2rem] p-6 shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 opacity-10">
+              <Flame className="w-32 h-32 text-white" />
+            </div>
+            <h3 className="text-xl font-extrabold text-white mb-6 relative z-10">
+              Sala Chwały
+            </h3>
+            <div className="space-y-3 relative z-10">
+              {memberStats
+                .map((m) => {
+                  const s = {
+                    totalExpenses: m.totalExpenses,
+                    ocrExpenses: m.ocrExpenses,
+                    manualExpenses: m.manualExpenses,
+                    totalAmount: m.totalAmount,
+                    streak: m.streak,
+                  };
+                  return {
+                    member: m,
+                    score: getEarnedBadges(s).length,
+                  };
+                })
+                .sort((a, b) => b.score - a.score)
+                .map((x, idx) => (
+                  <div key={x.member.userId} className="flex items-center gap-4 bg-white/10 rounded-2xl p-4 backdrop-blur-md border border-white/10">
+                    <div className="w-8 flex justify-center text-xl font-black text-white/50">
+                      #{idx + 1}
+                    </div>
+                    {x.member.avatarUrl ? (
+                      <img src={x.member.avatarUrl} className="w-12 h-12 rounded-xl object-cover border-2 border-white/20" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-white font-extrabold text-lg">
+                        {x.member.displayName.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-extrabold truncate">{x.member.displayName}</p>
+                      <p className="text-white/60 text-xs font-bold">{x.score} {x.score === 1 ? "odznaka" : "odznak"}</p>
+                    </div>
+                    <div className="text-2xl drop-shadow-[0_2px_10px_rgba(255,255,255,0.2)]">
+                      {idx === 0 && "👑"}
+                      {idx === 1 && "🥈"}
+                      {idx === 2 && "🥉"}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === "all" && (
+        <div className="space-y-6">
+          <p className="text-[13px] font-bold text-[#8a7262] text-center mb-2">
+            Łącznie {ALL_BADGES.length} odznak do zebrania
+          </p>
+          {TIER_ORDER.map((tier) => {
+            const tierBadges = ALL_BADGES.filter((b) => b.tier === tier);
+            if (tierBadges.length === 0) return null;
+            return (
+              <div key={tier} className="space-y-3">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <div className={`h-1.5 w-8 rounded-full bg-gradient-to-r ${TIER_COLORS[tier]}`} />
+                  <span className="text-[11px] font-black text-[#6d4d38] uppercase tracking-widest">
+                    Poziom {TIER_LABEL[tier]}
+                  </span>
+                  <div className={`h-1.5 w-8 rounded-full bg-gradient-to-l ${TIER_COLORS[tier]}`} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {tierBadges.map((badge) => (
+                    <div key={badge.id} className="relative aspect-square flex flex-col items-center justify-center p-3 text-center bg-white/50 backdrop-blur-sm border border-[#ede0d4] rounded-3xl shadow-[0_2px_8px_rgba(180,120,80,0.05)]">
+                      <div className={`absolute -top-3 -right-3 w-8 h-8 rounded-full flex items-center justify-center text-[10px] bg-gradient-to-br ${TIER_COLORS[tier]} text-white font-black shadow-md border-2 border-white`}>
+                         {badge.tier.slice(0, 1).toUpperCase()}
+                      </div>
+                      <span className="text-4xl drop-shadow-md mb-2">{badge.emoji}</span>
+                      <p className="font-extrabold text-[12px] text-[#2b180a] leading-tight mb-1">{badge.name}</p>
+                      <p className="text-[9px] font-bold text-[#b89b87] leading-snug px-1 line-clamp-3">{badge.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

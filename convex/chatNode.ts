@@ -63,6 +63,13 @@ export const sendMessage = action({
            financialInfo += `   * ${s.name}: ${(s.total / 100).toFixed(2)} PLN\n`;
          }
       }
+
+      financialInfo += `\nOstatnie (pojedyncze) zakupy (z paragonów i ręcznych):\n`;
+      const recent = monthExpenses.slice(0, 20);
+      for (const e of recent) {
+         const name = e.ocrRawText || e.description || "Zakupy";
+         financialInfo += `- ${name}: ${(e.amount / 100).toFixed(2)} PLN\n`;
+      }
     }
 
     // 3. Prepare system prompt
