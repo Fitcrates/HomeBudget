@@ -32,22 +32,29 @@ export const callAI = internalAction({
     const dayOfMonth = now.getDate();
 
     const prompt = [
-      "Jestes asystentem finansowym dla polskiej rodziny.",
-      "Przeanalizuj dane wydatkow i wygeneruj 4-6 inteligentnych wskazowek po polsku.",
+      "Jesteś precyzyjnym asystentem finansowym dla polskiej rodziny.",
+      "Przeanalizuj z dużą dokładnością dane wydatków.",
       "",
-      "Dane wydatkow (ostatnie 3 miesiace, kwoty w groszach):",
+      "Dane wydatkow (ostatnie miesiące, kwoty w PLN to DOKŁADNE SUMY, których nie możesz zmyślać):",
       JSON.stringify(args.expenses),
       "",
-      "Budzety kategorii (limity w groszach):",
+      "Budzety kategorii (limity w PLN):",
       JSON.stringify(args.budgets),
       "",
       `Dzisiaj: ${now.toLocaleDateString("pl-PL")} (dzien ${dayOfMonth} z ${daysInMonth} w miesiacu)`,
       "",
-      "Typy wskazowek: prediction (prognoza), anomaly (anomalia), saving (oszczednosci), budget_alert (alert budzetu).",
-      "severity: info=neutralna, warning=uwaga, danger=pilne (tylko gdy budzet przekroczony).",
-      "Badz konkretny, uzywaj liczb. Odpowiedz TYLKO poprawnym JSON:",
-      '{"insights":[{"type":"prediction","title":"Krotki tytul max 6 slow","body":"1-2 zdania z liczbami","emoji":"emoji","severity":"info"}]}',
-    ].join("\n");
+      "ZASADY:",
+      "- BAZUJ TYLKO NA podanych kwotach z 'Dane wydatkow'. Twoje wyliczenia MUSZĄ się zgadzać z danymi JSON. Absolutnie nie wymyślaj dużych kwot poza tym progiem.",
+      "- Kwoty podawaj w pełnych złotych (PLN), z dopiskiem 'zł'.",
+      "- Jesteśmy w trackie miesiąca. Nie twórz kosmicznych prognoz na cały rok (jak 35 000 zł) z kilku dni.",
+      "- Zamiast wymyślać 3000 zł, pisz ZGODNIE Z PRAWDĄ (np: 'Wydałeś 203 zł, to jest X% Twojego budżetu...').",
+      "- Bądź lakoniczny ale wysoce analityczny, używaj liczb, ale TYLKO prawidłowych, wynikających z dostarczonego JSON.",
+      "",
+      "Typy wskazowek: prediction (prosta i wnikliwa prognoza), anomaly (gdy kwota znacząco odbiega od prostej średniej), saving (co uciąć), budget_alert (alert dla kategorii, w której przekroczono budżet).",
+      "severity: info, warning, danger.",
+      "Odpowiedz TYLKO i WYŁĄCZNIE poprawnym JSON:",
+      '{"insights":[{"type":"prediction","title":"Krotki tytul max 6 slow","body":"2-3 bardzo analityczne i BEZBŁĘDNE matematycznie zdania.","emoji":"emoji","severity":"info"}]}',
+    ].join("\\n");
 
     const resp = await getGroq().chat.completions.create({
       model: "llama-3.3-70b-versatile",

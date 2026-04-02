@@ -77,6 +77,7 @@ const applicationTables = {
     receiptImageId: v.optional(v.id("_storage")),
     ocrRawText: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
+    isSubscription: v.optional(v.boolean()),
   })
     .index("by_household", ["householdId"])
     .index("by_household_and_date", ["householdId", "date"])

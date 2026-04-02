@@ -24,6 +24,7 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
   const [amount, setAmount] = useState(prefillAmount ? String(prefillAmount / 100) : "");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [isSubscription, setIsSubscription] = useState(false);
   const [categoryId, setCategoryId] = useState<Id<"categories"> | null>(null);
   const [subcategoryId, setSubcategoryId] = useState<Id<"subcategories"> | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -138,6 +139,7 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
         description,
         receiptImageId: receiptStorageId ?? undefined,
         ocrRawText: prefillOcrText,
+        isSubscription,
       });
       toast.success("Wydatek dodany!");
       onSuccess();
@@ -221,55 +223,69 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
           )}
         </div>
 
-        {/* Amount */}
-        <div className={cardStyle}>
-          <label className={labelStyle}>
-            Kwota
-          </label>
-          <div className="flex items-center gap-3">
-
-
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.00"
-              className="flex-1 text-4xl font-bold text-[#4a3b32] outline-none bg-transparent w-full placeholder-[#e0c9b7]"
-              required
-            />
-
-          </div>
-          <span className="text-2xl font-bold text-[#b89b87]">$</span>
-        </div>
-
-        {/* Date & Description */}
+        {/* Details Card (Amount, Date, Description, Checkbox) */}
         <div className={`${cardStyle} space-y-4`}>
+          {/* Amount */}
           <div>
             <label className={labelStyle}>
-              Data
+              Kwota
             </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className={inputStyle}
-              required
-            />
+            <div className="flex items-center gap-3 relative">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full text-3xl bg-white/70 backdrop-blur-sm border border-white/60 rounded-2xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white transition-all text-[#2b180a] font-bold shadow-inner placeholder-[#e0c9b7]"
+                required
+              />
+              <span className="absolute right-4 text-xl font-bold text-[#b89b87]">PLN</span>
+            </div>
           </div>
-          <div>
-            <label className={labelStyle}>
-              Opis (opcjonalnie)
-            </label>
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="np. Zakupy w Biedronce"
-              className={inputStyle}
-            />
+
+          <div className="grid grid-cols-2 gap-4">
+            {/* Date */}
+            <div>
+              <label className={labelStyle}>
+                Data
+              </label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className={inputStyle}
+                required
+              />
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className={labelStyle}>
+                Opis
+              </label>
+              <input
+                type="text"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Opcjonalnie"
+                className={inputStyle}
+              />
+            </div>
           </div>
+
+          <label className="flex items-center gap-3 mt-2 cursor-pointer bg-white/50 p-3 rounded-2xl border border-white/60 hover:bg-white/80 transition-all shadow-sm">
+            <input
+              type="checkbox"
+              checked={isSubscription}
+              onChange={(e) => setIsSubscription(e.target.checked)}
+              className="w-5 h-5 rounded-md border-[#de9241] text-[#ca782a] focus:ring-[#ca782a] transition-all bg-white"
+            />
+            <span className="text-sm font-bold text-[#6d4d38]">
+              To jest wydatek stały (subskrypcja, rachunek)
+            </span>
+          </label>
         </div>
 
         {/* Category */}

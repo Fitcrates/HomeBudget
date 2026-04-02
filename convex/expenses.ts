@@ -86,11 +86,40 @@ export const create = mutation({
     receiptImageId: v.optional(v.id("_storage")),
     ocrRawText: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
+    isSubscription: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
     await assertMember(ctx, args.householdId, userId);
+
+    // Duplication check for subscriptions:
+    // If the user adds an expense, check if there's already a subscription with EXACT amount and category in the same month.
+    const expenseDate = new Date(args.date);
+    const startOfMonth = new Date(expenseDate.getFullYear(), expenseDate.getMonth(), 1).getTime();
+    const endOfMonth = new Date(expenseDate.getFullYear(), expenseDate.getMonth() + 1, 0, 23, 59, 59).getTime();
+
+    const existingExpenses = await ctx.db
+      .query("expenses")
+      .withIndex("by_household_and_date", (q) =>
+        q.eq("householdId", args.householdId)
+          .gte("date", startOfMonth)
+          .lte("date", endOfMonth)
+      )
+      .collect();
+
+    // Check if there is already an expense that is marked as subscription with the same amount and category
+    // or if we are adding a subscription, check if someone already added exactly this via OCR!
+    const isDuplicate = existingExpenses.some(
+      (e) =>
+        e.categoryId === args.categoryId &&
+        e.amount === args.amount &&
+        (e.isSubscription || args.isSubscription)
+    );
+
+    if (isDuplicate) {
+      throw new Error("Uwaga: Znaleziono już identyczny wydatek abonamentowy (ta sama kwota i kategoria) w tym miesiącu.");
+    }
 
     return await ctx.db.insert("expenses", {
       ...args,
@@ -110,6 +139,7 @@ export const update = mutation({
     receiptImageId: v.optional(v.id("_storage")),
     ocrRawText: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
+    isSubscription: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);

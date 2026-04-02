@@ -111,6 +111,21 @@ export function DashboardScreen({ householdId, currency }: Props) {
             </div>
           )}
 
+          {/* Pie Chart Card */}
+          {byCategory.length > 0 && (
+            <div className={cardClass}>
+              <PieChart data={byCategory} currency={currency} />
+            </div>
+          )}
+
+          {/* Bar Chart Card */}
+          {byPeriod.length > 0 && (
+            <div className={cardClass}>
+              <h3 className="text-sm font-bold text-[#3e2815] mb-4">Wydatki w czasie</h3>
+              <BarChart data={byPeriod} currency={currency} />
+            </div>
+          )}
+
           {/* Income Monitor — always shows current month */}
           <IncomeMonitorCard
             householdId={householdId}
@@ -129,21 +144,6 @@ export function DashboardScreen({ householdId, currency }: Props) {
 
           {/* AI Insights */}
           <InsightsCard householdId={householdId} />
-
-          {/* Pie Chart Card */}
-          {byCategory.length > 0 && (
-            <div className={cardClass}>
-              <PieChart data={byCategory} currency={currency} />
-            </div>
-          )}
-
-          {/* Bar Chart Card */}
-          {byPeriod.length > 0 && (
-            <div className={cardClass}>
-              <h3 className="text-sm font-bold text-[#3e2815] mb-4">Wydatki w czasie</h3>
-              <BarChart data={byPeriod} currency={currency} />
-            </div>
-          )}
 
           {byCategory.length === 0 && (
             <div className={`${cardClass} text-center py-10 opacity-80 backdrop-blur-xl border border-white/50 bg-white/40`}>

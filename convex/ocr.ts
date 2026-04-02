@@ -160,36 +160,47 @@ function buildPrompt(
 
   return `Wyodrębnij WSZYSTKIE pozycje zakupowe z ${documentText ? "tekstu" : "obrazu/obrazów"}.
 ${source}ZASADY:
-1. KAŻDY produkt — nie pomijaj żadnej pozycji
-2. Czytaj "Wartość" (łączna cena), nie cenę jednostkową
-3. Rabat/Opust → użyj ceny PO rabacie, NIE twórz osobnej pozycji
-4. Ilość >1 → ŁĄCZNA wartość (3×2.50 = "7.50")
-5. Kwota: tylko liczba z kropką ("12.98")
-6. Ignoruj: sumy, podatki PTU, kaucje, płatności, nagłówki
+1. KAŻDY produkt — nie pomijaj żadnej pozycji.
+2. Czytaj "Wartość" (łączna cena), nie cenę jednostkową.
+3. Rabat/Opust → użyj ceny PO rabacie, NIE twórz osobnej pozycji.
+4. Ilość >1 → ŁĄCZNA wartość (3×2.50 = "7.50").
+5. Kwota: tylko liczba z kropką ("12.98").
+6. Ignoruj: sumy, podatki PTU, kaucje, płatności, nagłówki.
 
-KATEGORYZACJA — użyj DOKŁADNEJ nazwy z listy:
-- Produkty ze sklepu → ZAWSZE "Żywność i napoje" (NIE "Restauracje"!)
+DOPASOWANIE KATEGORII DO WYSTAWCY (BARDZO WAŻNE!):
+- Najpierw zidentyfikuj wystawcę rachunku (np. po logo, nagłówku). To absolutnie kluczowe dla właściwej kategoryzacji artykułów.
+- Biedronka, Lidl, Auchan, Kaufland, Żabka, Dino, Netto, Carrefour, Stokrotka: pozycje to niemal wyłącznie "Żywność i napoje" oraz "Chemia domowa i higiena". (ZAKAZ kategoryzacji do Restauracji dla zwykłego jedzenia ze sklepu!).
+- Rossmann, Hebe, Super-Pharm, Sephora, Douglas: pozycje z tych sklepów to na 99% "Zdrowie i uroda" -> np. "Kosmetyki" lub "Chemia domowa i higiena".
+- Castorama, Leroy Merlin, OBI, Mrówka, Jysk, IKEA, Agata Meble, Bricomarché: domyślnie "Dom i mieszkanie" -> np. "Wyposażenie" lub "Remonty". (BARDZO rzadko inne, chyba, że ktoś kupił tam hot-doga).
+- Orlen, BP, Shell, Circle K, Amic, Moya, Lotos: dla produktów typu PB95, ON, LPG przydzielaj "Transport" -> "Paliwo". Reszta jedzenia ze stacji to np. "Restauracje i kawiarnie" -> "Fast food" lub "Przekąski" / "Słodycze i przekąski".
+- Apteki (DOZ, Gemini, Ziko, Cefarm, Dr.Max): WSZYSTKIE Leki i suplementy kategoryzuj jako "Zdrowie i uroda" -> "Apteka". (Żadnej Chemii domowej dla leków!).
+- Maxi Zoo, Kakadu, sklepy zoologiczne: pozycje to domyślnie kategoria "Zwierzęta".
+- Piekarnie/Cukiernie (np. Lubaszka, Hert, rzemieślnicze): kategoria "Piekarnia" (w Żywność i napoje) lub kawiarniana.
+- Empik: pozycje takie jak książki, gazety przypisuj do "Rozrywka i hobby" -> "Książki". Zawsze sprawdź, co to za sklep!
+
+KATEGORYZACJA SZCZEGÓŁOWA — użyj DOKŁADNEJ nazwy z listy:
+- Produkty sklepowe typu kiełbasy czy ziemniaki PRAWIE ZAWSZE należą do podkategorii w "Żywność i napoje"! 
 - Jajka, mleko, ser, masło, jogurt → "Nabiał i jaja"
-- Mięso, kiełbasa, szynka, kurczak → "Mięso i wędliny"
+- Mięso, parówki, szynka, kurczak → "Mięso i wędliny"
 - Owoce, warzywa, ziemniaki → "Owoce i warzywa"
 - Chleb, bułki → "Piekarnia"
-- Sos, ketchup, musztarda, olej, ocet, majonez → "Przyprawy i dodatki"
-- Konserwy (fasola, kukurydza, tuńczyk, pomidory) → "Przyprawy i dodatki"
+- Sos, ketchup, musztarda, olej, majonez → "Przyprawy i dodatki"
+- Konserwy (fasola, kukurydza, tuńczyk) → "Przyprawy i dodatki"
 - Makaron, ryż, mąka, kasza → "Produkty sypkie"
 - Czekolada, chipsy, cukierki → "Słodycze i przekąski"
 - Woda, sok, cola → "Napoje bezalkoholowe"
-- Piwo, wino → "Alkohol"
-- Mrożonki → "Mrożonki"
-- Torba/reklamówka → kategoria "Inne", podkategoria "Różne"
-- Środki czystości → "Chemia domowa i higiena"
-- Leki → "Zdrowie i uroda" > "Apteka"
+- Piwo, wino, wódka → "Alkohol"
+- Mrożonki, lody → "Mrożonki"
+- Torba/reklamówka z logo sklepu → "Inne" > "Różne"
+- Czystość (płyny, proszki, papier toaletowy) → "Chemia domowa i higiena"
 
 KATEGORIE:
 ${compactCategories}
 
 JSON:
 {
-  "rawText": "Nazwa sklepu, data",
+  "rawText": "TUTAJ WPISZ TYLKO I WYŁĄCZNIE NAZWĘ MARKI I WYSTAWCY (np. 'Biedronka', 'Castorama', 'Orlen') ORAZ DATĘ",
+  "currency": "PLN (lub USD, EUR, GBP - wykryta waluta)",
   "items": [
     {
       "description": "Nazwa produktu",
@@ -216,11 +227,25 @@ interface ProcessReceiptResult {
   modelUsed: string;
 }
 
-function parseAndNormalizeResponse(
+async function fetchExchangeRate(currencyCode: string): Promise<number> {
+  const code = currencyCode.toUpperCase();
+  if (code === "PLN" || !code) return 1;
+  try {
+    const res = await fetch(`https://api.nbp.pl/api/exchangerates/rates/a/${code}/?format=json`);
+    if (!res.ok) return 1;
+    const data = await res.json();
+    return data?.rates?.[0]?.mid || 1;
+  } catch (err) {
+    console.error(`Failed to fetch exchange rate for ${code}`, err);
+    return 1;
+  }
+}
+
+async function parseAndNormalizeResponse(
   content: string,
   categoriesArray: any[],
   modelUsed: string
-): ProcessReceiptResult {
+): Promise<ProcessReceiptResult> {
   try {
     const extracted = extractJsonBlock(content);
     const parsed = JSON.parse(extracted || "{}");
@@ -231,12 +256,21 @@ function parseAndNormalizeResponse(
         ? parsed.items
         : [];
 
-    console.log(`AI returned ${parsedItems.length} raw items`);
+    const currency = asString(parsed?.currency).toUpperCase();
+    const exchangeRate = await fetchExchangeRate(currency);
+
+    console.log(`AI returned ${parsedItems.length} raw items (Currency: ${currency}, Rate: ${exchangeRate})`);
 
     const normalizedItems: ProcessedReceiptItem[] = parsedItems
       .map((item: any) => {
         const description = asString(item?.description) || "Nieznana pozycja";
-        const amount = normalizeAmount(item?.amount);
+        let amountStr = normalizeAmount(item?.amount);
+        
+        // Convert currency if needed
+        if (amountStr && exchangeRate !== 1) {
+          const num = parseFloat(amountStr) * exchangeRate;
+          amountStr = num.toFixed(2);
+        }
 
         // Resolve category NAMES to Convex IDs
         const { categoryId, subcategoryId } = resolveCategoryNames(
@@ -245,7 +279,11 @@ function parseAndNormalizeResponse(
           categoriesArray
         );
 
-        return { description, amount, categoryId, subcategoryId };
+        const descWithCurrency = exchangeRate !== 1 
+          ? `${description} (${normalizeAmount(item?.amount)} ${currency})` 
+          : description;
+
+        return { description: descWithCurrency, amount: amountStr, categoryId, subcategoryId };
       })
       .filter(
         (item: ProcessedReceiptItem) =>
@@ -311,7 +349,7 @@ async function processImagesWithAI(
     model: resp.model
   });
 
-  return parseAndNormalizeResponse(content, categoriesArray, VISION_MODEL);
+  return await parseAndNormalizeResponse(content, categoriesArray, VISION_MODEL);
 }
 
 // ── AI Processing: Text ───────────────────────────────────────────
@@ -334,7 +372,7 @@ async function processTextWithAI(
   });
 
   const content = resp.choices[0].message.content ?? "{}";
-  return parseAndNormalizeResponse(content, categoriesArray, VISION_MODEL);
+  return await parseAndNormalizeResponse(content, categoriesArray, VISION_MODEL);
 }
 
 // ══════════════════════════════════════════════════════════════════
