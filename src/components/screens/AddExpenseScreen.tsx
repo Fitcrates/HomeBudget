@@ -239,8 +239,9 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
               className="flex-1 text-4xl font-bold text-[#4a3b32] outline-none bg-transparent w-full placeholder-[#e0c9b7]"
               required
             />
-            <span className="text-2xl font-bold text-[#b89b87]">zł</span>
+
           </div>
+          <span className="text-2xl font-bold text-[#b89b87]">zł</span>
         </div>
 
         {/* Date & Description */}
