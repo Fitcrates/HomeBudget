@@ -14,13 +14,14 @@ function getOpenAI() {
 }
 
 /**
- * GPT-4o provides dramatically better OCR accuracy than gpt-4o-mini:
- * - Better at reading small/blurry text on receipts
- * - Better at understanding Polish abbreviations on receipts
- * - Better at categorization of products
- * - Supports high-detail image processing
+ * Proxy supports: gpt-4o-mini, gpt-4.1-nano
+ * Using gpt-4o-mini for vision — quality boost comes from:
+ *  - Enhanced prompt with Polish receipt patterns
+ *  - detail:"high" on image_url (critical for small receipt text)
+ *  - Multi-image support (all uploaded images in one request)
+ *  - Retry logic for incomplete results
  */
-const VISION_MODEL = "gpt-4o";
+const VISION_MODEL = "gpt-4o-mini";
 
 /**
  * System prompt engineered for maximum receipt OCR accuracy.
