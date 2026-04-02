@@ -187,6 +187,12 @@ const applicationTables = {
     householdId: v.id("households"),
     role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system")),
     text: v.string(),
+    pendingAction: v.optional(
+      v.object({
+        type: v.literal("clear_shopping_list"),
+        status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+      })
+    ),
     createdAt: v.number(),
   }).index("by_household", ["householdId"]),
 };

@@ -23,6 +23,12 @@ export const addMessage = mutation({
     householdId: v.id("households"),
     role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system")),
     text: v.string(),
+    pendingAction: v.optional(
+      v.object({
+        type: v.literal("clear_shopping_list"),
+        status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+      })
+    ),
   },
   handler: async (ctx, args) => {
     // Only verify user if the action wasn't internally triggered by an action directly?
@@ -37,7 +43,30 @@ export const addMessage = mutation({
       householdId: args.householdId,
       role: args.role,
       text: args.text,
+      pendingAction: args.pendingAction,
       createdAt: Date.now(),
     });
+  },
+});
+
+export const resolvePendingAction = mutation({
+  args: {
+    householdId: v.id("households"),
+    messageId: v.id("chat_messages"),
+    status: v.union(v.literal("approved"), v.literal("rejected")),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    await assertMember(ctx, args.householdId, userId);
+
+    const msg = await ctx.db.get(args.messageId);
+    if (!msg || msg.householdId !== args.householdId) throw new Error("Invalid message");
+    
+    if (msg.pendingAction) {
+      await ctx.db.patch(args.messageId, {
+        pendingAction: { ...msg.pendingAction, status: args.status },
+      });
+    }
   },
 });

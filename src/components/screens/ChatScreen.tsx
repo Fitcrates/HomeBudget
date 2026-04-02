@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { Bot, ShoppingCart, Send, Plus, Check, Square, Trash2 } from "lucide-react";
+import { Bot, ShoppingCart, Send, Plus, Check, Square, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 
@@ -66,6 +66,9 @@ export function ChatScreen({ householdId }: Props) {
 function ChatView({ householdId }: { householdId: Id<"households"> }) {
   const messages = useQuery(api.chat.listForHousehold, { householdId });
   const sendMessage = useAction(api.chatNode.sendMessage);
+  const resolveAction = useMutation(api.chat.resolvePendingAction);
+  const clearAll = useMutation(api.shopping.clearAll);
+
   
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -92,6 +95,18 @@ function ChatView({ householdId }: { householdId: Id<"households"> }) {
     }
   }
 
+  async function handleResolve(messageId: Id<"chat_messages">, status: "approved" | "rejected") {
+    try {
+      if (status === "approved") {
+        await clearAll({ householdId });
+      }
+      await resolveAction({ householdId, messageId, status });
+      toast.success(status === "approved" ? "Wyczyszczono listę zakupów" : "Odrzucono zmianę");
+    } catch(err) {
+      toast.error("Wystąpił błąd");
+    }
+  }
+
   return (
     <div className="flex-1 overflow-hidden flex flex-col bg-white/40 backdrop-blur-xl border border-white/50 rounded-[2rem] shadow-[0_8px_32px_rgba(180,120,80,0.15)] relative">
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
@@ -99,18 +114,55 @@ function ChatView({ householdId }: { householdId: Id<"households"> }) {
           const isMe = msg.role === "user";
           return (
             <div key={msg._id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[85%] rounded-[1.2rem] px-4 py-3 shadow-sm ${
-                  isMe
-                    ? "bg-[#cf833f] text-white rounded-br-sm"
-                    : "bg-white text-[#2b180a] border border-[#f5e5cf] rounded-bl-sm"
-                }`}
-              >
-                {isMe ? (
-                  <span className="text-[13px] font-semibold block leading-relaxed">{msg.text}</span>
-                ) : (
-                  <div className="text-[13px] font-medium leading-relaxed prose prose-sm prose-orange">
-                    <ReactMarkdown>{msg.text}</ReactMarkdown>
+              <div className="flex flex-col gap-1.5 items-start">
+                <div
+                  className={`max-w-[85%] rounded-[1.2rem] px-4 py-3 shadow-sm ${
+                    isMe
+                      ? "bg-[#cf833f] text-white rounded-br-sm self-end"
+                      : "bg-white text-[#2b180a] border border-[#f5e5cf] rounded-bl-sm"
+                  }`}
+                >
+                  {isMe ? (
+                    <span className="text-[13px] font-semibold block leading-relaxed">{msg.text}</span>
+                  ) : (
+                    <div className="text-[13px] font-medium leading-relaxed prose prose-sm prose-orange">
+                      <ReactMarkdown>{msg.text}</ReactMarkdown>
+                    </div>
+                  )}
+                </div>
+                
+                {msg.pendingAction && msg.pendingAction.type === "clear_shopping_list" && (
+                  <div className="ml-2 bg-[#fdf9f1] border border-[#f5e5cf] rounded-xl p-3 shadow-sm flex flex-col gap-2 max-w-[85%]">
+                    <div className="flex items-center gap-1.5 text-[12px] font-bold text-[#8a7262]">
+                      <ShoppingCart className="w-4 h-4 text-[#c76823]" />
+                      <span>Agent sugeruje uaktualnienie listy</span>
+                    </div>
+                    <p className="text-[11px] text-[#2b180a] font-medium leading-snug">
+                      Zauważyłem zmianę przepisu. Czy wyczyścić starą listę zakupów, aby nie pomieszać składników?
+                    </p>
+                    
+                    {msg.pendingAction.status === "pending" && (
+                      <div className="flex gap-2 mt-1">
+                        <button onClick={() => handleResolve(msg._id, "approved")} className="flex-1 px-3 py-1.5 bg-[#cf833f] hover:bg-[#c76823] text-white text-[11px] font-bold rounded-lg transition-colors">
+                          Wyczyść starą listę
+                        </button>
+                        <button onClick={() => handleResolve(msg._id, "rejected")} className="flex-1 px-3 py-1.5 bg-white border border-[#f5e5cf] text-[#8a7262] text-[11px] font-bold rounded-lg hover:text-[#2b180a] transition-colors">
+                          Zostaw jak jest
+                        </button>
+                      </div>
+                    )}
+                    
+                    {msg.pendingAction.status === "approved" && (
+                      <div className="text-[11px] font-extrabold text-[#4aad6f] flex items-center gap-1 bg-[#dcfce7]/50 px-2 py-1 rounded w-max">
+                        <Check className="w-3 h-3" /> Zgoda wydana
+                      </div>
+                    )}
+                    
+                    {msg.pendingAction.status === "rejected" && (
+                      <div className="text-[11px] font-extrabold text-red-400 flex items-center gap-1 bg-red-50 px-2 py-1 rounded w-max">
+                        <X className="w-3 h-3" /> Odrzucono
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

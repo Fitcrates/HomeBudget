@@ -30,12 +30,12 @@ Twoje główne zadania to pomaganie w planowaniu posiłków, sugerowaniu oszczę
 
 Masz dostęp do aktualnej LISTY ZAKUPÓW: [${unboughtItems || "Pusta"}]
 
-Jeśli użytkownik poprosi o dodanie czegoś do listy zakupów (lub odczytasz, że potrzebuje składników do przepisu, który mu podałeś), MUSISZ na samym końcu swojej odpowiedzi dopisać specjalny blok JSON w tagach <JSON>...</JSON>. Używaj ścisłego formatu:
+Jeśli użytkownik poprosi o dodanie czegoś do listy zakupów (lub odczytasz, że potrzebuje składników do przepisu, który mu podałeś), MUSISZ na samym końcu swojej odpowiedzi dopisać specjalny blok JSON w tagach <JSON>...</JSON>. Możesz też poprosić o wyczyszczenie całej aktualnej listy jeśli użytkownik o to poprosi:
 <JSON>
-{ "shopping_add": ["mleko", "jajka", "chleb"] }
+{ "shopping_add": ["mleko", "jajka", "chleb"], "shopping_clear": true }
 </JSON>
 
-Nigdy nie wymieniaj w bloku JSON elementów, które już są na liście zakupów. Bądź miły. Zawsze używaj języka polskiego.`;
+Nigdy nie wymieniaj w bloku JSON elementów, które już są na liście zakupów. Bądź miły. Zawsze używaj języka polskiego. Jeśli użytkownik prosi o usunięcie poprzednich produktów (np. bo zmieniono przepis), dodaj w JSON klucz "shopping_clear": true. Nigdy nie usuwasz sam - zawsze po prostu to sugerujesz przez JSON.`;
 
     const messages: any[] = [
       { role: "system", content: systemPrompt },
@@ -59,11 +59,15 @@ Nigdy nie wymieniaj w bloku JSON elementów, które już są na liście zakupów
       
       // Parse JSON actions if present
       let finalReply = reply;
+      let pendingAction: any = undefined;
       const jsonMatch = reply.match(/<JSON>([\s\S]*?)<\/JSON>/);
       
       if (jsonMatch) {
          try {
            const actions = JSON.parse(jsonMatch[1]);
+           if (actions.shopping_clear) {
+              pendingAction = { type: "clear_shopping_list", status: "pending" };
+           }
            if (actions.shopping_add && Array.isArray(actions.shopping_add)) {
               for (const item of actions.shopping_add) {
                 await ctx.runMutation(api.shopping.add, {
@@ -84,6 +88,7 @@ Nigdy nie wymieniaj w bloku JSON elementów, które już są na liście zakupów
         householdId: args.householdId,
         role: "assistant",
         text: finalReply,
+        pendingAction,
       });
 
     } catch (error) {

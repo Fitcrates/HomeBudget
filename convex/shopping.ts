@@ -92,3 +92,21 @@ export const clearBought = mutation({
     }
   },
 });
+
+export const clearAll = mutation({
+  args: { householdId: v.id("households") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    await assertMember(ctx, args.householdId, userId);
+
+    const allItems = await ctx.db
+      .query("shopping_items")
+      .withIndex("by_household", (q) => q.eq("householdId", args.householdId))
+      .collect();
+
+    for (const item of allItems) {
+      await ctx.db.delete(item._id);
+    }
+  },
+});
