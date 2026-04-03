@@ -201,6 +201,7 @@ JSON:
 {
   "rawText": "TUTAJ WPISZ TYLKO I WYŁĄCZNIE NAZWĘ MARKI I WYSTAWCY (np. 'Biedronka', 'Castorama', 'Orlen') ORAZ DATĘ",
   "currency": "PLN (lub USD, EUR, GBP - wykryta waluta)",
+  "totalAmount": "SUMA PARAGONU PO WSZYSTKICH RABATACH (np. '150.50')",
   "items": [
     {
       "description": "Nazwa produktu",
@@ -224,6 +225,7 @@ interface ProcessedReceiptItem {
 interface ProcessReceiptResult {
   items: ProcessedReceiptItem[];
   rawText: string;
+  totalAmount: string;
   modelUsed: string;
 }
 
@@ -258,8 +260,13 @@ async function parseAndNormalizeResponse(
 
     const currency = asString(parsed?.currency).toUpperCase();
     const exchangeRate = await fetchExchangeRate(currency);
+    
+    let totalAmount = normalizeAmount(parsed?.totalAmount);
+    if (totalAmount && exchangeRate !== 1) {
+      totalAmount = (parseFloat(totalAmount) * exchangeRate).toFixed(2);
+    }
 
-    console.log(`AI returned ${parsedItems.length} raw items (Currency: ${currency}, Rate: ${exchangeRate})`);
+    console.log(`AI returned ${parsedItems.length} raw items (Currency: ${currency}, Rate: ${exchangeRate}, Total: ${totalAmount})`);
 
     const normalizedItems: ProcessedReceiptItem[] = parsedItems
       .map((item: any) => {
@@ -297,12 +304,13 @@ async function parseAndNormalizeResponse(
     return {
       items: normalizedItems,
       rawText: asString(parsed?.rawText),
+      totalAmount: totalAmount || "",
       modelUsed,
     };
   } catch (e) {
     console.error("Failed to parse AI JSON:", e);
     console.error("Content preview:", content.substring(0, 300));
-    return { items: [], rawText: "", modelUsed };
+    return { items: [], rawText: "", totalAmount: "", modelUsed };
   }
 }
 
@@ -333,7 +341,7 @@ async function processImagesWithAI(
     promptLength: prompt.length,
   });
 
-  const resp = await getGroq().chat.completions.create({
+  let resp = await getGroq().chat.completions.create({
     model: VISION_MODEL,
     temperature: 0.1,
     max_tokens: 4096,
@@ -343,13 +351,39 @@ async function processImagesWithAI(
     ],
   });
 
-  const content = resp.choices[0].message.content ?? "{}";
+  let content = resp.choices[0].message.content ?? "{}";
   console.log("Vision response:", {
     len: content.length,
     model: resp.model
   });
 
-  return await parseAndNormalizeResponse(content, categoriesArray, VISION_MODEL);
+  let parsed = await parseAndNormalizeResponse(content, categoriesArray, VISION_MODEL);
+
+  // --- VALIDATION LOOP ---
+  const expectedTotalAmount = parseFloat(parsed.totalAmount || "0");
+  const totalParsedAmount = parsed.items.reduce((sum, item) => sum + parseFloat(item.amount || "0"), 0);
+
+  if (expectedTotalAmount > 0 && Math.abs(totalParsedAmount - expectedTotalAmount) > 0.05) {
+    console.log(`Mismatch detected! Parsed items sum: ${totalParsedAmount}, Receipt total: ${expectedTotalAmount}. Retrying...`);
+    const diff = (expectedTotalAmount - totalParsedAmount).toFixed(2);
+    
+    resp = await getGroq().chat.completions.create({
+      model: VISION_MODEL,
+      temperature: 0.1,
+      max_tokens: 4096,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: contentParts },
+        { role: "assistant", content },
+        { role: "user", content: `Suma pozycji, które zwróciłeś to ${totalParsedAmount.toFixed(2)}, ale całkowita kwota paragonu to ${expectedTotalAmount.toFixed(2)}. Różnica wynosi ${diff}. Prawdopodobnie pominąłeś jakąś pozycję. Przeanalizuj dokument JESZCZE RAZ BARDZO SKRUPULATNIE i zwróć POPRAWIONY, PEŁNY JSON ze wszystkimi pozycjami, absolutnie niczego nie pomijając.` }
+      ],
+    });
+    
+    content = resp.choices[0].message.content ?? "{}";
+    parsed = await parseAndNormalizeResponse(content, categoriesArray, VISION_MODEL);
+  }
+
+  return parsed;
 }
 
 // ── AI Processing: Text ───────────────────────────────────────────

@@ -41,6 +41,7 @@ interface ProcessReceiptResult {
     subcategoryId?: Id<"subcategories"> | null;
   }>;
   rawText?: string;
+  totalAmount?: string;
   modelUsed?: string;
 }
 
@@ -50,6 +51,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
   const [processing, setProcessing] = useState(false);
   const [rawText, setRawText] = useState("");
   const [items, setItems] = useState<ParsedItem[] | null>(null);
+  const [expectedTotal, setExpectedTotal] = useState<string>("");
   const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [saving, setSaving] = useState(false);
   const initialPreviews = storageIds.map((id, index) => {
@@ -156,6 +158,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
       })) as ProcessReceiptResult;
       const detectedItems = Array.isArray(result?.items) ? result.items : [];
       setRawText(result?.rawText || "");
+      setExpectedTotal(result?.totalAmount || "");
 
       if (detectedItems.length === 0) {
         toast.error("AI nie znalazło żadnych dopasowań.");
@@ -460,9 +463,40 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
             <div className="bg-white/40 backdrop-blur-xl border border-white/50 shadow-[0_8px_32px_rgba(180,120,80,0.2)] rounded-[2rem] p-2 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/40 to-white/10 pointer-events-none" />
               <div className="relative z-10">
-                <h3 className="text-[14px] font-extrabold text-[#3e2815] p-4">
+                <h3 className="text-[14px] font-extrabold text-[#3e2815] p-4 pb-2">
                   OCR: Tekst wyodrębniony! ({items.length})
                 </h3>
+                
+                {expectedTotal && (
+                  (() => {
+                    const sum = items.reduce((acc, curr) => {
+                      const val = parseFloat((curr.amount || "").replace(",", "."));
+                      return acc + (isNaN(val) ? 0 : val);
+                    }, 0);
+                    const expected = parseFloat(expectedTotal.replace(",", "."));
+                    const diff = Math.abs(sum - expected);
+                    
+                    if (diff > 0.05) {
+                      return (
+                        <div className="mx-4 mb-4 bg-[#fff2ec] border border-[#ffc2af] rounded-xl p-3 shadow-sm">
+                          <p className="text-[#a94d22] text-xs font-bold leading-relaxed">
+                            ⚠️ Suma pozycji ({sum.toFixed(2)}) nie zgadza się z sumą paragonu ({expected.toFixed(2)}).
+                            <br />
+                            Sprawdź ręcznie czy brakuje jakiejś pozycji (różnica: {diff.toFixed(2)})!
+                          </p>
+                        </div>
+                      );
+                    }
+                    return (
+                        <div className="mx-4 mb-4 bg-[#ebf7ef] border border-[#8bc5a0] rounded-xl p-3 shadow-sm">
+                          <p className="text-[#46825d] text-xs font-bold">
+                            ✅ Suma pozycji ({sum.toFixed(2)}) zgadza się z sumą paragonu!
+                          </p>
+                        </div>
+                    );
+                  })()
+                )}
+
                 <div className="space-y-4">
                   {items.map((item, index) => {
                     const selectedCat = categories?.find((c) => c._id === item.categoryId);

@@ -171,9 +171,19 @@ export const householdMemberStats = query({
           : null;
 
         const userExpenses = allExpenses.filter((e) => e.userId === m.userId);
-        const totalExpenses = userExpenses.length;
-        const ocrExpenses = userExpenses.filter((e) => !!e.ocrRawText || !!e.receiptImageId).length;
-        const manualExpenses = totalExpenses - ocrExpenses;
+        
+        const manualExpensesList = userExpenses.filter((e) => !e.ocrRawText && !e.receiptImageId);
+        const ocrExpensesList = userExpenses.filter((e) => !!e.ocrRawText || !!e.receiptImageId);
+
+        const seenScans = new Set<string>();
+        for (const e of ocrExpensesList) {
+          const key = e.receiptImageId || (e.ocrRawText ? e.ocrRawText + "_" + e.date : e._id);
+          seenScans.add(key as string);
+        }
+
+        const ocrExpenses = seenScans.size;
+        const manualExpenses = manualExpensesList.length;
+        const totalExpenses = manualExpenses + ocrExpenses;
         const totalAmount = userExpenses.reduce((sum, e) => sum + e.amount, 0);
 
         const daySet = new Set(
