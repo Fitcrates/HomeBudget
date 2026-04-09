@@ -288,59 +288,81 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
           </label>
         </div>
 
-        {/* Category */}
+        {/* Categories Accordion */}
         <div className={`${cardStyle} space-y-3`}>
           <label className={labelStyle}>
-            Kategoria
+            Kategoria i Podkategoria
           </label>
           {categories === undefined ? (
             <div className="flex justify-center py-6">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500" />
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-3">
-              {categories.map((cat) => (
-                <button
-                  key={cat._id}
-                  type="button"
-                  onClick={() => { setCategoryId(cat._id); setSubcategoryId(null); }}
-                  className={`p-3 rounded-2xl flex flex-col items-center gap-1.5 transition-all outline-none ${categoryId === cat._id
-                    ? "border border-orange-400 bg-orange-100/50 shadow-inner scale-105"
-                    : "border border-white/60 bg-white/50 hover:bg-white/80 shadow-sm"
+            <div className="flex flex-col gap-2.5">
+              {categories.map((cat) => {
+                const isOpen = categoryId === cat._id;
+                return (
+                  <div
+                    key={cat._id}
+                    className={`transition-all rounded-[1.2rem] border overflow-hidden ${
+                      isOpen
+                        ? "bg-white/80 border-[#de9241]/30 shadow-sm"
+                        : "bg-white/40 border-white/60 hover:bg-white/60"
                     }`}
-                >
-                  <DynamicIcon name={cat.icon} className="w-8 h-8 text-[#ca782a] drop-shadow-sm" />
-                  <div className={`text-[10px] font-bold leading-tight text-center line-clamp-2 ${categoryId === cat._id ? "text-orange-900" : "text-[#8a7262]"}`}>{cat.name}</div>
-                </button>
-              ))}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCategoryId(isOpen ? null : cat._id);
+                        setSubcategoryId(null); // Reset subcategory when toggling main
+                      }}
+                      className="w-full flex items-center justify-between p-3.5 outline-none"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-xl ${isOpen ? "bg-[#fcf4e4] text-[#ca782a]" : "bg-white/50 text-[#8a7262]"}`}>
+                           <DynamicIcon name={cat.icon} className="w-5 h-5 drop-shadow-sm" />
+                        </div>
+                        <span className={`text-[14px] font-extrabold ${isOpen ? "text-[#2b180a]" : "text-[#6d4d38]"}`}>
+                          {cat.name}
+                        </span>
+                      </div>
+                      <svg 
+                        className={`w-5 h-5 transition-transform duration-300 ${isOpen ? "rotate-180 text-[#ca782a]" : "text-[#b89b87]"}`} 
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    
+                    {isOpen && (
+                      <div className="px-3 pb-3 pt-1 grid grid-cols-3 gap-2 border-t border-black/5 bg-[#faf6f0]/50 animate-in fade-in slide-in-from-top-2">
+                        {cat.subcategories.map((sub) => (
+                          <button
+                            key={sub._id}
+                            type="button"
+                            onClick={() => setSubcategoryId(sub._id)}
+                            className={`p-2.5 rounded-xl flex flex-col items-center gap-1.5 transition-all outline-none ${
+                              subcategoryId === sub._id
+                                ? "border border-orange-400 bg-orange-100/50 shadow-inner scale-[1.02]"
+                                : "border border-black/5 bg-white hover:bg-orange-50/50 shadow-sm"
+                            }`}
+                          >
+                            <DynamicIcon name={sub.icon} className="w-6 h-6 text-[#ca782a] opacity-90 drop-shadow-sm" />
+                            <div className={`text-[10px] font-bold leading-tight text-center line-clamp-2 ${
+                              subcategoryId === sub._id ? "text-orange-900" : "text-[#8a7262]"
+                            }`}>
+                              {sub.name}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
-
-        {/* Subcategory */}
-        {selectedCategory && (
-          <div className={`${cardStyle} space-y-3 animate-in fade-in slide-in-from-top-4`}>
-            <label className={labelStyle}>
-              Podkategoria
-            </label>
-            <div className="grid grid-cols-3 gap-3">
-              {selectedCategory.subcategories.map((sub) => (
-                <button
-                  key={sub._id}
-                  type="button"
-                  onClick={() => setSubcategoryId(sub._id)}
-                  className={`p-3 rounded-2xl flex flex-col items-center gap-1.5 transition-all outline-none ${subcategoryId === sub._id
-                    ? "border border-orange-400 bg-orange-100/50 shadow-inner scale-105"
-                    : "border border-white/60 bg-white/50 hover:bg-white/80 shadow-sm"
-                    }`}
-                >
-                  <DynamicIcon name={sub.icon} className="w-8 h-8 text-[#ca782a] drop-shadow-sm" />
-                  <div className={`text-[10px] font-bold leading-tight text-center line-clamp-2 ${subcategoryId === sub._id ? "text-orange-900" : "text-[#8a7262]"}`}>{sub.name}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* End of Form */}
 
