@@ -2,6 +2,7 @@
 
 import { v } from "convex/values";
 import { action } from "./_generated/server";
+import { internal } from "./_generated/api";
 import OpenAI from "openai";
 
 // ── Configuration ─────────────────────────────────────────────────
@@ -217,9 +218,11 @@ JSON:
 
 interface ProcessedReceiptItem {
   description: string;
+  originalRawDescription?: string; // Keep track of AI's raw output for the learning loop
   amount: string;
   categoryId: string | null;
   subcategoryId: string | null;
+  fromMapping?: boolean; // True if this was resolved from user history rather than AI inference
 }
 
 interface ProcessReceiptResult {
@@ -244,6 +247,8 @@ async function fetchExchangeRate(currencyCode: string): Promise<number> {
 }
 
 async function parseAndNormalizeResponse(
+  ctx: any,
+  householdId: string,
   content: string,
   categoriesArray: any[],
   modelUsed: string
@@ -270,7 +275,7 @@ async function parseAndNormalizeResponse(
 
     const normalizedItems: ProcessedReceiptItem[] = parsedItems
       .map((item: any) => {
-        const description = asString(item?.description) || "Nieznana pozycja";
+        const originalRawDesc = asString(item?.description) || "Nieznana pozycja";
         let amountStr = normalizeAmount(item?.amount);
         
         // Convert currency if needed
@@ -279,23 +284,72 @@ async function parseAndNormalizeResponse(
           amountStr = num.toFixed(2);
         }
 
-        // Resolve category NAMES to Convex IDs
-        const { categoryId, subcategoryId } = resolveCategoryNames(
-          asString(item?.category),
-          asString(item?.subcategory),
-          categoriesArray
-        );
+        // --- PRE-NORMALIZATION & HEURISTICS (Step 3 Quick Win) ---
+        // Clean up common OCR noise
+        let cleanDesc = originalRawDesc
+          .replace(/\b(szt|kg|op|l|ml|x\d+|[A-Z]\d+)\b/gi, "")
+          .trim();
+        
+        // --- LEARNING LOOP: Lookup mappings (Step 2 Implementation) ---
+        let categoryId: string | null = null;
+        let subcategoryId: string | null = null;
+        let resolvedDescription = originalRawDesc;
+        let fromMapping = false;
 
+        // Note: within an action, we can't directly loop ctx.runQuery on potentially 100 items efficiently
+        // For now, doing sequential runQuery - since it's an action, it's ok, but could be batched later
+        
         const descWithCurrency = exchangeRate !== 1 
-          ? `${description} (${normalizeAmount(item?.amount)} ${currency})` 
-          : description;
+          ? `${resolvedDescription} (${normalizeAmount(item?.amount)} ${currency})` 
+          : resolvedDescription;
 
-        return { description: descWithCurrency, amount: amountStr, categoryId, subcategoryId };
-      })
-      .filter(
+        return { 
+          description: descWithCurrency, 
+          originalRawDescription: originalRawDesc,
+          amount: amountStr, 
+          categoryId, 
+          subcategoryId,
+          fromMapping 
+        };
+      });
+
+    // Resolve missing items mapping/categories
+    for (const item of normalizedItems) {
+        if (!item.originalRawDescription) continue;
+        
+        try {
+          const mapping = await ctx.runQuery(internal.productMappings.lookupMapping, {
+             householdId: householdId as any,
+             rawDescription: item.originalRawDescription
+          });
+          
+          if (mapping) {
+             item.categoryId = mapping.categoryId;
+             item.subcategoryId = mapping.subcategoryId;
+             if (exchangeRate === 1) {
+                item.description = mapping.correctedDescription; // Only override text if no currency inject
+             }
+             item.fromMapping = true;
+          } else {
+             // Fallback to AI's category resolution
+             const originalAiCategory = parsedItems.find((i: any) => asString(i?.description) === item.originalRawDescription);
+             const resolved = resolveCategoryNames(
+               asString(originalAiCategory?.category),
+               asString(originalAiCategory?.subcategory),
+               categoriesArray
+             );
+             item.categoryId = resolved.categoryId;
+             item.subcategoryId = resolved.subcategoryId;
+          }
+        } catch (e) {
+          // Ignore failures in lookup
+        }
+    }
+
+    const finalItems = normalizedItems.filter(
         (item: ProcessedReceiptItem) =>
           item.amount || item.description !== "Nieznana pozycja"
-      );
+    );
 
     console.log(
       `Normalized: ${normalizedItems.length} items (model: ${modelUsed})`
@@ -317,10 +371,12 @@ async function parseAndNormalizeResponse(
 // ── AI Processing: Images ─────────────────────────────────────────
 
 async function processImagesWithAI(
+  ctx: any,
+  householdId: string,
   imageDataList: { base64: string; mimeType: string }[],
   compactCategories: string,
   categoriesArray: any[]
-): Promise<ProcessReceiptResult> {
+): Promise<ProcessReceiptResult & { retryUsed: boolean }> {
   const prompt = buildPrompt(compactCategories);
 
   const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
@@ -357,13 +413,15 @@ async function processImagesWithAI(
     model: resp.model
   });
 
-  let parsed = await parseAndNormalizeResponse(content, categoriesArray, VISION_MODEL);
+  let parsed = await parseAndNormalizeResponse(ctx, householdId, content, categoriesArray, VISION_MODEL);
+  let retryUsed = false;
 
   // --- VALIDATION LOOP ---
   const expectedTotalAmount = parseFloat(parsed.totalAmount || "0");
   const totalParsedAmount = parsed.items.reduce((sum, item) => sum + parseFloat(item.amount || "0"), 0);
 
   if (expectedTotalAmount > 0 && Math.abs(totalParsedAmount - expectedTotalAmount) > 0.05) {
+    retryUsed = true;
     console.log(`Mismatch detected! Parsed items sum: ${totalParsedAmount}, Receipt total: ${expectedTotalAmount}. Retrying...`);
     const diff = (expectedTotalAmount - totalParsedAmount).toFixed(2);
     
@@ -380,19 +438,21 @@ async function processImagesWithAI(
     });
     
     content = resp.choices[0].message.content ?? "{}";
-    parsed = await parseAndNormalizeResponse(content, categoriesArray, VISION_MODEL);
+    parsed = await parseAndNormalizeResponse(ctx, householdId, content, categoriesArray, VISION_MODEL);
   }
 
-  return parsed;
+  return { ...parsed, retryUsed };
 }
 
 // ── AI Processing: Text ───────────────────────────────────────────
 
 async function processTextWithAI(
+  ctx: any,
+  householdId: string,
   text: string,
   compactCategories: string,
   categoriesArray: any[]
-): Promise<ProcessReceiptResult> {
+): Promise<ProcessReceiptResult & { retryUsed: boolean }> {
   const prompt = buildPrompt(compactCategories, text.slice(0, 8000));
 
   const resp = await getGroq().chat.completions.create({
@@ -406,7 +466,8 @@ async function processTextWithAI(
   });
 
   const content = resp.choices[0].message.content ?? "{}";
-  return await parseAndNormalizeResponse(content, categoriesArray, VISION_MODEL);
+  const parsed = await parseAndNormalizeResponse(ctx, householdId, content, categoriesArray, VISION_MODEL);
+  return { ...parsed, retryUsed: false };
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -424,6 +485,7 @@ export const processReceiptWithAI = action({
   args: {
     storageIds: v.array(v.id("_storage")),
     categories: v.any(),
+    householdId: v.id("households"),
     isPdf: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<ProcessReceiptResult> => {
@@ -472,12 +534,32 @@ export const processReceiptWithAI = action({
       }
 
       const result = await processImagesWithAI(
+        ctx,
+        args.householdId,
         imageDataList,
         compactCategories,
         categoriesArray
       );
 
       const ms = Date.now() - startTime;
+      
+      // Calculate match rate for logging
+      const expectedTotalAmount = parseFloat(result.totalAmount || "0");
+      const totalParsedAmount = result.items.reduce((sum, item) => sum + parseFloat(item.amount || "0"), 0);
+      const sumMatchedTotal = expectedTotalAmount > 0 && Math.abs(totalParsedAmount - expectedTotalAmount) <= 0.05;
+
+      // Log the scan observability (Step 1 Implementation)
+      await ctx.runMutation(internal.ocrLogs.logScan, {
+        householdId: args.householdId,
+        imageCount: args.storageIds.length,
+        modelUsed: VISION_MODEL,
+        itemCount: result.items.length,
+        totalAmount: result.totalAmount,
+        sumMatchedTotal,
+        retryUsed: result.retryUsed,
+        latencyMs: ms,
+      });
+
       console.log(`=== DONE === ${result.items.length} items in ${ms}ms`);
       return result;
     } catch (error: any) {

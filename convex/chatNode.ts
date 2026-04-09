@@ -6,18 +6,23 @@ import { Groq } from "groq-sdk";
 export const sendMessage = action({
   args: {
     householdId: v.id("households"),
+    sessionId: v.id("chat_sessions"),
     text: v.string(),
   },
   handler: async (ctx, args) => {
     // 1. Add user message
     await ctx.runMutation(api.chat.addMessage, {
       householdId: args.householdId,
+      sessionId: args.sessionId,
       role: "user",
       text: args.text,
     });
 
     // 2. Load context
-    const history = await ctx.runQuery(api.chat.listForHousehold, { householdId: args.householdId });
+    const history = await ctx.runQuery(api.chat.listSessionMessages, { 
+       householdId: args.householdId, 
+       sessionId: args.sessionId 
+    });
     const shoppingList = await ctx.runQuery(api.shopping.listForHousehold, { householdId: args.householdId });
 
     const now = new Date();
@@ -139,6 +144,7 @@ Nigdy nie wymieniaj w bloku JSON elementów, które już są na liście zakupów
 
       await ctx.runMutation(api.chat.addMessage, {
         householdId: args.householdId,
+        sessionId: args.sessionId,
         role: "assistant",
         text: finalReply,
         pendingAction,
@@ -148,6 +154,7 @@ Nigdy nie wymieniaj w bloku JSON elementów, które już są na liście zakupów
       console.error(error);
       await ctx.runMutation(api.chat.addMessage, {
         householdId: args.householdId,
+        sessionId: args.sessionId,
         role: "assistant",
         text: "Przepraszam, mam chwilowe problemy z serwerem. Spróbuj za moment.",
       });

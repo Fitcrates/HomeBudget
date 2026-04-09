@@ -7,6 +7,7 @@ import { HouseholdScreen } from "./screens/HouseholdScreen";
 import { OcrScreen } from "./screens/OcrScreen";
 import { GoalsScreen } from "./screens/GoalsScreen";
 import { ChatScreen } from "./screens/ChatScreen";
+import { BadgeNotificationProvider } from "./providers/BadgeNotificationProvider";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { DashboardIcon } from "./ui/icons/DashboardIcon";
@@ -51,7 +52,7 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
   }
 
   return (
-    <>
+    <BadgeNotificationProvider householdId={household._id}>
       {/* Main Container */}
       <div className="w-full max-w-[420px] h-dvh flex flex-col mx-auto relative bg-gradient-to-b from-[#ebae69] via-[#faebcd] to-[#fcf4e4] text-[#2b180a] font-sans selection:bg-orange-200 lg:shadow-2xl lg:rounded-[2rem] lg:my-4 lg:h-[90vh]">
         {/* Screen Content */}
@@ -108,7 +109,7 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
           <NavBtn icon={<Bot className="w-6 h-6 text-[#cf833f]" />} active={screen === "chat"} onClick={() => setScreen("chat")} />
         </nav>
       </div>
-    </>
+    </BadgeNotificationProvider>
   );
 }
 

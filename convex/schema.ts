@@ -182,9 +182,47 @@ const applicationTables = {
     createdAt: v.number(),
   }).index("by_household", ["householdId"]),
 
+  // OCR scan logs for observability
+  ocr_logs: defineTable({
+    householdId: v.id("households"),
+    userId: v.optional(v.id("users")),
+    imageCount: v.number(),
+    modelUsed: v.string(),
+    itemCount: v.number(),
+    totalAmount: v.optional(v.string()),
+    sumMatchedTotal: v.boolean(),
+    retryUsed: v.boolean(),
+    latencyMs: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_household", ["householdId"])
+    .index("by_user", ["userId"]),
+
+  // Learning loop: stores user corrections for product names/categories
+  product_mappings: defineTable({
+    householdId: v.id("households"),
+    rawDescription: v.string(),       // AI-returned name, e.g. "MLK ŁOWE 2%"
+    correctedDescription: v.string(), // User-corrected name, e.g. "Mleko Łowickie 2%"
+    categoryId: v.id("categories"),
+    subcategoryId: v.id("subcategories"),
+    usageCount: v.number(),
+    lastUsedAt: v.number(),
+  })
+    .index("by_household", ["householdId"])
+    .index("by_household_and_raw", ["householdId", "rawDescription"]),
+
+  // AI Chat Sessions
+  chat_sessions: defineTable({
+    householdId: v.id("households"),
+    title: v.string(), // e.g. "Przepis na lazanię"
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_household", ["householdId"]),
+
   // AI Chat History
   chat_messages: defineTable({
     householdId: v.id("households"),
+    sessionId: v.optional(v.id("chat_sessions")),
     role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system")),
     text: v.string(),
     pendingAction: v.optional(
@@ -195,7 +233,9 @@ const applicationTables = {
       })
     ),
     createdAt: v.number(),
-  }).index("by_household", ["householdId"]),
+  })
+    .index("by_household", ["householdId"])
+    .index("by_session", ["sessionId"]),
 };
 
 export default defineSchema({

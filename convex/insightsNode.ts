@@ -54,7 +54,7 @@ export const callAI = internalAction({
       "severity: info, warning, danger.",
       "Odpowiedz TYLKO i WYŁĄCZNIE poprawnym JSON:",
       '{"insights":[{"type":"prediction","title":"Krotki tytul max 6 slow","body":"2-3 bardzo analityczne i BEZBŁĘDNE matematycznie zdania.","emoji":"emoji","severity":"info"}]}',
-    ].join("\\n");
+    ].join("\n");
 
     const resp = await getGroq().chat.completions.create({
       model: "llama-3.3-70b-versatile",

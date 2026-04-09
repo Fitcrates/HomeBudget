@@ -3,7 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { assertMember } from "./households";
 
-export const listForHousehold = query({
+export const listSessions = query({
   args: { householdId: v.id("households") },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -11,8 +11,40 @@ export const listForHousehold = query({
     await assertMember(ctx, args.householdId, userId);
 
     return await ctx.db
-      .query("chat_messages")
+      .query("chat_sessions")
       .withIndex("by_household", (q) => q.eq("householdId", args.householdId))
+      .order("desc")
+      .collect();
+  },
+});
+
+export const createSession = mutation({
+  args: { householdId: v.id("households"), title: v.string() },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    await assertMember(ctx, args.householdId, userId);
+
+    const sessionId = await ctx.db.insert("chat_sessions", {
+      householdId: args.householdId,
+      title: args.title,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    return sessionId;
+  },
+});
+
+export const listSessionMessages = query({
+  args: { householdId: v.id("households"), sessionId: v.id("chat_sessions") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    await assertMember(ctx, args.householdId, userId);
+
+    return await ctx.db
+      .query("chat_messages")
+      .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
       .order("asc")
       .collect();
   },
@@ -21,6 +53,7 @@ export const listForHousehold = query({
 export const addMessage = mutation({
   args: {
     householdId: v.id("households"),
+    sessionId: v.id("chat_sessions"),
     role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system")),
     text: v.string(),
     pendingAction: v.optional(
@@ -32,21 +65,22 @@ export const addMessage = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    // Only verify user if the action wasn't internally triggered by an action directly?
-    // Let's assume standard client call for user messages.
-    // If it's the assistant, we also call this? Yes, from standard node actions we pass context.
     const userId = await getAuthUserId(ctx);
     if (!userId && args.role !== "assistant") {
        throw new Error("Not authenticated");
     }
     
-    return await ctx.db.insert("chat_messages", {
+    const msgId = await ctx.db.insert("chat_messages", {
       householdId: args.householdId,
+      sessionId: args.sessionId,
       role: args.role,
       text: args.text,
       pendingAction: args.pendingAction,
       createdAt: Date.now(),
     });
+
+    await ctx.db.patch(args.sessionId, { updatedAt: Date.now() });
+    return msgId;
   },
 });
 
@@ -72,8 +106,8 @@ export const resolvePendingAction = mutation({
   },
 });
 
-export const clearHistory = mutation({
-  args: { householdId: v.id("households") },
+export const deleteSession = mutation({
+  args: { householdId: v.id("households"), sessionId: v.id("chat_sessions") },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
@@ -81,11 +115,12 @@ export const clearHistory = mutation({
 
     const messages = await ctx.db
       .query("chat_messages")
-      .withIndex("by_household", (q) => q.eq("householdId", args.householdId))
+      .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
       .collect();
 
     for (const msg of messages) {
       await ctx.db.delete(msg._id);
     }
+    await ctx.db.delete(args.sessionId);
   },
 });

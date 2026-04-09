@@ -27,10 +27,6 @@ export function ChatScreen({ householdId }: Props) {
             <Bot className="w-8 h-8 text-[#c76823]" />
             <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a]">Agent</h2>
           </div>
-          
-          {tab === "chat" && (
-            <ClearChatButton householdId={householdId} />
-          )}
         </div>
 
         <div className="flex bg-[#fdf9f1] rounded-2xl p-1 shadow-[0_4px_12px_rgba(180,120,80,0.1)] gap-1">
@@ -87,37 +83,83 @@ function InteractiveListItem({ children, ...props }: any) {
   );
 }
 
-function ClearChatButton({ householdId }: { householdId: Id<"households"> }) {
-  const clearChat = useMutation(api.chat.clearHistory);
 
-  async function handleClear() {
-    if (confirm("Rozpocząć nową rozmowę i wyczyścić historię chatu w tym domostwie?")) {
-      await clearChat({ householdId });
-      toast.success("Rozpoczęto nową rozmowę.");
+
+function ChatView({ householdId }: { householdId: Id<"households"> }) {
+  const sessions = useQuery(api.chat.listSessions, { householdId });
+  const createSession = useMutation(api.chat.createSession);
+  const deleteSession = useMutation(api.chat.deleteSession);
+  
+  const [activeSessionId, setActiveSessionId] = useState<Id<"chat_sessions"> | null>(null);
+
+  useEffect(() => {
+    if (sessions && sessions.length > 0 && !activeSessionId) {
+      setActiveSessionId(sessions[0]._id);
     }
+  }, [sessions, activeSessionId]);
+
+  async function handleNewChat() {
+    const id = await createSession({ householdId, title: "Nowa rozmowa" });
+    setActiveSessionId(id);
   }
 
   return (
-    <button
-      onClick={handleClear}
-      className="text-xs font-bold text-red-400 bg-red-400/10 hover:bg-red-400/20 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1"
-    >
-      <Trash2 className="w-3 h-3" />
-      Wyczyść czat
-    </button>
+    <div className="flex-1 overflow-hidden flex flex-col gap-3">
+      {/* Sessions Bar */}
+      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide shrink-0 px-1 py-0.5">
+        <button
+          onClick={handleNewChat}
+          className="flex-shrink-0 flex items-center justify-center gap-1 bg-[#c76823] text-white text-[12px] font-bold px-3 py-1.5 rounded-full shadow-sm hover:bg-[#a6561d] transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" /> Nowy Czat
+        </button>
+        {sessions?.map((session) => (
+          <div key={session._id} className="relative group flex-shrink-0">
+             <button
+                onClick={() => setActiveSessionId(session._id)}
+                className={`text-[12px] font-bold px-4 py-1.5 rounded-full transition-colors flex items-center gap-1 border ${
+                  activeSessionId === session._id
+                    ? "bg-white text-[#c76823] border-[#f5e5cf] shadow-sm"
+                    : "bg-white/40 text-[#8a7262] border-transparent hover:bg-white/60"
+                }`}
+              >
+                {session.title}
+             </button>
+             <button
+               onClick={(e) => { e.stopPropagation(); deleteSession({ householdId, sessionId: session._id }); }}
+               className={`absolute -top-1 -right-1 bg-red-100 text-red-500 rounded-full p-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity ${activeSessionId === session._id ? 'opacity-100' : ''}`}
+             >
+                <X className="w-2.5 h-2.5" />
+             </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Active Session View */}
+      {activeSessionId ? (
+        <ActiveChatSession householdId={householdId} sessionId={activeSessionId} />
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center text-center opacity-50 px-6">
+          <Bot className="w-12 h-12 text-[#c76823] mb-4" />
+          <p className="text-[14px] font-bold text-[#8a7262]">Nie masz jeszcze żadnych rozmów.</p>
+          <p className="text-[12px] text-[#b89b87] mt-1">Zacznij nową rozmowę aby zapytać Agenta o przepis z listy zakupów, albo poradę dotyczącą Twoich wydatków.</p>
+        </div>
+      )}
+    </div>
   );
 }
 
-function ChatView({ householdId }: { householdId: Id<"households"> }) {
-  const messages = useQuery(api.chat.listForHousehold, { householdId });
+function ActiveChatSession({ householdId, sessionId }: { householdId: Id<"households">; sessionId: Id<"chat_sessions"> }) {
+  const messages = useQuery(api.chat.listSessionMessages, { householdId, sessionId });
   const sendMessage = useAction(api.chatNode.sendMessage);
   const resolveAction = useMutation(api.chat.resolvePendingAction);
   
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
-  
   const addItem = useMutation(api.shopping.add);
+
+  const isLimitReached = (messages?.length ?? 0) >= 30;
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -125,14 +167,14 @@ function ChatView({ householdId }: { householdId: Id<"households"> }) {
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
-    if (!input.trim() || isTyping) return;
+    if (!input.trim() || isTyping || isLimitReached) return;
     
     const text = input;
     setInput("");
     setIsTyping(true);
 
     try {
-       await sendMessage({ householdId, text });
+       await sendMessage({ householdId, sessionId, text });
     } catch(err) {
        toast.error("Błąd podczas wysyłania wiadomości.");
     } finally {
@@ -257,16 +299,21 @@ function ChatView({ householdId }: { householdId: Id<"households"> }) {
             onChange={(e) => setInput(e.target.value)}
             placeholder="Zapytaj o przepis..."
             className="flex-1 bg-white border border-[#f5e5cf] rounded-full px-4 py-3 text-sm font-semibold outline-none focus:border-[#cf833f] text-[#2b180a] shadow-inner"
-            disabled={isTyping}
+            disabled={isTyping || isLimitReached}
           />
           <button
             type="submit"
-            disabled={!input.trim() || isTyping}
+            disabled={!input.trim() || isTyping || isLimitReached}
             className="w-12 h-12 bg-gradient-to-br from-[#de9241] to-[#ca782a] text-white rounded-full flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 transition-all flex-shrink-0"
           >
             <Send className="w-5 h-5 ml-0.5" />
           </button>
         </form>
+        {isLimitReached && (
+           <p className="text-[10px] font-bold text-red-400 mt-2 text-center">
+             Osiągnięto limit 30 wiadomości na ten czat. Rozpocznij nowy, aby kontynuować rozmowę oszczędzając pamięć agenta.
+           </p>
+        )}
       </div>
     </div>
   );

@@ -28,17 +28,21 @@ function isAmountUncertain(amount: string) {
 interface ParsedItem {
   id: string;
   description: string;
+  originalRawDescription?: string;
   amount: string;
   categoryId: Id<"categories"> | null;
   subcategoryId: Id<"subcategories"> | null;
+  fromMapping?: boolean;
 }
 
 interface ProcessReceiptResult {
   items: Array<{
     description?: string;
+    originalRawDescription?: string;
     amount?: string;
     categoryId?: Id<"categories"> | null;
     subcategoryId?: Id<"subcategories"> | null;
+    fromMapping?: boolean;
   }>;
   rawText?: string;
   totalAmount?: string;
@@ -68,6 +72,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
   const categories = useQuery(api.categories.listForHousehold, { householdId });
   const createExpense = useMutation(api.expenses.create);
   const generateUploadUrl = useMutation(api.expenses.generateUploadUrl);
+  const upsertMapping = useMutation(api.productMappings.upsertMapping);
 
   const hasPdf = currentMimeTypes.some((t) => t === PDF_MIME) ||
     previewTypes.some((t) => t === PDF_MIME);
@@ -154,6 +159,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
       const result = (await processAI({
         storageIds: currentStorageIds,
         categories,
+        householdId,
         isPdf: false,
       })) as ProcessReceiptResult;
       const detectedItems = Array.isArray(result?.items) ? result.items : [];
@@ -175,13 +181,20 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
         const generatedItems: ParsedItem[] = detectedItems.map((row) => ({
           id: crypto.randomUUID(),
           description: row.description || "Brak nazwy",
+          originalRawDescription: row.originalRawDescription,
           amount: row.amount || "0",
           categoryId: row.categoryId || null,
           subcategoryId: row.subcategoryId || null,
+          fromMapping: row.fromMapping,
         }));
         setItems(generatedItems);
         const modelName = result?.modelUsed || "gpt-4o";
-        toast.success(`AI (${modelName}) dopasowało ${generatedItems.length} pozycji!`);
+        const learnedCount = generatedItems.filter(i => i.fromMapping).length;
+        if (learnedCount > 0) {
+          toast.success(`AI dopasowało ${generatedItems.length} pozycji (w tym ${learnedCount} z Twojej bazy wiedzy)!`);
+        } else {
+          toast.success(`AI (${modelName}) dopasowało ${generatedItems.length} pozycji!`);
+        }
       }
     } catch (err: any) {
       toast.error(err.message || "Błąd podczas łączenia z AI.");
@@ -242,6 +255,18 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           receiptImageId: currentStorageIds[0],
           ocrRawText: rawText,
         });
+
+        // Loop: Save user corrections for future auto-mapping
+        if (item.originalRawDescription) {
+           await upsertMapping({
+             householdId,
+             rawDescription: item.originalRawDescription,
+             correctedDescription: item.description,
+             categoryId: item.categoryId!,
+             subcategoryId: item.subcategoryId!
+           });
+        }
+        
         successCount++;
       }
       toast.success(`Zapisano pomyślnie ${successCount} wydatków z paragonu!`);
@@ -430,7 +455,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                   </div>
                 </div>
                 <p className="text-[#8a7262] font-bold text-sm animate-pulse">
-                  Czytanie dokumentu z Groq Llama 3.2...
+                  Czytanie dokumentu z Groq Llama 4 Scout...
                 </p>
               </div>
             )}
@@ -511,6 +536,11 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                             <span className="text-[10px] font-bold text-[#b89b87] bg-[#f5e5cf]/50 px-2 py-1 rounded-lg">
                               Pozycja {index + 1}
                             </span>
+                            {item.fromMapping && (
+                              <span className="text-[10px] font-bold text-[#46825d] bg-[#ebf7ef] border border-[#8bc5a0] px-2 py-1 rounded-lg">
+                                Z historii 🧠
+                              </span>
+                            )}
                             {uncertainPrice && (
                               <span className="text-[10px] font-bold text-[#9a2b00] bg-[#ffe1d6] border border-[#ffc2af] px-2 py-1 rounded-lg">
                                 Niepewna cena
