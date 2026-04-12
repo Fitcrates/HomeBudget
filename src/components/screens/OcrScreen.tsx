@@ -25,6 +25,10 @@ function isAmountUncertain(amount: string) {
   return !amount.trim();
 }
 
+function formatAmount(value: number) {
+  return value.toFixed(2);
+}
+
 interface ParsedItem {
   id: string;
   description: string;
@@ -33,6 +37,19 @@ interface ParsedItem {
   categoryId: Id<"categories"> | null;
   subcategoryId: Id<"subcategories"> | null;
   fromMapping?: boolean;
+  receiptIndex: number;
+  receiptLabel?: string;
+  sourceImageIndex?: number | null;
+}
+
+interface ReceiptSummary {
+  receiptIndex: number;
+  receiptLabel: string;
+  totalAmount: string;
+  sourceImageIndex: number | null;
+  itemsTotal?: string;
+  difference?: string;
+  mismatchType?: "ok" | "missing_items" | "missing_discounts" | "unknown";
 }
 
 interface ProcessReceiptResult {
@@ -43,19 +60,103 @@ interface ProcessReceiptResult {
     categoryId?: Id<"categories"> | null;
     subcategoryId?: Id<"subcategories"> | null;
     fromMapping?: boolean;
+    receiptIndex?: number;
+    receiptLabel?: string;
+    sourceImageIndex?: number | null;
   }>;
   rawText?: string;
   totalAmount?: string;
   modelUsed?: string;
+  receiptCount?: number;
+  receiptSummaries?: ReceiptSummary[];
 }
 
 const PDF_MIME = "application/pdf";
+const OCR_CACHE_VERSION = "v1";
+const OCR_CACHE_PREFIX = `homebudget:ocr-cache:${OCR_CACHE_VERSION}:`;
+const OCR_CACHE_INDEX_KEY = `${OCR_CACHE_PREFIX}index`;
+const OCR_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
+const OCR_CACHE_MAX_ENTRIES = 20;
+
+interface CachedOcrPayload {
+  createdAt: number;
+  key: string;
+  result: ProcessReceiptResult;
+}
+
+async function sha256Hex(input: ArrayBuffer | string): Promise<string> {
+  const data = typeof input === "string"
+    ? new TextEncoder().encode(input)
+    : new Uint8Array(input);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function cleanupOcrCache(now: number) {
+  try {
+    const rawIndex = localStorage.getItem(OCR_CACHE_INDEX_KEY);
+    const parsedIndex = rawIndex ? (JSON.parse(rawIndex) as Array<{ key: string; createdAt: number }>) : [];
+    const fresh = parsedIndex
+      .filter((entry) => now - entry.createdAt <= OCR_CACHE_TTL_MS)
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, OCR_CACHE_MAX_ENTRIES);
+
+    const freshKeys = new Set(fresh.map((entry) => entry.key));
+    for (const entry of parsedIndex) {
+      if (!freshKeys.has(entry.key)) {
+        localStorage.removeItem(entry.key);
+      }
+    }
+
+    localStorage.setItem(OCR_CACHE_INDEX_KEY, JSON.stringify(fresh));
+  } catch {
+    // Ignore cache maintenance failures
+  }
+}
+
+function readCachedOcrResult(cacheKey: string, now: number): ProcessReceiptResult | null {
+  try {
+    const raw = localStorage.getItem(cacheKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedOcrPayload;
+    if (!parsed?.createdAt || !parsed?.result) return null;
+    if (now - parsed.createdAt > OCR_CACHE_TTL_MS) {
+      localStorage.removeItem(cacheKey);
+      return null;
+    }
+    return parsed.result;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedOcrResult(cacheKey: string, result: ProcessReceiptResult, now: number) {
+  try {
+    const payload: CachedOcrPayload = {
+      createdAt: now,
+      key: cacheKey,
+      result,
+    };
+    localStorage.setItem(cacheKey, JSON.stringify(payload));
+
+    const rawIndex = localStorage.getItem(OCR_CACHE_INDEX_KEY);
+    const parsedIndex = rawIndex ? (JSON.parse(rawIndex) as Array<{ key: string; createdAt: number }>) : [];
+    const merged = [{ key: cacheKey, createdAt: now }, ...parsedIndex.filter((entry) => entry.key !== cacheKey)];
+    localStorage.setItem(OCR_CACHE_INDEX_KEY, JSON.stringify(merged));
+    cleanupOcrCache(now);
+  } catch {
+    // Ignore cache write failures
+  }
+}
 
 export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props) {
   const [processing, setProcessing] = useState(false);
   const [rawText, setRawText] = useState("");
   const [items, setItems] = useState<ParsedItem[] | null>(null);
   const [expectedTotal, setExpectedTotal] = useState<string>("");
+  const [receiptSummaries, setReceiptSummaries] = useState<ReceiptSummary[]>([]);
   const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [saving, setSaving] = useState(false);
   const initialPreviews = storageIds.map((id, index) => {
@@ -69,13 +170,109 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processAI = useAction(api.ocr.processReceiptWithAI);
+  const getFileUrl = useAction(api.ocr.getFileUrl);
   const categories = useQuery(api.categories.listForHousehold, { householdId });
-  const createExpense = useMutation(api.expenses.create);
+  const createExpensesMany = useMutation(api.expenses.createMany);
   const generateUploadUrl = useMutation(api.expenses.generateUploadUrl);
   const upsertMapping = useMutation(api.productMappings.upsertMapping);
 
   const hasPdf = currentMimeTypes.some((t) => t === PDF_MIME) ||
     previewTypes.some((t) => t === PDF_MIME);
+
+  async function computeCategoriesChecksum() {
+    const categorySignature = (categories || []).map((cat) => ({
+      id: String(cat._id),
+      name: cat.name,
+      subIds: (cat.subcategories || []).map((sub: any) => String(sub._id)),
+    }));
+    return sha256Hex(JSON.stringify(categorySignature));
+  }
+
+  async function computeOcrFingerprint(categoriesChecksum: string) {
+    const parts: string[] = [
+      `household:${String(householdId)}`,
+      `categories:${categoriesChecksum}`,
+      `count:${currentStorageIds.length}`,
+    ];
+
+    for (let i = 0; i < currentStorageIds.length; i++) {
+      const storageId = currentStorageIds[i];
+      const mime = currentMimeTypes[i] || previewTypes[i] || "unknown";
+      try {
+        const url = await getFileUrl({ storageId });
+        if (!url) {
+          parts.push(`${i}:${String(storageId)}:${mime}:missing-url`);
+          continue;
+        }
+        const res = await fetch(url);
+        if (!res.ok) {
+          parts.push(`${i}:${String(storageId)}:${mime}:http-${res.status}`);
+          continue;
+        }
+        const data = await res.arrayBuffer();
+        const fileHash = await sha256Hex(data);
+        parts.push(`${i}:${mime}:${data.byteLength}:${fileHash}`);
+      } catch {
+        parts.push(`${i}:${String(storageId)}:${mime}:fetch-error`);
+      }
+    }
+
+    return sha256Hex(parts.join("|"));
+  }
+
+  function applyOcrResult(result: ProcessReceiptResult, fromCache: boolean) {
+    const detectedItems = Array.isArray(result?.items) ? result.items : [];
+    setRawText(result?.rawText || "");
+    setExpectedTotal(result?.totalAmount || "");
+    setReceiptSummaries(Array.isArray(result?.receiptSummaries) ? result.receiptSummaries : []);
+
+    if (detectedItems.length === 0) {
+      toast.error(fromCache ? "Brak pozycji w zapisanym wyniku OCR." : "AI nie znalazło żadnych dopasowań.");
+      setItems([
+        {
+          id: crypto.randomUUID(),
+          description: "Nieznany koszt",
+          amount: "",
+          categoryId: null,
+          subcategoryId: null,
+          receiptIndex: 0,
+        },
+      ]);
+      return;
+    }
+
+    const generatedItems: ParsedItem[] = detectedItems.map((row) => ({
+      id: crypto.randomUUID(),
+      description: row.description || "Brak nazwy",
+      originalRawDescription: row.originalRawDescription,
+      amount: row.amount || "0",
+      categoryId: row.categoryId || null,
+      subcategoryId: row.subcategoryId || null,
+      fromMapping: row.fromMapping,
+      receiptIndex: Number.isFinite(row.receiptIndex) ? (row.receiptIndex as number) : 0,
+      receiptLabel: row.receiptLabel,
+      sourceImageIndex: row.sourceImageIndex ?? null,
+    }));
+    setItems(generatedItems);
+
+    const learnedCount = generatedItems.filter((i) => i.fromMapping).length;
+    const receiptsDetected = result?.receiptCount || 1;
+
+    if (fromCache) {
+      toast.success(`Wczytano zapisany wynik OCR (${generatedItems.length} pozycji) bez ponownej analizy AI.`);
+      return;
+    }
+
+    const modelName = result?.modelUsed || "gpt-4o";
+    if (receiptsDetected > 1) {
+      toast.success(`Wykryto ${receiptsDetected} paragony. Pozycje są już podzielone i zapiszą się w kolejce.`);
+    }
+    if (learnedCount > 0) {
+      toast.success(`AI dopasowało ${generatedItems.length} pozycji (w tym ${learnedCount} z Twojej bazy wiedzy)!`);
+    } else {
+      toast.success(`AI (${modelName}) dopasowało ${generatedItems.length} pozycji!`);
+    }
+  }
 
   async function handleAddImages(e: React.ChangeEvent<HTMLInputElement>) {
     const rawFiles = Array.from(e.target.files ?? []);
@@ -155,47 +352,27 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
     setProcessing(true);
     const startTime = Date.now();
     try {
-      // Zwracamy zawsze isPdf: false, bo PDF został już przerobiony na obrazy w przeglądarce
+      const now = Date.now();
+      cleanupOcrCache(now);
+      const categoriesChecksum = await computeCategoriesChecksum();
+      const fingerprint = await computeOcrFingerprint(categoriesChecksum);
+      const cacheKey = `${OCR_CACHE_PREFIX}${fingerprint}`;
+      const cachedResult = readCachedOcrResult(cacheKey, now);
+
+      if (cachedResult) {
+        applyOcrResult(cachedResult, true);
+        return;
+      }
+
       const result = (await processAI({
         storageIds: currentStorageIds,
         categories,
         householdId,
         isPdf: false,
       })) as ProcessReceiptResult;
-      const detectedItems = Array.isArray(result?.items) ? result.items : [];
-      setRawText(result?.rawText || "");
-      setExpectedTotal(result?.totalAmount || "");
 
-      if (detectedItems.length === 0) {
-        toast.error("AI nie znalazło żadnych dopasowań.");
-        setItems([
-          {
-            id: crypto.randomUUID(),
-            description: "Nieznany koszt",
-            amount: "",
-            categoryId: null,
-            subcategoryId: null,
-          },
-        ]);
-      } else {
-        const generatedItems: ParsedItem[] = detectedItems.map((row) => ({
-          id: crypto.randomUUID(),
-          description: row.description || "Brak nazwy",
-          originalRawDescription: row.originalRawDescription,
-          amount: row.amount || "0",
-          categoryId: row.categoryId || null,
-          subcategoryId: row.subcategoryId || null,
-          fromMapping: row.fromMapping,
-        }));
-        setItems(generatedItems);
-        const modelName = result?.modelUsed || "gpt-4o";
-        const learnedCount = generatedItems.filter(i => i.fromMapping).length;
-        if (learnedCount > 0) {
-          toast.success(`AI dopasowało ${generatedItems.length} pozycji (w tym ${learnedCount} z Twojej bazy wiedzy)!`);
-        } else {
-          toast.success(`AI (${modelName}) dopasowało ${generatedItems.length} pozycji!`);
-        }
-      }
+      writeCachedOcrResult(cacheKey, result, now);
+      applyOcrResult(result, false);
     } catch (err: any) {
       toast.error(err.message || "Błąd podczas łączenia z AI.");
       setItems([
@@ -205,8 +382,10 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           amount: "",
           categoryId: null,
           subcategoryId: null,
+          receiptIndex: 0,
         },
       ]);
+      setReceiptSummaries([]);
     } finally {
       const elapsed = Date.now() - startTime;
       const minLoadingTime = 2000;
@@ -242,20 +421,57 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
 
     setSaving(true);
     let successCount = 0;
+    let processedReceipts = 0;
     try {
-      for (const item of items) {
+      const sortedItems = [...items].sort((a, b) => {
+        if (a.receiptIndex !== b.receiptIndex) return a.receiptIndex - b.receiptIndex;
+        return a.description.localeCompare(b.description);
+      });
+
+      let currentReceiptIndex: number | null = null;
+
+      const payloadItems: Array<{
+        categoryId: Id<"categories">;
+        subcategoryId: Id<"subcategories">;
+        amount: number;
+        date: number;
+        description: string;
+        receiptImageId?: Id<"_storage">;
+        ocrRawText?: string;
+      }> = [];
+
+      for (const item of sortedItems) {
+        if (item.receiptIndex !== currentReceiptIndex) {
+          currentReceiptIndex = item.receiptIndex;
+          processedReceipts++;
+          toast.info(`Zapisywanie: ${item.receiptLabel || `Paragon ${item.receiptIndex + 1}`}`);
+        }
+
+        const sourceIdx = item.sourceImageIndex && item.sourceImageIndex > 0
+          ? item.sourceImageIndex - 1
+          : 0;
+        const receiptImageId = currentStorageIds[sourceIdx] || currentStorageIds[0];
         const amountNum = parseFloat(item.amount.replace(",", "."));
-        await createExpense({
-          householdId,
+
+        payloadItems.push({
           categoryId: item.categoryId!,
           subcategoryId: item.subcategoryId!,
           amount: Math.round(amountNum * 100),
           date: new Date(date).getTime(),
           description: item.description,
-          receiptImageId: currentStorageIds[0],
+          receiptImageId,
           ocrRawText: rawText,
         });
 
+        successCount++;
+      }
+
+      await createExpensesMany({
+        householdId,
+        items: payloadItems,
+      });
+
+      for (const item of sortedItems) {
         // Loop: Save user corrections for future auto-mapping
         if (item.originalRawDescription) {
            await upsertMapping({
@@ -266,10 +482,12 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
              subcategoryId: item.subcategoryId!
            });
         }
-        
-        successCount++;
       }
-      toast.success(`Zapisano pomyślnie ${successCount} wydatków z paragonu!`);
+
+      const receiptLabel = processedReceipts > 1
+        ? `${processedReceipts} paragonów`
+        : "paragonu";
+      toast.success(`Zapisano pomyślnie ${successCount} wydatków z ${receiptLabel}!`);
       onDone();
     } catch (err: any) {
       toast.error(err.message);
@@ -478,11 +696,65 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
 
           {/* Re-analyse button */}
           <button
-            onClick={() => { setItems(null); }}
+            onClick={() => { setItems(null); setReceiptSummaries([]); }}
             className="w-full py-2.5 border-2 border-dashed border-[#d2bcad] text-[#8a7262] rounded-2xl font-bold text-sm hover:border-[#cf833f] hover:text-[#cf833f] transition-colors"
           >
             ↩ Skanuj ponownie
           </button>
+
+          {(receiptSummaries.length > 1 || items.some((i) => i.receiptIndex > 0)) && (
+            <div className="bg-[#eef4ff] border border-[#c8d8ff] rounded-2xl p-3 text-xs font-bold text-[#3856a8]">
+              Wykryto wiele paragonów. Zapis nastąpi sekwencyjnie, paragon po paragonie.
+            </div>
+          )}
+
+          {receiptSummaries.length > 0 && (
+            <div className="space-y-2">
+              {receiptSummaries.map((receipt) => {
+                const itemsSum = parseFloat((receipt.itemsTotal || "").replace(",", "."));
+                const expected = parseFloat((receipt.totalAmount || "").replace(",", "."));
+                const diffValue = parseFloat((receipt.difference || "0").replace(",", "."));
+                const diff = Math.abs(diffValue);
+                const isMismatch = receipt.mismatchType !== "ok" && expected > 0 && diff > 0.05;
+
+                if (!(expected > 0)) {
+                  return (
+                    <div
+                      key={receipt.receiptIndex}
+                      className="bg-[#f8f1e8] border border-[#ead8c5] rounded-xl p-3 text-xs font-bold text-[#7e6149]"
+                    >
+                      {receipt.receiptLabel || `Paragon ${receipt.receiptIndex + 1}`}: brak wykrytej sumy końcowej. Sprawdź pozycje ręcznie.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={receipt.receiptIndex}
+                    className={isMismatch
+                      ? "bg-[#fff2ec] border border-[#ffc2af] rounded-xl p-3"
+                      : "bg-[#ebf7ef] border border-[#8bc5a0] rounded-xl p-3"
+                    }
+                  >
+                    <p className={isMismatch
+                      ? "text-[#a94d22] text-xs font-bold leading-relaxed"
+                      : "text-[#46825d] text-xs font-bold"
+                    }>
+                      {isMismatch ? "⚠️" : "✅"} {receipt.receiptLabel || `Paragon ${receipt.receiptIndex + 1}`}: suma pozycji ({formatAmount(itemsSum)}) vs suma paragonu ({formatAmount(expected)}).
+                      {isMismatch && (
+                        <>
+                          <br />
+                          {diffValue > 0
+                            ? `Pozycje są wyższe o ${formatAmount(diff)} — zwykle brakuje uwzględnionego rabatu/promocji.`
+                            : `Pozycje są niższe o ${formatAmount(diff)} — prawdopodobnie brakuje pozycji.`}
+                        </>
+                      )}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           <div>
             <div className="bg-white/40 backdrop-blur-xl border border-white/50 shadow-[0_8px_32px_rgba(180,120,80,0.2)] rounded-[2rem] p-2 relative overflow-hidden">
@@ -492,22 +764,26 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                   OCR: Tekst wyodrębniony! ({items.length})
                 </h3>
                 
-                {expectedTotal && (
+                {expectedTotal && receiptSummaries.length === 0 && (
                   (() => {
                     const sum = items.reduce((acc, curr) => {
                       const val = parseFloat((curr.amount || "").replace(",", "."));
                       return acc + (isNaN(val) ? 0 : val);
                     }, 0);
                     const expected = parseFloat(expectedTotal.replace(",", "."));
-                    const diff = Math.abs(sum - expected);
+                    const diffValue = sum - expected;
+                    const diff = Math.abs(diffValue);
                     
                     if (diff > 0.05) {
+                      const overByDiscount = diffValue > 0;
                       return (
                         <div className="mx-4 mb-4 bg-[#fff2ec] border border-[#ffc2af] rounded-xl p-3 shadow-sm">
                           <p className="text-[#a94d22] text-xs font-bold leading-relaxed">
                             ⚠️ Suma pozycji ({sum.toFixed(2)}) nie zgadza się z sumą paragonu ({expected.toFixed(2)}).
                             <br />
-                            Sprawdź ręcznie czy brakuje jakiejś pozycji (różnica: {diff.toFixed(2)})!
+                            {overByDiscount
+                              ? `Pozycje są wyższe o ${diff.toFixed(2)} — najczęściej oznacza to brak uwzględnionych rabatów/promocji.`
+                              : `Pozycje są niższe o ${diff.toFixed(2)} — możliwe, że brakuje jednej lub więcej pozycji.`}
                           </p>
                         </div>
                       );
@@ -536,6 +812,11 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                             <span className="text-[10px] font-bold text-[#b89b87] bg-[#f5e5cf]/50 px-2 py-1 rounded-lg">
                               Pozycja {index + 1}
                             </span>
+                            {(receiptSummaries.length > 1 || item.receiptIndex > 0) && (
+                              <span className="text-[10px] font-bold text-[#3856a8] bg-[#eef4ff] border border-[#c8d8ff] px-2 py-1 rounded-lg">
+                                {item.receiptLabel || `Paragon ${item.receiptIndex + 1}`}
+                              </span>
+                            )}
                             {item.fromMapping && (
                               <span className="text-[10px] font-bold text-[#46825d] bg-[#ebf7ef] border border-[#8bc5a0] px-2 py-1 rounded-lg">
                                 Z historii 🧠
@@ -642,6 +923,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                         amount: "",
                         categoryId: null,
                         subcategoryId: null,
+                        receiptIndex: 0,
                       },
                     ])
                   }

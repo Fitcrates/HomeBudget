@@ -46,12 +46,123 @@ function extractJsonBlock(text: string): string {
 }
 
 function normalizeAmount(value: unknown): string {
-  if (typeof value !== "string" && typeof value !== "number") return "";
-  const text = String(value).replace(",", ".").replace(/[^\d.-]/g, "").trim();
-  if (!text) return "";
-  const parsed = Number.parseFloat(text);
-  if (!Number.isFinite(parsed) || parsed <= 0) return "";
+  const parsed = parseAmountNumber(value);
+  if (parsed === null || parsed <= 0) return "";
   return parsed.toFixed(2);
+}
+
+function parseAmountNumber(value: unknown): number | null {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  const normalized = raw.replace(/\s+/g, "").replace(/,/g, ".");
+  const trailingMinus = normalized.endsWith("-");
+  const match = normalized.match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+
+  let parsed = Number.parseFloat(match[0]);
+  if (trailingMinus && parsed > 0) {
+    parsed = -parsed;
+  }
+  if (!Number.isFinite(parsed)) return null;
+  return parsed;
+}
+
+function isDiscountLikeDescription(description: string): boolean {
+  const text = stripDiacritics(description);
+  return /(rabat|opust|promoc|kupon|coupon|bonifikat|znizk|obnizk|program|lojalnosc|aplikacj|karta|taniej|minus)/i.test(text);
+}
+
+function tokenizeDescription(description: string): string[] {
+  const normalized = stripDiacritics(description)
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return [];
+
+  const stopWords = new Set([
+    "rabat", "promocja", "promocji", "opust", "kupon", "aplikacja", "aplikacji",
+    "program", "klienta", "karta", "minus", "znizka", "bonifikata", "paragon",
+  ]);
+
+  return normalized
+    .split(" ")
+    .filter((token) => token.length >= 3 && !stopWords.has(token));
+}
+
+function applyDiscountToBestCandidate(
+  normalizedItems: ProcessedReceiptItem[],
+  receiptIndex: number,
+  discountDescription: string,
+  discountInPln: number
+): boolean {
+  const discountTokens = tokenizeDescription(discountDescription);
+
+  let bestCandidate: ProcessedReceiptItem | null = null;
+  let bestScore = -1;
+
+  for (let i = normalizedItems.length - 1; i >= 0; i--) {
+    const candidate = normalizedItems[i];
+    if (candidate.receiptIndex !== receiptIndex) continue;
+    const candidateAmount = parseFloat(candidate.amount);
+    if (!(candidateAmount > discountInPln + 0.001)) continue;
+
+    const candidateTokens = tokenizeDescription(candidate.originalRawDescription || candidate.description);
+    const overlap = discountTokens.length > 0
+      ? discountTokens.filter((token) => candidateTokens.includes(token)).length
+      : 0;
+
+    const recencyBonus = (normalizedItems.length - i) * 0.05;
+    const score = overlap * 10 + recencyBonus;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestCandidate = candidate;
+    }
+  }
+
+  if (!bestCandidate) {
+    const fallback = normalizedItems
+      .filter((item) => item.receiptIndex === receiptIndex)
+      .sort((a, b) => parseFloat(b.amount) - parseFloat(a.amount))[0];
+    if (!fallback) return false;
+    const newAmount = Math.max(0.01, parseFloat(fallback.amount) - discountInPln);
+    fallback.amount = newAmount.toFixed(2);
+    return true;
+  }
+
+  const newAmount = Math.max(0.01, parseFloat(bestCandidate.amount) - discountInPln);
+  bestCandidate.amount = newAmount.toFixed(2);
+  return true;
+}
+
+function enrichReceiptSummariesWithValidation(
+  summaries: ReceiptSummary[],
+  items: ProcessedReceiptItem[]
+): ReceiptSummary[] {
+  return summaries.map((summary) => {
+    const itemsTotal = items
+      .filter((item) => item.receiptIndex === summary.receiptIndex)
+      .reduce((acc, item) => acc + parseFloat(item.amount || "0"), 0);
+
+    const expected = parseFloat(summary.totalAmount || "0");
+    const diff = itemsTotal - expected;
+    const mismatchType = !(expected > 0)
+      ? "unknown"
+      : Math.abs(diff) <= 0.05
+        ? "ok"
+        : diff > 0
+          ? "missing_discounts"
+          : "missing_items";
+
+    return {
+      ...summary,
+      itemsTotal: itemsTotal.toFixed(2),
+      difference: diff.toFixed(2),
+      mismatchType,
+    };
+  });
 }
 
 function asString(v: unknown): string {
@@ -163,10 +274,12 @@ function buildPrompt(
 ${source}ZASADY:
 1. KAŻDY produkt — nie pomijaj żadnej pozycji.
 2. Czytaj "Wartość" (łączna cena), nie cenę jednostkową.
-3. Rabat/Opust → użyj ceny PO rabacie, NIE twórz osobnej pozycji.
+3. Rabat/Opust/Promocja/Kupon (w tym rabaty z aplikacji) MUSI być uwzględniony w finalnej cenie pozycji.
+4. Jeśli rabat jest pokazany jako osobna linia na paragonie, przypisz go do właściwej pozycji i podaj cenę końcową produktu.
 4. Ilość >1 → ŁĄCZNA wartość (3×2.50 = "7.50").
 5. Kwota: tylko liczba z kropką ("12.98").
 6. Ignoruj: sumy, podatki PTU, kaucje, płatności, nagłówki.
+7. Jeśli na przesłanych obrazach są RÓŻNE paragony (np. inne sklepy, różne daty), rozdziel je do osobnych grup.
 
 DOPASOWANIE KATEGORII DO WYSTAWCY (BARDZO WAŻNE!):
 - Najpierw zidentyfikuj wystawcę rachunku (np. po logo, nagłówku). To absolutnie kluczowe dla właściwej kategoryzacji artykułów.
@@ -203,6 +316,23 @@ JSON:
   "rawText": "TUTAJ WPISZ TYLKO I WYŁĄCZNIE NAZWĘ MARKI I WYSTAWCY (np. 'Biedronka', 'Castorama', 'Orlen') ORAZ DATĘ",
   "currency": "PLN (lub USD, EUR, GBP - wykryta waluta)",
   "totalAmount": "SUMA PARAGONU PO WSZYSTKICH RABATACH (np. '150.50')",
+  "receiptCount": 1,
+  "receipts": [
+    {
+      "receiptIndex": 0,
+      "receiptLabel": "Biedronka 2026-04-12",
+      "sourceImageIndex": 1,
+      "totalAmount": "150.50",
+      "items": [
+        {
+          "description": "Nazwa produktu",
+          "amount": "12.98",
+          "category": "Żywność i napoje",
+          "subcategory": "Nabiał i jaja"
+        }
+      ]
+    }
+  ],
   "items": [
     {
       "description": "Nazwa produktu",
@@ -223,6 +353,19 @@ interface ProcessedReceiptItem {
   categoryId: string | null;
   subcategoryId: string | null;
   fromMapping?: boolean; // True if this was resolved from user history rather than AI inference
+  receiptIndex: number;
+  receiptLabel?: string;
+  sourceImageIndex?: number | null;
+}
+
+interface ReceiptSummary {
+  receiptIndex: number;
+  receiptLabel: string;
+  totalAmount: string;
+  sourceImageIndex: number | null;
+  itemsTotal?: string;
+  difference?: string;
+  mismatchType?: "ok" | "missing_items" | "missing_discounts" | "unknown";
 }
 
 interface ProcessReceiptResult {
@@ -230,6 +373,8 @@ interface ProcessReceiptResult {
   rawText: string;
   totalAmount: string;
   modelUsed: string;
+  receiptCount: number;
+  receiptSummaries: ReceiptSummary[];
 }
 
 async function fetchExchangeRate(currencyCode: string): Promise<number> {
@@ -257,11 +402,42 @@ async function parseAndNormalizeResponse(
     const extracted = extractJsonBlock(content);
     const parsed = JSON.parse(extracted || "{}");
 
-    const parsedItems = Array.isArray(parsed)
-      ? parsed
-      : Array.isArray(parsed?.items)
-        ? parsed.items
-        : [];
+    type ParsedItemWithMeta = {
+      item: any;
+      receiptIndex: number;
+      receiptLabel: string;
+      sourceImageIndex: number | null;
+    };
+
+    const receiptEntries = Array.isArray(parsed?.receipts) ? parsed.receipts : [];
+
+    const parsedItemsWithMeta: ParsedItemWithMeta[] = receiptEntries.length > 0
+      ? receiptEntries.flatMap((receipt: any, idx: number) => {
+        const receiptItems = Array.isArray(receipt?.items) ? receipt.items : [];
+        const sourceImageIndexRaw = Number.parseInt(String(receipt?.sourceImageIndex ?? ""), 10);
+        const sourceImageIndex = Number.isFinite(sourceImageIndexRaw) && sourceImageIndexRaw > 0
+          ? sourceImageIndexRaw
+          : null;
+        const receiptLabel = asString(receipt?.receiptLabel) || `Paragon ${idx + 1}`;
+        return receiptItems.map((item: any) => ({
+          item,
+          receiptIndex: idx,
+          receiptLabel,
+          sourceImageIndex,
+        }));
+      })
+      : (Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.items)
+          ? parsed.items
+          : []).map((item: any) => ({
+            item,
+            receiptIndex: Number.isFinite(item?.receiptIndex) ? item.receiptIndex : 0,
+            receiptLabel: asString(item?.receiptLabel) || "Paragon 1",
+            sourceImageIndex: null,
+          }));
+
+    const parsedItems = parsedItemsWithMeta.map((entry) => entry.item);
 
     const currency = asString(parsed?.currency).toUpperCase();
     const exchangeRate = await fetchExchangeRate(currency);
@@ -273,45 +449,55 @@ async function parseAndNormalizeResponse(
 
     console.log(`AI returned ${parsedItems.length} raw items (Currency: ${currency}, Rate: ${exchangeRate}, Total: ${totalAmount})`);
 
-    const normalizedItems: ProcessedReceiptItem[] = parsedItems
-      .map((item: any) => {
-        const originalRawDesc = asString(item?.description) || "Nieznana pozycja";
-        let amountStr = normalizeAmount(item?.amount);
-        
-        // Convert currency if needed
-        if (amountStr && exchangeRate !== 1) {
-          const num = parseFloat(amountStr) * exchangeRate;
-          amountStr = num.toFixed(2);
-        }
+    const normalizedItems: ProcessedReceiptItem[] = [];
 
-        // --- PRE-NORMALIZATION & HEURISTICS (Step 3 Quick Win) ---
-        // Clean up common OCR noise
-        let cleanDesc = originalRawDesc
-          .replace(/\b(szt|kg|op|l|ml|x\d+|[A-Z]\d+)\b/gi, "")
-          .trim();
-        
-        // --- LEARNING LOOP: Lookup mappings (Step 2 Implementation) ---
-        let categoryId: string | null = null;
-        let subcategoryId: string | null = null;
-        let resolvedDescription = originalRawDesc;
-        let fromMapping = false;
+    for (const entry of parsedItemsWithMeta) {
+      const item = entry.item;
+      const originalRawDesc = asString(item?.description) || "Nieznana pozycja";
+      const parsedAmount = parseAmountNumber(item?.amount);
 
-        // Note: within an action, we can't directly loop ctx.runQuery on potentially 100 items efficiently
-        // For now, doing sequential runQuery - since it's an action, it's ok, but could be batched later
-        
-        const descWithCurrency = exchangeRate !== 1 
-          ? `${resolvedDescription} (${normalizeAmount(item?.amount)} ${currency})` 
-          : resolvedDescription;
+      if (parsedAmount === null || parsedAmount === 0) continue;
 
-        return { 
-          description: descWithCurrency, 
-          originalRawDescription: originalRawDesc,
-          amount: amountStr, 
-          categoryId, 
-          subcategoryId,
-          fromMapping 
-        };
+      const isDiscountLine = isDiscountLikeDescription(originalRawDesc) || parsedAmount < 0;
+      if (isDiscountLine) {
+        const discountAbs = Math.abs(parsedAmount);
+        const discountInPln = exchangeRate !== 1 ? discountAbs * exchangeRate : discountAbs;
+
+        applyDiscountToBestCandidate(
+          normalizedItems,
+          entry.receiptIndex,
+          originalRawDesc,
+          discountInPln
+        );
+        continue;
+      }
+
+      let amount = parsedAmount;
+      if (exchangeRate !== 1) {
+        amount = amount * exchangeRate;
+      }
+
+      let categoryId: string | null = null;
+      let subcategoryId: string | null = null;
+      const fromMapping = false;
+      const resolvedDescription = originalRawDesc;
+
+      const descWithCurrency = exchangeRate !== 1
+        ? `${resolvedDescription} (${Math.abs(parsedAmount).toFixed(2)} ${currency})`
+        : resolvedDescription;
+
+      normalizedItems.push({
+        description: descWithCurrency,
+        originalRawDescription: originalRawDesc,
+        amount: amount.toFixed(2),
+        categoryId,
+        subcategoryId,
+        fromMapping,
+        receiptIndex: entry.receiptIndex,
+        receiptLabel: entry.receiptLabel,
+        sourceImageIndex: entry.sourceImageIndex,
       });
+    }
 
     // Resolve missing items mapping/categories
     for (const item of normalizedItems) {
@@ -347,24 +533,60 @@ async function parseAndNormalizeResponse(
     }
 
     const finalItems = normalizedItems.filter(
-        (item: ProcessedReceiptItem) =>
-          item.amount || item.description !== "Nieznana pozycja"
+      (item: ProcessedReceiptItem) =>
+        item.amount || item.description !== "Nieznana pozycja"
     );
 
+    const receiptSummariesBase: ReceiptSummary[] = receiptEntries.length > 0
+      ? receiptEntries.map((receipt: any, idx: number) => {
+        const sourceImageIndexRaw = Number.parseInt(String(receipt?.sourceImageIndex ?? ""), 10);
+        const sourceImageIndex = Number.isFinite(sourceImageIndexRaw) && sourceImageIndexRaw > 0
+          ? sourceImageIndexRaw
+          : null;
+        return {
+          receiptIndex: idx,
+          receiptLabel: asString(receipt?.receiptLabel) || `Paragon ${idx + 1}`,
+          totalAmount: normalizeAmount(receipt?.totalAmount) || "",
+          sourceImageIndex,
+        };
+      })
+      : [{
+        receiptIndex: 0,
+        receiptLabel: "Paragon 1",
+        totalAmount: totalAmount || "",
+        sourceImageIndex: null,
+      }];
+
+    const receiptSummaries = enrichReceiptSummariesWithValidation(receiptSummariesBase, finalItems);
+
     console.log(
-      `Normalized: ${normalizedItems.length} items (model: ${modelUsed})`
+      `Normalized: ${finalItems.length} items in ${receiptSummaries.length} receipt group(s) (model: ${modelUsed})`
     );
 
     return {
-      items: normalizedItems,
+      items: finalItems,
       rawText: asString(parsed?.rawText),
       totalAmount: totalAmount || "",
       modelUsed,
+      receiptCount: Math.max(1, receiptSummaries.length),
+      receiptSummaries,
     };
   } catch (e) {
     console.error("Failed to parse AI JSON:", e);
     console.error("Content preview:", content.substring(0, 300));
-    return { items: [], rawText: "", totalAmount: "", modelUsed };
+    return {
+      items: [],
+      rawText: "",
+      totalAmount: "",
+      modelUsed,
+      receiptCount: 1,
+      receiptSummaries: [{
+        receiptIndex: 0,
+        receiptLabel: "Paragon 1",
+        totalAmount: "",
+        sourceImageIndex: null,
+      }],
+    };
   }
 }
 
@@ -417,13 +639,29 @@ async function processImagesWithAI(
   let retryUsed = false;
 
   // --- VALIDATION LOOP ---
-  const expectedTotalAmount = parseFloat(parsed.totalAmount || "0");
-  const totalParsedAmount = parsed.items.reduce((sum, item) => sum + parseFloat(item.amount || "0"), 0);
+  const mismatchReceipts = parsed.receiptSummaries.filter((receipt) => {
+    const expected = parseFloat(receipt.totalAmount || "0");
+    const diff = parseFloat(receipt.difference || "0");
+    return expected > 0 && Math.abs(diff) > 0.05;
+  });
 
-  if (expectedTotalAmount > 0 && Math.abs(totalParsedAmount - expectedTotalAmount) > 0.05) {
+  const shouldRetryWithAI = mismatchReceipts.some(
+    (receipt) => receipt.mismatchType === "missing_items" || receipt.mismatchType === "unknown"
+  );
+
+  if (shouldRetryWithAI) {
     retryUsed = true;
-    console.log(`Mismatch detected! Parsed items sum: ${totalParsedAmount}, Receipt total: ${expectedTotalAmount}. Retrying...`);
-    const diff = (expectedTotalAmount - totalParsedAmount).toFixed(2);
+    const mismatchHint = mismatchReceipts
+      .slice(0, 3)
+      .map((receipt) => {
+        const label = receipt.receiptLabel || `Paragon ${receipt.receiptIndex + 1}`;
+        const diff = Math.abs(parseFloat(receipt.difference || "0"));
+        const hint = receipt.mismatchType === "missing_items"
+          ? "brakują pozycje"
+          : "wymaga ponownej analizy";
+        return `${label}: różnica ${diff.toFixed(2)} (${hint})`;
+      })
+      .join("; ");
     
     resp = await getGroq().chat.completions.create({
       model: VISION_MODEL,
@@ -433,7 +671,7 @@ async function processImagesWithAI(
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: contentParts },
         { role: "assistant", content },
-        { role: "user", content: `Suma pozycji, które zwróciłeś to ${totalParsedAmount.toFixed(2)}, ale całkowita kwota paragonu to ${expectedTotalAmount.toFixed(2)}. Różnica wynosi ${diff}. Prawdopodobnie pominąłeś jakąś pozycję. Przeanalizuj dokument JESZCZE RAZ BARDZO SKRUPULATNIE i zwróć POPRAWIONY, PEŁNY JSON ze wszystkimi pozycjami, absolutnie niczego nie pomijając.` }
+        { role: "user", content: `Wykryto rozbieżności per paragon: ${mismatchHint}. Skoryguj przede wszystkim brakujące pozycje i zwróć POPRAWIONY, PEŁNY JSON.` }
       ],
     });
     
