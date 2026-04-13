@@ -76,7 +76,7 @@ interface ProcessReceiptResult {
 }
 
 const PDF_MIME = "application/pdf";
-const OCR_CACHE_VERSION = "v2";
+const OCR_CACHE_VERSION = "v3";
 const OCR_CACHE_PREFIX = `homebudget:ocr-cache:${OCR_CACHE_VERSION}:`;
 const OCR_CACHE_INDEX_KEY = `${OCR_CACHE_PREFIX}index`;
 const OCR_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
@@ -362,8 +362,11 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
       const fingerprint = await computeOcrFingerprint(categoriesChecksum);
       const cacheKey = `${OCR_CACHE_PREFIX}${fingerprint}`;
       const cachedResult = readCachedOcrResult(cacheKey, now);
+      const cachedHasMismatch = Array.isArray(cachedResult?.receiptSummaries)
+        ? cachedResult!.receiptSummaries.some((receipt) => receipt.mismatchType && receipt.mismatchType !== "ok")
+        : false;
 
-      if (cachedResult) {
+      if (cachedResult && !cachedHasMismatch) {
         applyOcrResult(cachedResult, true);
         return;
       }
@@ -539,6 +542,16 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           Zdjęcia / PDF ({currentStorageIds.length}/3)
         </label>
 
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,application/pdf"
+          multiple
+          className="hidden"
+          onChange={handleAddImages}
+          disabled={uploading || currentStorageIds.length >= 3}
+        />
+
         {/* Thumbnails row */}
         {previewUrls.length > 0 && (
           <div className="flex gap-2 flex-wrap">
@@ -573,6 +586,22 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           </div>
         )}
 
+        {currentStorageIds.length > 0 && currentStorageIds.length < 3 && (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="w-full py-3 border-2 border-dashed border-[#d2bcad]/70 text-[#8a7262] bg-white/40 rounded-2xl font-bold text-sm hover:border-[#cf833f]/50 hover:bg-white/60 transition-colors disabled:opacity-50"
+            >
+              + Dodaj kolejny kadr / plik
+            </button>
+            <p className="text-[11px] font-bold text-[#8a7262] leading-relaxed">
+              Dodaj kolejny kadr dopiero po pierwszym zdjęciu, jeśli paragon nie mieści się na jednym ujęciu.
+            </p>
+          </div>
+        )}
+
         {/* Upload buttons */}
         <div className="flex gap-3">
           <label
@@ -586,7 +615,6 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
               {uploading ? "Przesyłanie..." : "Aparat"}
             </span>
             <input
-              ref={fileInputRef}
               type="file"
               accept="image/*"
               capture="environment"

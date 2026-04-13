@@ -79,6 +79,11 @@ function isDepositLikeDescription(description: string): boolean {
   return /(kaucj|opakowan|zwrotn|butelk|puszk)/i.test(text);
 }
 
+function isTechnicalLine(description: string): boolean {
+  const text = stripDiacritics(description);
+  return /(suma|podsuma|sprzedaz|sprzedaz opodatkowana|ptu|rozliczenie|platnosc|karta|gotowka|paragon|fiskalny|nip|adres)/i.test(text);
+}
+
 function tokenizeDescription(description: string): string[] {
   const normalized = stripDiacritics(description)
     .replace(/[^a-z0-9\s]/g, " ")
@@ -94,6 +99,21 @@ function tokenizeDescription(description: string): string[] {
   return normalized
     .split(" ")
     .filter((token) => token.length >= 3 && !stopWords.has(token));
+}
+
+function normalizeDescriptionKey(description: string): string {
+  return stripDiacritics(description)
+    .replace(/\b\d+(?:[.,]\d+)?\s*(ml|l|g|kg|szt|tab|tbl|cl)\b/g, " ")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanupReceiptLineDescription(description: string): string {
+  return description
+    .replace(/\s+[A-Z]$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function applyDiscountToBestCandidate(
@@ -168,6 +188,158 @@ function enrichReceiptSummariesWithValidation(
       mismatchType,
     };
   });
+}
+
+function collapseLikelyDuplicateItems(
+  items: ProcessedReceiptItem[],
+  summaries: ReceiptSummary[]
+): ProcessedReceiptItem[] {
+  let nextItems = [...items];
+
+  for (const summary of summaries) {
+    const expected = parseFloat(summary.totalAmount || "0");
+    if (!(expected > 0)) continue;
+
+    let receiptItems = nextItems.filter((item) => item.receiptIndex === summary.receiptIndex);
+    let currentTotal = receiptItems.reduce((sum, item) => sum + parseFloat(item.amount || "0"), 0);
+    const currentDiff = Math.abs(currentTotal - expected);
+    if (currentDiff <= 0.05) continue;
+
+    const groups = new Map<string, ProcessedReceiptItem[]>();
+    for (const item of receiptItems) {
+      const key = `${normalizeDescriptionKey(item.originalRawDescription || item.description)}|${item.amount}`;
+      const list = groups.get(key) ?? [];
+      list.push(item);
+      groups.set(key, list);
+    }
+
+    for (const [, group] of groups) {
+      if (group.length <= 1) continue;
+
+      const amount = parseFloat(group[0].amount || "0");
+      if (!(amount > 0)) continue;
+
+      const candidateTotal = currentTotal - amount * (group.length - 1);
+      const candidateDiff = Math.abs(candidateTotal - expected);
+      if (candidateDiff + 0.01 >= currentDiff) continue;
+
+      const idsToRemove = new Set(group.slice(1).map((item) => item.description + item.amount + item.receiptIndex + (item.originalRawDescription || "")));
+      let removed = 0;
+      nextItems = nextItems.filter((item) => {
+        const id = item.description + item.amount + item.receiptIndex + (item.originalRawDescription || "");
+        if (item.receiptIndex === summary.receiptIndex && idsToRemove.has(id) && removed < group.length - 1) {
+          removed++;
+          return false;
+        }
+        return true;
+      });
+
+      receiptItems = nextItems.filter((item) => item.receiptIndex === summary.receiptIndex);
+      currentTotal = receiptItems.reduce((sum, item) => sum + parseFloat(item.amount || "0"), 0);
+    }
+  }
+
+  return nextItems;
+}
+
+function parseAuditedTranscribedLines(
+  lines: string[],
+  receiptIndex: number,
+  receiptLabel: string,
+  sourceImageIndex: number | null,
+  exchangeRate: number
+): ProcessedReceiptItem[] {
+  const items: ProcessedReceiptItem[] = [];
+
+  for (const rawLine of lines) {
+    const line = asString(rawLine);
+    if (!line) continue;
+
+    const normalizedLine = line.replace(/\s+/g, " ").trim();
+    const stripped = stripDiacritics(normalizedLine);
+    if (!normalizedLine || isTechnicalLine(normalizedLine) || isDepositLikeDescription(normalizedLine)) {
+      continue;
+    }
+
+    const discountMatch = normalizedLine.match(/^opust\s+(.+?)\s+(-?\d+[.,]\d{2})$/i);
+    if (discountMatch) {
+      const discountDescription = cleanupReceiptLineDescription(discountMatch[1] || "");
+      const discountAbs = Math.abs(parseAmountNumber(discountMatch[2]) || 0);
+      if (discountAbs > 0) {
+        const discountInPln = exchangeRate !== 1 ? discountAbs * exchangeRate : discountAbs;
+        applyDiscountToBestCandidate(items, receiptIndex, discountDescription, discountInPln);
+      }
+      continue;
+    }
+
+    const resultOnlyMatch = normalizedLine.match(/^-?\d+[.,]\d{2}[A-Z]?$/);
+    if (resultOnlyMatch) {
+      continue;
+    }
+
+    const pricedLineMatch = normalizedLine.match(/^(.*?)(?:\s+[A-Z])?\s+(\d+)\s*x\s*(\d+[.,]\d{2})\s+(-?\d+[.,]\d{2})(?:[A-Z])?$/i);
+    if (!pricedLineMatch) {
+      continue;
+    }
+
+    const description = cleanupReceiptLineDescription(pricedLineMatch[1] || "");
+    const totalRaw = pricedLineMatch[4];
+    const parsedAmount = parseAmountNumber(totalRaw);
+
+    if (!description || parsedAmount === null || parsedAmount <= 0) continue;
+    if (isDiscountLikeDescription(description) || isDepositLikeDescription(description) || isTechnicalLine(description)) continue;
+
+    const amount = exchangeRate !== 1 ? parsedAmount * exchangeRate : parsedAmount;
+    items.push({
+      description,
+      originalRawDescription: description,
+      amount: amount.toFixed(2),
+      categoryId: null,
+      subcategoryId: null,
+      fromMapping: false,
+      receiptIndex,
+      receiptLabel,
+      sourceImageIndex,
+    });
+  }
+
+  return items;
+}
+
+function parseAuditedProductLines(
+  lines: unknown[],
+  receiptIndex: number,
+  receiptLabel: string,
+  sourceImageIndex: number | null,
+  exchangeRate: number
+): ProcessedReceiptItem[] {
+  const items: ProcessedReceiptItem[] = [];
+
+  for (const entry of lines) {
+    if (!entry || typeof entry !== "object") continue;
+    const row = entry as Record<string, unknown>;
+    const description = cleanupReceiptLineDescription(asString(row.description));
+    const totalRaw = row.total;
+    const parsedAmount = parseAmountNumber(totalRaw);
+
+    if (!description || parsedAmount === null || parsedAmount <= 0) continue;
+    if (isTechnicalLine(description) || isDepositLikeDescription(description) || isDiscountLikeDescription(description)) continue;
+
+    const amount = exchangeRate !== 1 ? parsedAmount * exchangeRate : parsedAmount;
+    items.push({
+      description,
+      originalRawDescription: description,
+      amount: amount.toFixed(2),
+      categoryId: null,
+      subcategoryId: null,
+      fromMapping: false,
+      receiptIndex,
+      receiptLabel,
+      sourceImageIndex,
+    });
+  }
+
+  return items;
 }
 
 function scaleAmountForCurrency(amount: string, exchangeRate: number): string {
@@ -307,6 +479,60 @@ function resolveCategoryNames(
   };
 }
 
+function resolveHeuristicCategory(
+  description: string,
+  categoriesArray: any[]
+): { categoryId: string | null; subcategoryId: string | null } | null {
+  const text = stripDiacritics(description);
+
+  if (/(krzew|rosl|roslina|kwiat|bukiet|lawend|pelarg|surfin|sadzon|ogrod|balkon|donicz|ziemia ogrod|nawoz)/i.test(text)) {
+    return resolveCategoryNames("Dom i mieszkanie", "Ogród i balkon", categoriesArray);
+  }
+
+  if (/(piwo|lager|ipa|porter|pils|ale\b|nep\b|vodka|wino|whisk|gin\b)/i.test(text)) {
+    return resolveCategoryNames("Żywność i napoje", "Alkohol", categoriesArray);
+  }
+
+  if (/(jogurt|mleko|maslo|masło|ser|twarog|twaróg|serek|smietan|śmietan|kefir)/i.test(text)) {
+    return resolveCategoryNames("Żywność i napoje", "Nabiał i jaja", categoriesArray);
+  }
+
+  if (/(rukola|surowka|sur[oó]wka|pomidor|ogorek|ogórek|salat|sałat|warzyw|owoc)/i.test(text)) {
+    return resolveCategoryNames("Żywność i napoje", "Owoce i warzywa", categoriesArray);
+  }
+
+  if (/(granola|makaron|ryz|ryż|maka|mąka|kasza|platk|płatk)/i.test(text)) {
+    return resolveCategoryNames("Żywność i napoje", "Produkty sypkie", categoriesArray);
+  }
+
+  if (/(pasta do zeb|pasta do zęb|szampon|mydlo|mydło|dezodor|szczotecz|higien)/i.test(text)) {
+    return resolveCategoryNames("Chemia domowa i higiena", "Higiena osobista", categoriesArray);
+  }
+
+  if (/(calcium|wit|vit|tablet|tabl|lek|suplement)/i.test(text)) {
+    return resolveCategoryNames("Zdrowie i uroda", "Apteka", categoriesArray);
+  }
+
+  return null;
+}
+
+function findSuspiciousDuplicateReceipts(items: ProcessedReceiptItem[]): number[] {
+  const duplicates = new Set<number>();
+  const counts = new Map<string, number>();
+
+  for (const item of items) {
+    const key = `${item.receiptIndex}|${normalizeDescriptionKey(item.originalRawDescription || item.description)}|${item.amount}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  for (const [key, count] of counts) {
+    if (count <= 1) continue;
+    duplicates.add(Number.parseInt(key.split("|")[0] || "0", 10));
+  }
+
+  return [...duplicates];
+}
+
 // ── Prompt Builder ────────────────────────────────────────────────
 
 function buildPrompt(
@@ -430,6 +656,13 @@ interface ProcessReceiptResult {
   receiptSummaries: ReceiptSummary[];
 }
 
+type AuditedLineCandidate = {
+  item: ProcessedReceiptItem;
+  receiptIndex: number;
+  receiptLabel: string;
+  sourceImageIndex: number | null;
+};
+
 async function fetchExchangeRate(currencyCode: string): Promise<number> {
   const code = currencyCode.toUpperCase();
   if (code === "PLN" || !code) return 1;
@@ -463,6 +696,12 @@ async function parseAndNormalizeResponse(
     };
 
     const receiptEntries = Array.isArray(parsed?.receipts) ? parsed.receipts : [];
+    const auditTranscribedLines = Array.isArray(parsed?.audit?.transcribedLines)
+      ? parsed.audit.transcribedLines.filter((line: unknown) => typeof line === "string")
+      : [];
+    const auditProductLines = Array.isArray(parsed?.audit?.productLines)
+      ? parsed.audit.productLines
+      : [];
 
     const parsedItemsWithMeta: ParsedItemWithMeta[] = receiptEntries.length > 0
       ? receiptEntries.flatMap((receipt: any, idx: number) => {
@@ -494,6 +733,40 @@ async function parseAndNormalizeResponse(
 
     const currency = asString(parsed?.currency).toUpperCase();
     const exchangeRate = await fetchExchangeRate(currency);
+    const auditedLineCandidates: AuditedLineCandidate[] = (auditProductLines.length > 0 || auditTranscribedLines.length > 0)
+      ? (() => {
+        const fallbackLabel = receiptEntries.length > 0
+          ? asString(receiptEntries[0]?.receiptLabel) || "Paragon 1"
+          : "Paragon 1";
+        const fallbackSourceImageIndexRaw = Number.parseInt(String(receiptEntries[0]?.sourceImageIndex ?? ""), 10);
+        const fallbackSourceImageIndex = Number.isFinite(fallbackSourceImageIndexRaw) && fallbackSourceImageIndexRaw > 0
+          ? fallbackSourceImageIndexRaw
+          : null;
+
+        const parsedProductLines = parseAuditedProductLines(
+          auditProductLines,
+          0,
+          fallbackLabel,
+          fallbackSourceImageIndex,
+          exchangeRate
+        );
+        const parsedTranscribedLines = parseAuditedTranscribedLines(
+          auditTranscribedLines,
+          0,
+          fallbackLabel,
+          fallbackSourceImageIndex,
+          exchangeRate
+        );
+        const selectedAuditItems = parsedProductLines.length > 0 ? parsedProductLines : parsedTranscribedLines;
+
+        return selectedAuditItems.map((item) => ({
+          item,
+          receiptIndex: item.receiptIndex,
+          receiptLabel: item.receiptLabel || fallbackLabel,
+          sourceImageIndex: item.sourceImageIndex ?? fallbackSourceImageIndex,
+        }));
+      })()
+      : [];
     
     const normalizedTopLevelTotals = normalizeExpectedTotals(
       parsed?.totalAmount,
@@ -589,12 +862,21 @@ async function parseAndNormalizeResponse(
              item.categoryId = resolved.categoryId;
              item.subcategoryId = resolved.subcategoryId;
           }
+
+          const heuristicCategory = resolveHeuristicCategory(
+            item.originalRawDescription || item.description,
+            categoriesArray
+          );
+          if (heuristicCategory?.categoryId && heuristicCategory?.subcategoryId && !item.fromMapping) {
+            item.categoryId = heuristicCategory.categoryId;
+            item.subcategoryId = heuristicCategory.subcategoryId;
+          }
         } catch (e) {
           // Ignore failures in lookup
         }
     }
 
-    const finalItems = normalizedItems.filter(
+    const preliminaryItems = normalizedItems.filter(
       (item: ProcessedReceiptItem) =>
         item.amount || item.description !== "Nieznana pozycja"
     );
@@ -626,14 +908,36 @@ async function parseAndNormalizeResponse(
         sourceImageIndex: null,
       }];
 
-    const receiptSummaries = enrichReceiptSummariesWithValidation(receiptSummariesBase, finalItems);
+    let candidateItems = preliminaryItems;
+
+    if (auditedLineCandidates.length > 0) {
+      const auditedItems = auditedLineCandidates.map((entry) => entry.item);
+      const expectedTotal = parseFloat(totalAmount || receiptSummariesBase[0]?.totalAmount || "0");
+      const preliminarySum = preliminaryItems.reduce((sum, item) => sum + parseFloat(item.amount || "0"), 0);
+      const auditedSum = auditedItems.reduce((sum, item) => sum + parseFloat(item.amount || "0"), 0);
+      const preliminaryDiff = expectedTotal > 0 ? Math.abs(preliminarySum - expectedTotal) : Number.POSITIVE_INFINITY;
+      const auditedDiff = expectedTotal > 0 ? Math.abs(auditedSum - expectedTotal) : Number.POSITIVE_INFINITY;
+
+      if (
+        auditedItems.length > 0 &&
+        (
+          auditedDiff + 0.01 < preliminaryDiff ||
+          (preliminaryDiff > 0.05 && auditedItems.length > preliminaryItems.length)
+        )
+      ) {
+        candidateItems = auditedItems;
+      }
+    }
+
+    const dedupedItems = collapseLikelyDuplicateItems(candidateItems, receiptSummariesBase);
+    const receiptSummaries = enrichReceiptSummariesWithValidation(receiptSummariesBase, dedupedItems);
 
     console.log(
-      `Normalized: ${finalItems.length} items in ${receiptSummaries.length} receipt group(s) (model: ${modelUsed})`
+      `Normalized: ${dedupedItems.length} items in ${receiptSummaries.length} receipt group(s) (model: ${modelUsed})`
     );
 
     return {
-      items: finalItems,
+      items: dedupedItems,
       rawText: asString(parsed?.rawText),
       totalAmount: totalAmount || "",
       payableAmount: payableAmount || "",
@@ -714,13 +1018,14 @@ async function processImagesWithAI(
   let retryUsed = false;
 
   // --- VALIDATION LOOP ---
+  const suspiciousDuplicateReceipts = findSuspiciousDuplicateReceipts(parsed.items);
   const mismatchReceipts = parsed.receiptSummaries.filter((receipt) => {
     const expected = parseFloat(receipt.totalAmount || "0");
     const diff = parseFloat(receipt.difference || "0");
     return expected > 0 && Math.abs(diff) > 0.05;
   });
 
-  const shouldRetryWithAI = mismatchReceipts.some(
+  const shouldRetryWithAI = suspiciousDuplicateReceipts.length > 0 || mismatchReceipts.some(
     (receipt) =>
       receipt.mismatchType === "missing_items" ||
       receipt.mismatchType === "missing_discounts" ||
@@ -745,6 +1050,9 @@ async function processImagesWithAI(
         return `${label}: roznica ${diff.toFixed(2)} (${hint}${totalsHint})`;
       })
       .join("; ");
+    const duplicateHint = suspiciousDuplicateReceipts.length > 0
+      ? ` Podejrzane duplikaty produktow w paragonach: ${suspiciousDuplicateReceipts.map((idx) => idx + 1).join(", ")}. Sprawdz, czy model nie rozbil jednej linii ilosciowej (np. "3 x 9,99 29,97") na kilka osobnych produktow.`
+      : "";
     
     resp = await getGroq().chat.completions.create({
       model: VISION_MODEL,
@@ -754,7 +1062,7 @@ async function processImagesWithAI(
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: contentParts },
         { role: "assistant", content },
-        { role: "user", content: `Wykryto rozbieznosci per paragon: ${mismatchHint}. Sprawdz osobne linie OPUST/RABAT/PRZECENA oraz KAUCJA/OPAKOWANIA ZWROTNE. totalAmount ma odpowiadac sumie items, a payableAmount moze byc wyzsze przez kaucje. Zwroc POPRAWIONY, PELNY JSON.` }
+        { role: "user", content: `Wykryto rozbieznosci per paragon: ${mismatchHint}.${duplicateHint} Sprawdz osobne linie OPUST/RABAT/PRZECENA oraz KAUCJA/OPAKOWANIA ZWROTNE. Jedna linia z iloscia ma dawac jedna pozycje JSON z laczna kwota, a nie kilka duplikatow. Nie zmieniaj nazwy produktu na niepowiazany rzeczownik, jesli na paragonie widac np. piwo, nie wolno zwracac nawozu. totalAmount ma odpowiadac sumie items, a payableAmount moze byc wyzsze przez kaucje. Zwroc POPRAWIONY, PELNY JSON.` }
       ],
     });
     
@@ -762,7 +1070,99 @@ async function processImagesWithAI(
     parsed = await parseAndNormalizeResponse(ctx, householdId, content, categoriesArray, VISION_MODEL);
   }
 
+  const stillNeedsAudit = parsed.receiptSummaries.some((receipt) => {
+    const expected = parseFloat(receipt.totalAmount || "0");
+    const diff = Math.abs(parseFloat(receipt.difference || "0"));
+    return expected > 0 && diff > 0.05;
+  }) || findSuspiciousDuplicateReceipts(parsed.items).length > 0;
+
+  if (stillNeedsAudit) {
+    retryUsed = true;
+    parsed = await auditReceiptWithAI(
+      ctx,
+      householdId,
+      imageDataList,
+      compactCategories,
+      categoriesArray,
+      content,
+      parsed,
+      findSuspiciousDuplicateReceipts(parsed.items)
+    );
+  }
+
   return { ...parsed, retryUsed };
+}
+
+async function auditReceiptWithAI(
+  ctx: any,
+  householdId: string,
+  imageDataList: { base64: string; mimeType: string }[],
+  compactCategories: string,
+  categoriesArray: any[],
+  previousJson: string,
+  parsed: ProcessReceiptResult,
+  suspiciousDuplicateReceipts: number[]
+): Promise<ProcessReceiptResult> {
+  const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+    {
+      type: "text",
+      text: [
+        "AUDYT PARAGONU.",
+        "Wykonaj drugi, rygorystyczny odczyt TYLKO dla pozycji podejrzanych.",
+        "Najpierw przeczytaj z obrazu DOSLOWNIE linie produktowe i rabatowe, szczegolnie wzorce typu:",
+        '- "3 x 9,99 29,97"',
+        '- "OPUST ... -9,98"',
+        '- "SUMA PLN 83,99"',
+        '- "KAUCJA ... 1,00"',
+        '- "DO ZAPLATY 84,99"',
+        "Nie wolno zgadywac nazw z innych domen. Jesli na paragonie jest piwo, nie wolno zwracac nawozu.",
+        "Jedna linia ilosciowa ma dac jedna pozycje JSON z laczna kwota po uwzglednieniu rabatu.",
+        "Krzew/roslina/kwiat ma byc kategoryzowany do Dom i mieszkanie -> Ogród i balkon lub zblizonej podkategorii domowej, a nie do zywnosci.",
+        "W polu audit.productLines zwroc KAŻDĄ linię produktową w KOLEJNOŚCI z paragonu, przed kategoryzacją. To pole jest ważniejsze niż zwykłe items.",
+        "Dla kazdej linii produktowej podaj co najmniej description i total. Przyklad: Nep. 04'2026 piwo -> 19.98, Surowka 300g -> 6.98, Calcium Wit. D tabl. -> 5.59.",
+        "",
+        `Podejrzane paragony (indeksy 1-based): ${suspiciousDuplicateReceipts.length > 0 ? suspiciousDuplicateReceipts.map((idx) => idx + 1).join(", ") : "brak, ale suma nadal sie nie zgadza"}.`,
+        "Poprzedni JSON do korekty:",
+        previousJson,
+        "",
+        "Zwróć TYLKO poprawny JSON zgodny z glownym schematem oraz dodatkowo pole audit:",
+        `{ "audit": { "transcribedLines": ["doslowna linia 1", "doslowna linia 2"], "productLines": [{ "description": "Nep. 04'2026 piwo", "quantityText": "2 x 9,99", "total": "19.98" }, { "description": "Surowka 300g", "quantityText": "2 x 3,49", "total": "6.98" }] }, "rawText": "Lidl 2026-04-11", "currency": "PLN", "totalAmount": "83.99", "payableAmount": "84.99", "depositTotal": "1.00", "receiptCount": 1, "receipts": [] }`,
+        "",
+        "KATEGORIE:",
+        compactCategories,
+      ].join("\n"),
+    },
+  ];
+
+  for (const img of imageDataList) {
+    contentParts.push({
+      type: "image_url",
+      image_url: {
+        url: `data:${img.mimeType};base64,${img.base64}`,
+      },
+    });
+  }
+
+  const resp = await getGroq().chat.completions.create({
+    model: VISION_MODEL,
+    temperature: 0.0,
+    max_tokens: 4096,
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: contentParts },
+    ],
+  });
+
+  const content = resp.choices[0].message.content ?? "{}";
+  const audited = await parseAndNormalizeResponse(ctx, householdId, content, categoriesArray, VISION_MODEL);
+
+  console.log("Receipt audit response:", {
+    previousItems: parsed.items.length,
+    auditedItems: audited.items.length,
+    receiptsWithMismatch: audited.receiptSummaries.filter((receipt) => receipt.mismatchType !== "ok").length,
+  });
+
+  return audited;
 }
 
 // ── AI Processing: Text ───────────────────────────────────────────

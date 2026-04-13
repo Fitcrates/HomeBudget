@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -31,8 +31,6 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
   const [saving, setSaving] = useState(false);
   const [receiptStorageId, setReceiptStorageId] = useState<Id<"_storage"> | null>(null);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-
   const categories = useQuery(api.categories.listForHousehold, { householdId });
   const createExpense = useMutation(api.expenses.create);
   const generateUploadUrl = useMutation(api.expenses.generateUploadUrl);
