@@ -74,6 +74,11 @@ function isDiscountLikeDescription(description: string): boolean {
   return /(rabat|opust|promoc|kupon|coupon|bonifikat|znizk|obnizk|program|lojalnosc|aplikacj|karta|taniej|minus)/i.test(text);
 }
 
+function isDepositLikeDescription(description: string): boolean {
+  const text = stripDiacritics(description);
+  return /(kaucj|opakowan|zwrotn|butelk|puszk)/i.test(text);
+}
+
 function tokenizeDescription(description: string): string[] {
   const normalized = stripDiacritics(description)
     .replace(/[^a-z0-9\s]/g, " ")
@@ -163,6 +168,48 @@ function enrichReceiptSummariesWithValidation(
       mismatchType,
     };
   });
+}
+
+function scaleAmountForCurrency(amount: string, exchangeRate: number): string {
+  if (!amount) return "";
+  const parsed = parseFloat(amount);
+  if (!(parsed > 0)) return "";
+  return exchangeRate !== 1 ? (parsed * exchangeRate).toFixed(2) : parsed.toFixed(2);
+}
+
+function normalizeExpectedTotals(
+  totalAmountRaw: unknown,
+  payableAmountRaw: unknown,
+  depositTotalRaw: unknown,
+  exchangeRate: number
+): {
+  totalAmount: string;
+  payableAmount: string;
+  depositTotal: string;
+} {
+  let totalAmount = normalizeAmount(totalAmountRaw);
+  let payableAmount = normalizeAmount(payableAmountRaw);
+  let depositTotal = normalizeAmount(depositTotalRaw);
+
+  if (!depositTotal && totalAmount && payableAmount) {
+    const inferredDeposit = parseFloat(payableAmount) - parseFloat(totalAmount);
+    if (inferredDeposit > 0.05) {
+      depositTotal = inferredDeposit.toFixed(2);
+    }
+  }
+
+  if (!totalAmount && payableAmount && depositTotal) {
+    const inferredTotal = parseFloat(payableAmount) - parseFloat(depositTotal);
+    if (inferredTotal > 0) {
+      totalAmount = inferredTotal.toFixed(2);
+    }
+  }
+
+  return {
+    totalAmount: scaleAmountForCurrency(totalAmount, exchangeRate),
+    payableAmount: scaleAmountForCurrency(payableAmount, exchangeRate),
+    depositTotal: scaleAmountForCurrency(depositTotal, exchangeRate),
+  };
 }
 
 function asString(v: unknown): string {
@@ -270,65 +317,67 @@ function buildPrompt(
     ? `Tekst dokumentu:\n"""\n${documentText}\n"""\n\n`
     : "";
 
-  return `Wyodrębnij WSZYSTKIE pozycje zakupowe z ${documentText ? "tekstu" : "obrazu/obrazów"}.
+  return `Wyodrebnij WSZYSTKIE pozycje zakupowe z ${documentText ? "tekstu" : "obrazu/obrazow"}.
 ${source}ZASADY:
-1. KAŻDY produkt — nie pomijaj żadnej pozycji.
-2. Czytaj "Wartość" (łączna cena), nie cenę jednostkową.
-3. Rabat/Opust/Promocja/Kupon (w tym rabaty z aplikacji) MUSI być uwzględniony w finalnej cenie pozycji.
-4. Jeśli rabat jest pokazany jako osobna linia na paragonie, przypisz go do właściwej pozycji i podaj cenę końcową produktu.
-4. Ilość >1 → ŁĄCZNA wartość (3×2.50 = "7.50").
-5. Kwota: tylko liczba z kropką ("12.98").
-6. Ignoruj: sumy, podatki PTU, kaucje, płatności, nagłówki.
-7. Jeśli na przesłanych obrazach są RÓŻNE paragony (np. inne sklepy, różne daty), rozdziel je do osobnych grup.
+1. Kazdy produkt - nie pomijaj zadnej pozycji.
+2. Czytaj wartosc laczna pozycji, nie cene jednostkowa.
+3. Rabat/Opust/Promocja/Kupon musi byc uwzgledniony w finalnej cenie pozycji.
+4. Jesli rabat jest pokazany jako osobna linia, przypisz go do wlasciwej pozycji i podaj cene koncowa produktu.
+5. Ilosc >1 -> LACZNA wartosc (np. 3x2.50 = "7.50").
+6. Kaucje za opakowania zwrotne NIE sa zwyklymi produktami. Nie dodawaj ich do items, ale zwroc je osobno jako depositTotal.
+7. Jesli widzisz zarowno "SUMA PLN"/"Podsuma" jak i "DO ZAPLATY", to:
+- totalAmount = suma towarow po rabatach, bez kaucji i bez platnosci
+- payableAmount = koncowa kwota do zaplaty
+- depositTotal = suma kaucji / opakowan zwrotnych
+- items musza sumowac sie do totalAmount, nie do payableAmount
+8. Ignoruj naglowki, PTU, platnosci karta/gotowka, rozliczenie platnosci i inne linie techniczne.
+9. Jesli na przeslanych obrazach sa rozne paragony, rozdziel je do osobnych grup.
 
-DOPASOWANIE KATEGORII DO WYSTAWCY (BARDZO WAŻNE!):
-- Najpierw zidentyfikuj wystawcę rachunku (np. po logo, nagłówku). To absolutnie kluczowe dla właściwej kategoryzacji artykułów.
-- Biedronka, Lidl, Auchan, Kaufland, Żabka, Dino, Netto, Carrefour, Stokrotka: pozycje to niemal wyłącznie "Żywność i napoje" oraz "Chemia domowa i higiena". (ZAKAZ kategoryzacji do Restauracji dla zwykłego jedzenia ze sklepu!).
-- Rossmann, Hebe, Super-Pharm, Sephora, Douglas: pozycje z tych sklepów to na 99% "Zdrowie i uroda" -> np. "Kosmetyki" lub "Chemia domowa i higiena".
-- Castorama, Leroy Merlin, OBI, Mrówka, Jysk, IKEA, Agata Meble, Bricomarché: domyślnie "Dom i mieszkanie" -> np. "Wyposażenie" lub "Remonty". (BARDZO rzadko inne, chyba, że ktoś kupił tam hot-doga).
-- Orlen, BP, Shell, Circle K, Amic, Moya, Lotos: dla produktów typu PB95, ON, LPG przydzielaj "Transport" -> "Paliwo". Reszta jedzenia ze stacji to np. "Restauracje i kawiarnie" -> "Fast food" lub "Przekąski" / "Słodycze i przekąski".
-- Apteki (DOZ, Gemini, Ziko, Cefarm, Dr.Max): WSZYSTKIE Leki i suplementy kategoryzuj jako "Zdrowie i uroda" -> "Apteka". (Żadnej Chemii domowej dla leków!).
-- Maxi Zoo, Kakadu, sklepy zoologiczne: pozycje to domyślnie kategoria "Zwierzęta".
-- Piekarnie/Cukiernie (np. Lubaszka, Hert, rzemieślnicze): kategoria "Piekarnia" (w Żywność i napoje) lub kawiarniana.
-- Empik: pozycje takie jak książki, gazety przypisuj do "Rozrywka i hobby" -> "Książki". Zawsze sprawdź, co to za sklep!
+DOPASOWANIE KATEGORII DO WYSTAWCY:
+- Najpierw zidentyfikuj sklep lub wystawce rachunku.
+- Biedronka, Lidl, Auchan, Kaufland, Zabka, Dino, Netto, Carrefour, Stokrotka: pozycje to zwykle "Zywnosc i napoje" albo "Chemia domowa i higiena".
+- Rossmann, Hebe, Super-Pharm, Sephora, Douglas: zwykle "Zdrowie i uroda".
+- Castorama, Leroy Merlin, OBI, Jysk, IKEA, Agata Meble: zwykle "Dom i mieszkanie".
+- Orlen, BP, Shell, Circle K, Amic, Moya, Lotos: paliwo -> "Transport" / "Paliwo".
+- Apteki (DOZ, Gemini, Ziko, Cefarm, Dr.Max): leki i suplementy -> "Zdrowie i uroda" / "Apteka".
+- Sklepy zoologiczne: domyslnie "Zwierzeta".
 
-KATEGORYZACJA SZCZEGÓŁOWA — użyj DOKŁADNEJ nazwy z listy:
-- Produkty sklepowe typu kiełbasy czy ziemniaki PRAWIE ZAWSZE należą do podkategorii w "Żywność i napoje"! 
-- Jajka, mleko, ser, masło, jogurt → "Nabiał i jaja"
-- Mięso, parówki, szynka, kurczak → "Mięso i wędliny"
-- Owoce, warzywa, ziemniaki → "Owoce i warzywa"
-- Chleb, bułki → "Piekarnia"
-- Sos, ketchup, musztarda, olej, majonez → "Przyprawy i dodatki"
-- Konserwy (fasola, kukurydza, tuńczyk) → "Przyprawy i dodatki"
-- Makaron, ryż, mąka, kasza → "Produkty sypkie"
-- Czekolada, chipsy, cukierki → "Słodycze i przekąski"
-- Woda, sok, cola → "Napoje bezalkoholowe"
-- Piwo, wino, wódka → "Alkohol"
-- Mrożonki, lody → "Mrożonki"
-- Torba/reklamówka z logo sklepu → "Inne" > "Różne"
-- Czystość (płyny, proszki, papier toaletowy) → "Chemia domowa i higiena"
+KATEGORYZACJA SZCZEGOLOWA:
+- Jajka, mleko, ser, maslo, jogurt -> "Nabial i jaja"
+- Mieso, parowki, szynka, kurczak -> "Mieso i wedliny"
+- Owoce, warzywa, ziemniaki -> "Owoce i warzywa"
+- Chleb, bulki -> "Piekarnia"
+- Makaron, ryz, maka, kasza -> "Produkty sypkie"
+- Czekolada, chipsy, cukierki -> "Slodycze i przekaski"
+- Woda, sok, cola -> "Napoje bezalkoholowe"
+- Piwo, wino, wodka -> "Alkohol"
+- Czystosc (plyny, proszki, papier toaletowy) -> "Chemia domowa i higiena"
 
 KATEGORIE:
 ${compactCategories}
 
 JSON:
 {
-  "rawText": "TUTAJ WPISZ TYLKO I WYŁĄCZNIE NAZWĘ MARKI I WYSTAWCY (np. 'Biedronka', 'Castorama', 'Orlen') ORAZ DATĘ",
-  "currency": "PLN (lub USD, EUR, GBP - wykryta waluta)",
-  "totalAmount": "SUMA PARAGONU PO WSZYSTKICH RABATACH (np. '150.50')",
+  "rawText": "Tylko marka/sklep i data, np. 'Lidl 2026-04-11'",
+  "currency": "PLN",
+  "totalAmount": "Suma towarow po rabatach, bez kaucji, np. '83.99'",
+  "payableAmount": "Kwota do zaplaty, jesli wystepuje, np. '84.99'",
+  "depositTotal": "Suma kaucji, jesli wystepuje, np. '1.00'",
   "receiptCount": 1,
   "receipts": [
     {
       "receiptIndex": 0,
-      "receiptLabel": "Biedronka 2026-04-12",
+      "receiptLabel": "Lidl 2026-04-11",
       "sourceImageIndex": 1,
-      "totalAmount": "150.50",
+      "totalAmount": "83.99",
+      "payableAmount": "84.99",
+      "depositTotal": "1.00",
       "items": [
         {
           "description": "Nazwa produktu",
           "amount": "12.98",
-          "category": "Żywność i napoje",
-          "subcategory": "Nabiał i jaja"
+          "category": "Zywnosc i napoje",
+          "subcategory": "Nabial i jaja"
         }
       ]
     }
@@ -337,14 +386,14 @@ JSON:
     {
       "description": "Nazwa produktu",
       "amount": "12.98",
-      "category": "Żywność i napoje",
-      "subcategory": "Nabiał i jaja"
+      "category": "Zywnosc i napoje",
+      "subcategory": "Nabial i jaja"
     }
   ]
 }`;
 }
 
-// ── Response Parser ───────────────────────────────────────────────
+// Response Parser ───────────────────────────────────────────────
 
 interface ProcessedReceiptItem {
   description: string;
@@ -362,6 +411,8 @@ interface ReceiptSummary {
   receiptIndex: number;
   receiptLabel: string;
   totalAmount: string;
+  payableAmount?: string;
+  depositTotal?: string;
   sourceImageIndex: number | null;
   itemsTotal?: string;
   difference?: string;
@@ -372,6 +423,8 @@ interface ProcessReceiptResult {
   items: ProcessedReceiptItem[];
   rawText: string;
   totalAmount: string;
+  payableAmount?: string;
+  depositTotal?: string;
   modelUsed: string;
   receiptCount: number;
   receiptSummaries: ReceiptSummary[];
@@ -442,12 +495,17 @@ async function parseAndNormalizeResponse(
     const currency = asString(parsed?.currency).toUpperCase();
     const exchangeRate = await fetchExchangeRate(currency);
     
-    let totalAmount = normalizeAmount(parsed?.totalAmount);
-    if (totalAmount && exchangeRate !== 1) {
-      totalAmount = (parseFloat(totalAmount) * exchangeRate).toFixed(2);
-    }
+    const normalizedTopLevelTotals = normalizeExpectedTotals(
+      parsed?.totalAmount,
+      parsed?.payableAmount,
+      parsed?.depositTotal,
+      exchangeRate
+    );
+    const totalAmount = normalizedTopLevelTotals.totalAmount;
+    const payableAmount = normalizedTopLevelTotals.payableAmount;
+    const depositTotal = normalizedTopLevelTotals.depositTotal;
 
-    console.log(`AI returned ${parsedItems.length} raw items (Currency: ${currency}, Rate: ${exchangeRate}, Total: ${totalAmount})`);
+    console.log(`AI returned ${parsedItems.length} raw items (Currency: ${currency}, Rate: ${exchangeRate}, Total: ${totalAmount}, Payable: ${payableAmount}, Deposit: ${depositTotal})`);
 
     const normalizedItems: ProcessedReceiptItem[] = [];
 
@@ -469,6 +527,10 @@ async function parseAndNormalizeResponse(
           originalRawDesc,
           discountInPln
         );
+        continue;
+      }
+
+      if (isDepositLikeDescription(originalRawDesc)) {
         continue;
       }
 
@@ -546,7 +608,12 @@ async function parseAndNormalizeResponse(
         return {
           receiptIndex: idx,
           receiptLabel: asString(receipt?.receiptLabel) || `Paragon ${idx + 1}`,
-          totalAmount: normalizeAmount(receipt?.totalAmount) || "",
+          ...normalizeExpectedTotals(
+            receipt?.totalAmount,
+            receipt?.payableAmount,
+            receipt?.depositTotal,
+            exchangeRate
+          ),
           sourceImageIndex,
         };
       })
@@ -554,6 +621,8 @@ async function parseAndNormalizeResponse(
         receiptIndex: 0,
         receiptLabel: "Paragon 1",
         totalAmount: totalAmount || "",
+        payableAmount: payableAmount || "",
+        depositTotal: depositTotal || "",
         sourceImageIndex: null,
       }];
 
@@ -567,6 +636,8 @@ async function parseAndNormalizeResponse(
       items: finalItems,
       rawText: asString(parsed?.rawText),
       totalAmount: totalAmount || "",
+      payableAmount: payableAmount || "",
+      depositTotal: depositTotal || "",
       modelUsed,
       receiptCount: Math.max(1, receiptSummaries.length),
       receiptSummaries,
@@ -578,12 +649,16 @@ async function parseAndNormalizeResponse(
       items: [],
       rawText: "",
       totalAmount: "",
+      payableAmount: "",
+      depositTotal: "",
       modelUsed,
       receiptCount: 1,
       receiptSummaries: [{
         receiptIndex: 0,
         receiptLabel: "Paragon 1",
         totalAmount: "",
+        payableAmount: "",
+        depositTotal: "",
         sourceImageIndex: null,
       }],
     };
@@ -646,7 +721,10 @@ async function processImagesWithAI(
   });
 
   const shouldRetryWithAI = mismatchReceipts.some(
-    (receipt) => receipt.mismatchType === "missing_items" || receipt.mismatchType === "unknown"
+    (receipt) =>
+      receipt.mismatchType === "missing_items" ||
+      receipt.mismatchType === "missing_discounts" ||
+      receipt.mismatchType === "unknown"
   );
 
   if (shouldRetryWithAI) {
@@ -657,9 +735,14 @@ async function processImagesWithAI(
         const label = receipt.receiptLabel || `Paragon ${receipt.receiptIndex + 1}`;
         const diff = Math.abs(parseFloat(receipt.difference || "0"));
         const hint = receipt.mismatchType === "missing_items"
-          ? "brakują pozycje"
-          : "wymaga ponownej analizy";
-        return `${label}: różnica ${diff.toFixed(2)} (${hint})`;
+          ? "brakuja pozycje"
+          : receipt.mismatchType === "missing_discounts"
+            ? "brakuje uwzglednionego rabatu/opustu"
+            : "wymaga ponownej analizy";
+        const totalsHint = receipt.payableAmount
+          ? `; totalAmount=${receipt.totalAmount || "?"}; payableAmount=${receipt.payableAmount}; depositTotal=${receipt.depositTotal || "0"}`
+          : "";
+        return `${label}: roznica ${diff.toFixed(2)} (${hint}${totalsHint})`;
       })
       .join("; ");
     
@@ -671,7 +754,7 @@ async function processImagesWithAI(
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: contentParts },
         { role: "assistant", content },
-        { role: "user", content: `Wykryto rozbieżności per paragon: ${mismatchHint}. Skoryguj przede wszystkim brakujące pozycje i zwróć POPRAWIONY, PEŁNY JSON.` }
+        { role: "user", content: `Wykryto rozbieznosci per paragon: ${mismatchHint}. Sprawdz osobne linie OPUST/RABAT/PRZECENA oraz KAUCJA/OPAKOWANIA ZWROTNE. totalAmount ma odpowiadac sumie items, a payableAmount moze byc wyzsze przez kaucje. Zwroc POPRAWIONY, PELNY JSON.` }
       ],
     });
     
@@ -782,9 +865,9 @@ export const processReceiptWithAI = action({
       const ms = Date.now() - startTime;
       
       // Calculate match rate for logging
-      const expectedTotalAmount = parseFloat(result.totalAmount || "0");
-      const totalParsedAmount = result.items.reduce((sum, item) => sum + parseFloat(item.amount || "0"), 0);
-      const sumMatchedTotal = expectedTotalAmount > 0 && Math.abs(totalParsedAmount - expectedTotalAmount) <= 0.05;
+      const sumMatchedTotal = result.receiptSummaries.length > 0
+        ? result.receiptSummaries.every((receipt) => receipt.mismatchType === "ok")
+        : false;
 
       // Log the scan observability (Step 1 Implementation)
       await ctx.runMutation(internal.ocrLogs.logScan, {
@@ -806,3 +889,4 @@ export const processReceiptWithAI = action({
     }
   },
 });
+

@@ -46,6 +46,8 @@ interface ReceiptSummary {
   receiptIndex: number;
   receiptLabel: string;
   totalAmount: string;
+  payableAmount?: string;
+  depositTotal?: string;
   sourceImageIndex: number | null;
   itemsTotal?: string;
   difference?: string;
@@ -66,13 +68,15 @@ interface ProcessReceiptResult {
   }>;
   rawText?: string;
   totalAmount?: string;
+  payableAmount?: string;
+  depositTotal?: string;
   modelUsed?: string;
   receiptCount?: number;
   receiptSummaries?: ReceiptSummary[];
 }
 
 const PDF_MIME = "application/pdf";
-const OCR_CACHE_VERSION = "v1";
+const OCR_CACHE_VERSION = "v2";
 const OCR_CACHE_PREFIX = `homebudget:ocr-cache:${OCR_CACHE_VERSION}:`;
 const OCR_CACHE_INDEX_KEY = `${OCR_CACHE_PREFIX}index`;
 const OCR_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
@@ -713,6 +717,8 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
               {receiptSummaries.map((receipt) => {
                 const itemsSum = parseFloat((receipt.itemsTotal || "").replace(",", "."));
                 const expected = parseFloat((receipt.totalAmount || "").replace(",", "."));
+                const payable = parseFloat((receipt.payableAmount || "").replace(",", "."));
+                const deposit = parseFloat((receipt.depositTotal || "").replace(",", "."));
                 const diffValue = parseFloat((receipt.difference || "0").replace(",", "."));
                 const diff = Math.abs(diffValue);
                 const isMismatch = receipt.mismatchType !== "ok" && expected > 0 && diff > 0.05;
@@ -740,7 +746,14 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                       ? "text-[#a94d22] text-xs font-bold leading-relaxed"
                       : "text-[#46825d] text-xs font-bold"
                     }>
-                      {isMismatch ? "⚠️" : "✅"} {receipt.receiptLabel || `Paragon ${receipt.receiptIndex + 1}`}: suma pozycji ({formatAmount(itemsSum)}) vs suma paragonu ({formatAmount(expected)}).
+                      {isMismatch ? "⚠️" : "✅"} {receipt.receiptLabel || `Paragon ${receipt.receiptIndex + 1}`}: suma pozycji ({formatAmount(itemsSum)}) vs suma towarów ({formatAmount(expected)}).
+                      {payable > 0 && (
+                        <>
+                          <br />
+                          Kwota do zapłaty: {formatAmount(payable)}
+                          {deposit > 0 ? `, w tym kaucja ${formatAmount(deposit)}` : ""}.
+                        </>
+                      )}
                       {isMismatch && (
                         <>
                           <br />
@@ -779,7 +792,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                       return (
                         <div className="mx-4 mb-4 bg-[#fff2ec] border border-[#ffc2af] rounded-xl p-3 shadow-sm">
                           <p className="text-[#a94d22] text-xs font-bold leading-relaxed">
-                            ⚠️ Suma pozycji ({sum.toFixed(2)}) nie zgadza się z sumą paragonu ({expected.toFixed(2)}).
+                            ⚠️ Suma pozycji ({sum.toFixed(2)}) nie zgadza się z sumą towarów ({expected.toFixed(2)}).
                             <br />
                             {overByDiscount
                               ? `Pozycje są wyższe o ${diff.toFixed(2)} — najczęściej oznacza to brak uwzględnionych rabatów/promocji.`
@@ -791,7 +804,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                     return (
                         <div className="mx-4 mb-4 bg-[#ebf7ef] border border-[#8bc5a0] rounded-xl p-3 shadow-sm">
                           <p className="text-[#46825d] text-xs font-bold">
-                            ✅ Suma pozycji ({sum.toFixed(2)}) zgadza się z sumą paragonu!
+                            ✅ Suma pozycji ({sum.toFixed(2)}) zgadza się z sumą towarów!
                           </p>
                         </div>
                     );
