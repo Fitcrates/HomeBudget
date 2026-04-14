@@ -29,6 +29,81 @@ Nigdy nie pomijasz pozycji. Zwracasz JSON.`;
 
 // ── Utilities ─────────────────────────────────────────────────────
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function extractGroqStatusCode(error: any): number | null {
+  const candidates = [
+    error?.status,
+    error?.statusCode,
+    error?.response?.status,
+    error?.cause?.status,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === "number" && Number.isFinite(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+function isRetriableGroqError(error: any): boolean {
+  const status = extractGroqStatusCode(error);
+  if (status !== null && [408, 409, 425, 429, 500, 502, 503, 504].includes(status)) {
+    return true;
+  }
+
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    message.includes("over capacity") ||
+    message.includes("rate limit") ||
+    message.includes("timeout") ||
+    message.includes("temporar") ||
+    message.includes("try again")
+  );
+}
+
+async function createGroqCompletionWithRetry(
+  request: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
+  label: string,
+  maxAttempts = 4
+): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await getGroq().chat.completions.create(request);
+    } catch (error: any) {
+      lastError = error;
+      const retriable = isRetriableGroqError(error);
+      const status = extractGroqStatusCode(error);
+
+      console.error(`Groq OCR call failed (${label})`, {
+        attempt,
+        maxAttempts,
+        status,
+        message: String(error?.message || error),
+        retriable,
+      });
+
+      if (!retriable || attempt === maxAttempts) {
+        break;
+      }
+
+      const delayMs = 1200 * Math.pow(2, attempt - 1);
+      await sleep(delayMs);
+    }
+  }
+
+  const status = extractGroqStatusCode(lastError);
+  if (status === 503 || isRetriableGroqError(lastError)) {
+    throw new Error("Model OCR jest chwilowo przeciążony. Spróbuj ponownie za kilkanaście sekund.");
+  }
+
+  throw lastError;
+}
+
 function extractJsonBlock(text: string): string {
   const trimmed = text.trim();
   if (!trimmed) return "";
@@ -1072,7 +1147,7 @@ async function processImagesWithAI(
       promptLength: prompt.length,
     });
 
-    let resp = await getGroq().chat.completions.create({
+    let resp = await createGroqCompletionWithRetry({
       model: VISION_MODEL,
       temperature: 0.1,
       max_tokens: 4096,
@@ -1080,7 +1155,7 @@ async function processImagesWithAI(
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: contentParts },
       ],
-    });
+    }, `vision-batch:${batch.length}`);
 
     let content = resp.choices[0].message.content ?? "{}";
     console.log("Vision response:", {
@@ -1127,7 +1202,7 @@ async function processImagesWithAI(
         ? ` Podejrzane duplikaty produktow w paragonach: ${suspiciousDuplicateReceipts.map((idx) => idx + 1).join(", ")}. Sprawdz, czy model nie rozbil jednej linii ilosciowej (np. "3 x 9,99 29,97") na kilka osobnych produktow.`
         : "";
       
-      resp = await getGroq().chat.completions.create({
+      resp = await createGroqCompletionWithRetry({
         model: VISION_MODEL,
         temperature: 0.1,
         max_tokens: 4096,
@@ -1137,7 +1212,7 @@ async function processImagesWithAI(
           { role: "assistant", content },
           { role: "user", content: `Wykryto rozbieznosci per paragon: ${mismatchHint}.${duplicateHint} Sprawdz osobne linie OPUST/RABAT/PRZECENA oraz KAUCJA/OPAKOWANIA ZWROTNE. Jesli rabat jest pokazany jako osobna linia, wolno zwrocic go jako osobna pozycje z UJEMNA kwota zamiast odejmowac od pierwszego produktu. Jedna linia z iloscia ma dawac jedna pozycje JSON z laczna kwota, a nie kilka duplikatow. Nie zmieniaj nazwy produktu na niepowiazany rzeczownik, jesli na paragonie widac np. piwo, nie wolno zwracac nawozu. totalAmount ma odpowiadac sumie items, a payableAmount moze byc wyzsze przez kaucje. Zwroc POPRAWIONY, PELNY JSON.` }
         ],
-      });
+      }, `vision-retry:${batch.length}`);
       
       content = resp.choices[0].message.content ?? "{}";
       parsed = await parseAndNormalizeResponse(ctx, householdId, content, categoriesArray, VISION_MODEL);
@@ -1306,7 +1381,7 @@ async function auditReceiptWithAI(
     });
   }
 
-  const resp = await getGroq().chat.completions.create({
+  const resp = await createGroqCompletionWithRetry({
     model: VISION_MODEL,
     temperature: 0.0,
     max_tokens: 4096,
@@ -1314,7 +1389,7 @@ async function auditReceiptWithAI(
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: contentParts },
     ],
-  });
+  }, `vision-audit:${imageDataList.length}`);
 
   const content = resp.choices[0].message.content ?? "{}";
   const audited = await parseAndNormalizeResponse(ctx, householdId, content, categoriesArray, VISION_MODEL);
@@ -1339,7 +1414,7 @@ async function processTextWithAI(
 ): Promise<ProcessReceiptResult & { retryUsed: boolean }> {
   const prompt = buildPrompt(compactCategories, text.slice(0, 8000));
 
-  const resp = await getGroq().chat.completions.create({
+  const resp = await createGroqCompletionWithRetry({
     model: VISION_MODEL, // Vision model can also accept pure text
     temperature: 0.1,
     max_tokens: 4096,
@@ -1347,7 +1422,7 @@ async function processTextWithAI(
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: prompt },
     ],
-  });
+  }, "text-ocr");
 
   const content = resp.choices[0].message.content ?? "{}";
   const parsed = await parseAndNormalizeResponse(ctx, householdId, content, categoriesArray, VISION_MODEL);
