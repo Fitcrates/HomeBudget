@@ -116,12 +116,12 @@ function cleanupReceiptLineDescription(description: string): string {
     .trim();
 }
 
-function applyDiscountToBestCandidate(
+function findBestDiscountCandidate(
   normalizedItems: ProcessedReceiptItem[],
   receiptIndex: number,
   discountDescription: string,
   discountInPln: number
-): boolean {
+): ProcessedReceiptItem | null {
   const discountTokens = tokenizeDescription(discountDescription);
 
   let bestCandidate: ProcessedReceiptItem | null = null;
@@ -147,19 +147,42 @@ function applyDiscountToBestCandidate(
     }
   }
 
-  if (!bestCandidate) {
-    const fallback = normalizedItems
-      .filter((item) => item.receiptIndex === receiptIndex)
-      .sort((a, b) => parseFloat(b.amount) - parseFloat(a.amount))[0];
-    if (!fallback) return false;
-    const newAmount = Math.max(0.01, parseFloat(fallback.amount) - discountInPln);
-    fallback.amount = newAmount.toFixed(2);
-    return true;
-  }
+  if (bestCandidate) return bestCandidate;
 
-  const newAmount = Math.max(0.01, parseFloat(bestCandidate.amount) - discountInPln);
-  bestCandidate.amount = newAmount.toFixed(2);
-  return true;
+  return normalizedItems
+    .filter((item) => item.receiptIndex === receiptIndex)
+    .sort((a, b) => parseFloat(b.amount) - parseFloat(a.amount))[0] ?? null;
+}
+
+function buildDiscountLineItem(
+  normalizedItems: ProcessedReceiptItem[],
+  receiptIndex: number,
+  receiptLabel: string,
+  sourceImageIndex: number | null,
+  discountDescription: string,
+  discountInPln: number
+): ProcessedReceiptItem | null {
+  if (!(discountInPln > 0)) return null;
+
+  const matchedCandidate = findBestDiscountCandidate(
+    normalizedItems,
+    receiptIndex,
+    discountDescription,
+    discountInPln
+  );
+  const cleanedDescription = cleanupReceiptLineDescription(discountDescription) || "Rabat / opust";
+
+  return {
+    description: `Rabat: ${cleanedDescription}`,
+    originalRawDescription: cleanedDescription,
+    amount: (-discountInPln).toFixed(2),
+    categoryId: matchedCandidate?.categoryId ?? null,
+    subcategoryId: matchedCandidate?.subcategoryId ?? null,
+    fromMapping: false,
+    receiptIndex,
+    receiptLabel,
+    sourceImageIndex,
+  };
 }
 
 function enrichReceiptSummariesWithValidation(
@@ -267,7 +290,17 @@ function parseAuditedTranscribedLines(
       const discountAbs = Math.abs(parseAmountNumber(discountMatch[2]) || 0);
       if (discountAbs > 0) {
         const discountInPln = exchangeRate !== 1 ? discountAbs * exchangeRate : discountAbs;
-        applyDiscountToBestCandidate(items, receiptIndex, discountDescription, discountInPln);
+        const discountItem = buildDiscountLineItem(
+          items,
+          receiptIndex,
+          receiptLabel,
+          sourceImageIndex,
+          discountDescription,
+          discountInPln
+        );
+        if (discountItem) {
+          items.push(discountItem);
+        }
       }
       continue;
     }
@@ -548,7 +581,7 @@ ${source}ZASADY:
 1. Kazdy produkt - nie pomijaj zadnej pozycji.
 2. Czytaj wartosc laczna pozycji, nie cene jednostkowa.
 3. Rabat/Opust/Promocja/Kupon musi byc uwzgledniony w finalnej cenie pozycji.
-4. Jesli rabat jest pokazany jako osobna linia, przypisz go do wlasciwej pozycji i podaj cene koncowa produktu.
+4. Jesli rabat jest pokazany jako osobna linia, mozesz zwrocic go jako osobna pozycje z ujemna kwota zamiast wciskac go w pierwszy produkt.
 5. Ilosc >1 -> LACZNA wartosc (np. 3x2.50 = "7.50").
 6. Kaucje za opakowania zwrotne NIE sa zwyklymi produktami. Nie dodawaj ich do items, ale zwroc je osobno jako depositTotal.
 7. Jesli widzisz zarowno "SUMA PLN"/"Podsuma" jak i "DO ZAPLATY", to:
@@ -794,12 +827,17 @@ async function parseAndNormalizeResponse(
         const discountAbs = Math.abs(parsedAmount);
         const discountInPln = exchangeRate !== 1 ? discountAbs * exchangeRate : discountAbs;
 
-        applyDiscountToBestCandidate(
+        const discountItem = buildDiscountLineItem(
           normalizedItems,
           entry.receiptIndex,
+          entry.receiptLabel,
+          entry.sourceImageIndex,
           originalRawDesc,
           discountInPln
         );
+        if (discountItem) {
+          normalizedItems.push(discountItem);
+        }
         continue;
       }
 
@@ -836,6 +874,7 @@ async function parseAndNormalizeResponse(
 
     // Resolve missing items mapping/categories
     for (const item of normalizedItems) {
+        if (parseFloat(item.amount || "0") < 0) continue;
         if (!item.originalRawDescription) continue;
         
         try {
@@ -874,6 +913,38 @@ async function parseAndNormalizeResponse(
         } catch (e) {
           // Ignore failures in lookup
         }
+    }
+
+    for (const item of normalizedItems) {
+      const amountValue = parseFloat(item.amount || "0");
+      if (!(amountValue < 0)) continue;
+
+      const linkedCandidate = findBestDiscountCandidate(
+        normalizedItems.filter((candidate) =>
+          candidate.receiptIndex === item.receiptIndex && parseFloat(candidate.amount || "0") > 0
+        ),
+        item.receiptIndex,
+        item.originalRawDescription || item.description,
+        Math.abs(amountValue)
+      );
+
+      if (linkedCandidate?.categoryId) {
+        item.categoryId = linkedCandidate.categoryId;
+        item.subcategoryId = linkedCandidate.subcategoryId;
+        continue;
+      }
+
+      const previousPositive = [...normalizedItems]
+        .reverse()
+        .find((candidate) =>
+          candidate.receiptIndex === item.receiptIndex &&
+          parseFloat(candidate.amount || "0") > 0
+        );
+
+      if (previousPositive?.categoryId) {
+        item.categoryId = previousPositive.categoryId;
+        item.subcategoryId = previousPositive.subcategoryId;
+      }
     }
 
     const preliminaryItems = normalizedItems.filter(
@@ -978,119 +1049,210 @@ async function processImagesWithAI(
   compactCategories: string,
   categoriesArray: any[]
 ): Promise<ProcessReceiptResult & { retryUsed: boolean }> {
-  const prompt = buildPrompt(compactCategories);
+  const analyzeBatch = async (
+    batch: { base64: string; mimeType: string }[]
+  ): Promise<ProcessReceiptResult & { retryUsed: boolean }> => {
+    const prompt = buildPrompt(compactCategories);
 
-  const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
-    { type: "text", text: prompt },
-  ];
+    const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+      { type: "text", text: prompt },
+    ];
 
-  for (const img of imageDataList) {
-    contentParts.push({
-      type: "image_url",
-      image_url: {
-        url: `data:${img.mimeType};base64,${img.base64}`
-      },
+    for (const img of batch) {
+      contentParts.push({
+        type: "image_url",
+        image_url: {
+          url: `data:${img.mimeType};base64,${img.base64}`
+        },
+      });
+    }
+
+    console.log(`→ Groq vision (${VISION_MODEL}):`, {
+      imageCount: batch.length,
+      promptLength: prompt.length,
     });
-  }
 
-  console.log(`→ Groq vision (${VISION_MODEL}):`, {
-    imageCount: imageDataList.length,
-    promptLength: prompt.length,
-  });
-
-  let resp = await getGroq().chat.completions.create({
-    model: VISION_MODEL,
-    temperature: 0.1,
-    max_tokens: 4096,
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: contentParts },
-    ],
-  });
-
-  let content = resp.choices[0].message.content ?? "{}";
-  console.log("Vision response:", {
-    len: content.length,
-    model: resp.model
-  });
-
-  let parsed = await parseAndNormalizeResponse(ctx, householdId, content, categoriesArray, VISION_MODEL);
-  let retryUsed = false;
-
-  // --- VALIDATION LOOP ---
-  const suspiciousDuplicateReceipts = findSuspiciousDuplicateReceipts(parsed.items);
-  const mismatchReceipts = parsed.receiptSummaries.filter((receipt) => {
-    const expected = parseFloat(receipt.totalAmount || "0");
-    const diff = parseFloat(receipt.difference || "0");
-    return expected > 0 && Math.abs(diff) > 0.05;
-  });
-
-  const shouldRetryWithAI = suspiciousDuplicateReceipts.length > 0 || mismatchReceipts.some(
-    (receipt) =>
-      receipt.mismatchType === "missing_items" ||
-      receipt.mismatchType === "missing_discounts" ||
-      receipt.mismatchType === "unknown"
-  );
-
-  if (shouldRetryWithAI) {
-    retryUsed = true;
-    const mismatchHint = mismatchReceipts
-      .slice(0, 3)
-      .map((receipt) => {
-        const label = receipt.receiptLabel || `Paragon ${receipt.receiptIndex + 1}`;
-        const diff = Math.abs(parseFloat(receipt.difference || "0"));
-        const hint = receipt.mismatchType === "missing_items"
-          ? "brakuja pozycje"
-          : receipt.mismatchType === "missing_discounts"
-            ? "brakuje uwzglednionego rabatu/opustu"
-            : "wymaga ponownej analizy";
-        const totalsHint = receipt.payableAmount
-          ? `; totalAmount=${receipt.totalAmount || "?"}; payableAmount=${receipt.payableAmount}; depositTotal=${receipt.depositTotal || "0"}`
-          : "";
-        return `${label}: roznica ${diff.toFixed(2)} (${hint}${totalsHint})`;
-      })
-      .join("; ");
-    const duplicateHint = suspiciousDuplicateReceipts.length > 0
-      ? ` Podejrzane duplikaty produktow w paragonach: ${suspiciousDuplicateReceipts.map((idx) => idx + 1).join(", ")}. Sprawdz, czy model nie rozbil jednej linii ilosciowej (np. "3 x 9,99 29,97") na kilka osobnych produktow.`
-      : "";
-    
-    resp = await getGroq().chat.completions.create({
+    let resp = await getGroq().chat.completions.create({
       model: VISION_MODEL,
       temperature: 0.1,
       max_tokens: 4096,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: contentParts },
-        { role: "assistant", content },
-        { role: "user", content: `Wykryto rozbieznosci per paragon: ${mismatchHint}.${duplicateHint} Sprawdz osobne linie OPUST/RABAT/PRZECENA oraz KAUCJA/OPAKOWANIA ZWROTNE. Jedna linia z iloscia ma dawac jedna pozycje JSON z laczna kwota, a nie kilka duplikatow. Nie zmieniaj nazwy produktu na niepowiazany rzeczownik, jesli na paragonie widac np. piwo, nie wolno zwracac nawozu. totalAmount ma odpowiadac sumie items, a payableAmount moze byc wyzsze przez kaucje. Zwroc POPRAWIONY, PELNY JSON.` }
       ],
     });
-    
-    content = resp.choices[0].message.content ?? "{}";
-    parsed = await parseAndNormalizeResponse(ctx, householdId, content, categoriesArray, VISION_MODEL);
-  }
 
-  const stillNeedsAudit = parsed.receiptSummaries.some((receipt) => {
-    const expected = parseFloat(receipt.totalAmount || "0");
-    const diff = Math.abs(parseFloat(receipt.difference || "0"));
-    return expected > 0 && diff > 0.05;
-  }) || findSuspiciousDuplicateReceipts(parsed.items).length > 0;
+    let content = resp.choices[0].message.content ?? "{}";
+    console.log("Vision response:", {
+      len: content.length,
+      model: resp.model
+    });
 
-  if (stillNeedsAudit) {
-    retryUsed = true;
-    parsed = await auditReceiptWithAI(
-      ctx,
-      householdId,
-      imageDataList,
-      compactCategories,
-      categoriesArray,
-      content,
-      parsed,
-      findSuspiciousDuplicateReceipts(parsed.items)
+    let parsed = await parseAndNormalizeResponse(ctx, householdId, content, categoriesArray, VISION_MODEL);
+    let retryUsed = false;
+
+    const suspiciousDuplicateReceipts = findSuspiciousDuplicateReceipts(parsed.items);
+    const mismatchReceipts = parsed.receiptSummaries.filter((receipt) => {
+      const expected = parseFloat(receipt.totalAmount || "0");
+      const diff = parseFloat(receipt.difference || "0");
+      return expected > 0 && Math.abs(diff) > 0.05;
+    });
+
+    const shouldRetryWithAI = suspiciousDuplicateReceipts.length > 0 || mismatchReceipts.some(
+      (receipt) =>
+        receipt.mismatchType === "missing_items" ||
+        receipt.mismatchType === "missing_discounts" ||
+        receipt.mismatchType === "unknown"
     );
+
+    if (shouldRetryWithAI) {
+      retryUsed = true;
+      const mismatchHint = mismatchReceipts
+        .slice(0, 3)
+        .map((receipt) => {
+          const label = receipt.receiptLabel || `Paragon ${receipt.receiptIndex + 1}`;
+          const diff = Math.abs(parseFloat(receipt.difference || "0"));
+          const hint = receipt.mismatchType === "missing_items"
+            ? "brakuja pozycje"
+            : receipt.mismatchType === "missing_discounts"
+              ? "brakuje uwzglednionego rabatu/opustu"
+              : "wymaga ponownej analizy";
+          const totalsHint = receipt.payableAmount
+            ? `; totalAmount=${receipt.totalAmount || "?"}; payableAmount=${receipt.payableAmount}; depositTotal=${receipt.depositTotal || "0"}`
+            : "";
+          return `${label}: roznica ${diff.toFixed(2)} (${hint}${totalsHint})`;
+        })
+        .join("; ");
+      const duplicateHint = suspiciousDuplicateReceipts.length > 0
+        ? ` Podejrzane duplikaty produktow w paragonach: ${suspiciousDuplicateReceipts.map((idx) => idx + 1).join(", ")}. Sprawdz, czy model nie rozbil jednej linii ilosciowej (np. "3 x 9,99 29,97") na kilka osobnych produktow.`
+        : "";
+      
+      resp = await getGroq().chat.completions.create({
+        model: VISION_MODEL,
+        temperature: 0.1,
+        max_tokens: 4096,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: contentParts },
+          { role: "assistant", content },
+          { role: "user", content: `Wykryto rozbieznosci per paragon: ${mismatchHint}.${duplicateHint} Sprawdz osobne linie OPUST/RABAT/PRZECENA oraz KAUCJA/OPAKOWANIA ZWROTNE. Jesli rabat jest pokazany jako osobna linia, wolno zwrocic go jako osobna pozycje z UJEMNA kwota zamiast odejmowac od pierwszego produktu. Jedna linia z iloscia ma dawac jedna pozycje JSON z laczna kwota, a nie kilka duplikatow. Nie zmieniaj nazwy produktu na niepowiazany rzeczownik, jesli na paragonie widac np. piwo, nie wolno zwracac nawozu. totalAmount ma odpowiadac sumie items, a payableAmount moze byc wyzsze przez kaucje. Zwroc POPRAWIONY, PELNY JSON.` }
+        ],
+      });
+      
+      content = resp.choices[0].message.content ?? "{}";
+      parsed = await parseAndNormalizeResponse(ctx, householdId, content, categoriesArray, VISION_MODEL);
+    }
+
+    const stillNeedsAudit = parsed.receiptSummaries.some((receipt) => {
+      const expected = parseFloat(receipt.totalAmount || "0");
+      const diff = Math.abs(parseFloat(receipt.difference || "0"));
+      return expected > 0 && diff > 0.05;
+    }) || findSuspiciousDuplicateReceipts(parsed.items).length > 0;
+
+    if (stillNeedsAudit) {
+      retryUsed = true;
+      parsed = await auditReceiptWithAI(
+        ctx,
+        householdId,
+        batch,
+        compactCategories,
+        categoriesArray,
+        content,
+        parsed,
+        findSuspiciousDuplicateReceipts(parsed.items)
+      );
+    }
+
+    return { ...parsed, retryUsed };
+  };
+
+  const mergeBatchResults = (
+    results: Array<ProcessReceiptResult & { retryUsed: boolean }>
+  ): ProcessReceiptResult & { retryUsed: boolean } => {
+    const mergedItems: ProcessedReceiptItem[] = [];
+    const mergedSummaries: ReceiptSummary[] = [];
+    const rawLabels: string[] = [];
+    let total = 0;
+    let payable = 0;
+    let deposit = 0;
+    let receiptOffset = 0;
+    let retryUsed = false;
+
+    for (let index = 0; index < results.length; index++) {
+      const result = results[index];
+      retryUsed = retryUsed || result.retryUsed;
+      if (result.rawText) rawLabels.push(result.rawText);
+
+      const resultReceiptCount = Math.max(1, result.receiptSummaries.length || result.receiptCount || 1);
+
+      for (const item of result.items) {
+        mergedItems.push({
+          ...item,
+          receiptIndex: item.receiptIndex + receiptOffset,
+          receiptLabel: item.receiptLabel || `Paragon ${receiptOffset + 1}`,
+          sourceImageIndex: item.sourceImageIndex ?? index + 1,
+        });
+      }
+
+      const summaries = result.receiptSummaries.length > 0
+        ? result.receiptSummaries
+        : [{
+          receiptIndex: 0,
+          receiptLabel: result.rawText || `Paragon ${index + 1}`,
+          totalAmount: result.totalAmount || "",
+          payableAmount: result.payableAmount || "",
+          depositTotal: result.depositTotal || "",
+          sourceImageIndex: index + 1,
+        }];
+
+      for (const summary of summaries) {
+        mergedSummaries.push({
+          ...summary,
+          receiptIndex: summary.receiptIndex + receiptOffset,
+          receiptLabel: summary.receiptLabel || `Paragon ${receiptOffset + 1}`,
+          sourceImageIndex: summary.sourceImageIndex ?? index + 1,
+        });
+      }
+
+      total += parseFloat(result.totalAmount || "0") || 0;
+      payable += parseFloat(result.payableAmount || "0") || 0;
+      deposit += parseFloat(result.depositTotal || "0") || 0;
+      receiptOffset += resultReceiptCount;
+    }
+
+    return {
+      items: mergedItems,
+      rawText: rawLabels.join(" | "),
+      totalAmount: total > 0 ? total.toFixed(2) : "",
+      payableAmount: payable > 0 ? payable.toFixed(2) : "",
+      depositTotal: deposit > 0 ? deposit.toFixed(2) : "",
+      modelUsed: VISION_MODEL,
+      receiptCount: Math.max(1, mergedSummaries.length),
+      receiptSummaries: enrichReceiptSummariesWithValidation(mergedSummaries, mergedItems),
+      retryUsed,
+    };
+  };
+
+  const combined = await analyzeBatch(imageDataList);
+  if (!(imageDataList.length > 1 && combined.items.length === 0)) {
+    return combined;
   }
 
-  return { ...parsed, retryUsed };
+  console.warn("Combined OCR for many images returned no items. Falling back to per-image processing.");
+  const perImageResults: Array<ProcessReceiptResult & { retryUsed: boolean }> = [];
+
+  for (const image of imageDataList) {
+    const result = await analyzeBatch([image]);
+    if (result.items.length > 0 || result.receiptSummaries.some((summary) => summary.totalAmount || summary.payableAmount)) {
+      perImageResults.push(result);
+    }
+  }
+
+  if (perImageResults.length === 0) {
+    return combined;
+  }
+
+  return mergeBatchResults(perImageResults);
 }
 
 async function auditReceiptWithAI(
@@ -1117,6 +1279,7 @@ async function auditReceiptWithAI(
         '- "DO ZAPLATY 84,99"',
         "Nie wolno zgadywac nazw z innych domen. Jesli na paragonie jest piwo, nie wolno zwracac nawozu.",
         "Jedna linia ilosciowa ma dac jedna pozycje JSON z laczna kwota po uwzglednieniu rabatu.",
+        "Jesli rabat jest pokazany jako osobna linia koncowa lub globalna, mozesz zwrocic go jako osobna pozycje z ujemna kwota.",
         "Krzew/roslina/kwiat ma byc kategoryzowany do Dom i mieszkanie -> Ogród i balkon lub zblizonej podkategorii domowej, a nie do zywnosci.",
         "W polu audit.productLines zwroc KAŻDĄ linię produktową w KOLEJNOŚCI z paragonu, przed kategoryzacją. To pole jest ważniejsze niż zwykłe items.",
         "Dla kazdej linii produktowej podaj co najmniej description i total. Przyklad: Nep. 04'2026 piwo -> 19.98, Surowka 300g -> 6.98, Calcium Wit. D tabl. -> 5.59.",

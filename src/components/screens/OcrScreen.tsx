@@ -78,7 +78,7 @@ interface ProcessReceiptResult {
 }
 
 const PDF_MIME = "application/pdf";
-const OCR_CACHE_VERSION = "v3";
+const OCR_CACHE_VERSION = "v4";
 const OCR_CACHE_PREFIX = `homebudget:ocr-cache:${OCR_CACHE_VERSION}:`;
 const OCR_CACHE_INDEX_KEY = `${OCR_CACHE_PREFIX}index`;
 const OCR_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
@@ -415,8 +415,8 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
       const pos = i + 1;
       const amountNum = parseFloat((item.amount || "").replace(",", "."));
 
-      if (!item.amount || !item.amount.trim() || isNaN(amountNum) || amountNum <= 0) {
-        toast.error(`Pozycja ${pos} ("${item.description}"): uzupełnij kwotę.`);
+      if (!item.amount || !item.amount.trim() || isNaN(amountNum) || amountNum === 0) {
+        toast.error(`Pozycja ${pos} ("${item.description}"): uzupełnij kwotę inną niż 0.`);
         return;
       }
       if (!item.categoryId) {
@@ -846,6 +846,8 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                   {items.map((item, index) => {
                     const selectedCat = categories?.find((c) => c._id === item.categoryId);
                     const uncertainPrice = isAmountUncertain(item.amount);
+                    const amountNum = parseFloat((item.amount || "").replace(",", "."));
+                    const isDiscountRow = !isNaN(amountNum) && amountNum < 0;
                     return (
                       <div
                         key={item.id}
@@ -869,6 +871,11 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                             {uncertainPrice && (
                               <span className="text-[10px] font-bold text-[#9a2b00] bg-[#ffe1d6] border border-[#ffc2af] px-2 py-1 rounded-xl">
                                 Niepewna cena
+                              </span>
+                            )}
+                            {isDiscountRow && (
+                              <span className="text-[10px] font-bold text-[#2c7a4b] bg-[#e8f6ed] border border-[#9bd1af] px-2 py-1 rounded-xl">
+                                Rabat / opust
                               </span>
                             )}
                           </div>
@@ -895,7 +902,9 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                               onChange={(e) => updateItem(item.id, { amount: e.target.value })}
                               className={`w-full text-[15px] bg-white border rounded-xl px-3 py-2.5  outline-none font-bold text-right tabular-nums ${uncertainPrice
                                 ? "border-[#f3a086] text-[#b74210] focus:border-[#d95d27]"
-                                : "border-[#f5e5cf] text-[#cf833f] focus:border-[#cf833f]"
+                                : isDiscountRow
+                                  ? "border-[#9bd1af] text-[#2c7a4b] focus:border-[#4f9a6e]"
+                                  : "border-[#f5e5cf] text-[#cf833f] focus:border-[#cf833f]"
                                 }`}
                               placeholder="0.00"
                             />
@@ -1003,4 +1012,3 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
     </div>
   );
 }
-
