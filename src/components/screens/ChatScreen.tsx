@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+﻿import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { Bot, ShoppingCart, Send, Plus, Check, Square, Trash2, X } from "lucide-react";
+import { Bot, ShoppingCart, Send, Plus, Check, Square, X } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
 
 interface Props {
   householdId: Id<"households">;
@@ -25,11 +26,11 @@ export function ChatScreen({ householdId }: Props) {
         <div className="flex items-center justify-between w-full mb-3">
           <div className="flex items-center gap-2 drop-shadow-sm">
             <Bot className="w-8 h-8 text-[#c76823]" />
-            <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a]">Agent</h2>
+            <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a]">Agent</h2>
           </div>
         </div>
 
-        <div className="flex bg-[#fdf9f1] rounded-2xl p-1 shadow-[0_4px_12px_rgba(180,120,80,0.1)] gap-1">
+        <div className="flex bg-[#fdf9f1] rounded-xl p-1 shadow-[0_4px_12px_rgba(180,120,80,0.1)] gap-1">
           <button
             onClick={() => setTab("chat")}
             className={`flex-1 py-2.5 rounded-xl text-[13px] font-bold transition-all flex items-center justify-center gap-2 ${
@@ -91,6 +92,7 @@ function ChatView({ householdId }: { householdId: Id<"households"> }) {
   const deleteSession = useMutation(api.chat.deleteSession);
   
   const [activeSessionId, setActiveSessionId] = useState<Id<"chat_sessions"> | null>(null);
+  const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<Id<"chat_sessions"> | null>(null);
 
   useEffect(() => {
     if (sessions && sessions.length > 0 && !activeSessionId) {
@@ -101,6 +103,18 @@ function ChatView({ householdId }: { householdId: Id<"households"> }) {
   async function handleNewChat() {
     const id = await createSession({ householdId, title: "Nowa rozmowa" });
     setActiveSessionId(id);
+  }
+
+  async function handleDeleteSession(sessionId: Id<"chat_sessions">) {
+    try {
+      await deleteSession({ householdId, sessionId });
+      if (activeSessionId === sessionId) {
+        setActiveSessionId(null);
+      }
+      toast.success("Czat usunięty.");
+    } catch (err: any) {
+      toast.error(err?.message || "Nie udało się usunąć czatu.");
+    }
   }
 
   return (
@@ -126,10 +140,16 @@ function ChatView({ householdId }: { householdId: Id<"households"> }) {
                 {session.title}
              </button>
              <button
-               onClick={(e) => { e.stopPropagation(); deleteSession({ householdId, sessionId: session._id }); }}
-               className={`absolute -top-1 -right-1 bg-red-100 text-red-500 rounded-full p-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity ${activeSessionId === session._id ? 'opacity-100' : ''}`}
+               type="button"
+               onClick={(e) => {
+                 e.stopPropagation();
+                 setPendingDeleteSessionId(session._id);
+               }}
+               title="Usuń czat"
+               aria-label="Usuń czat"
+               className={`absolute -top-1 -right-1 h-5 w-5 rounded-full border border-red-200 bg-red-100 text-red-500 shadow-sm opacity-0 transition-opacity hover:bg-red-200 group-hover:opacity-100 ${activeSessionId === session._id ? "opacity-100" : ""}`}
              >
-                <X className="w-2.5 h-2.5" />
+               <X className="mx-auto h-3 w-3" />
              </button>
           </div>
         ))}
@@ -145,6 +165,19 @@ function ChatView({ householdId }: { householdId: Id<"households"> }) {
           <p className="text-[12px] text-[#b89b87] mt-1">Zacznij nową rozmowę aby zapytać Agenta o przepis z listy zakupów, albo poradę dotyczącą Twoich wydatków.</p>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(pendingDeleteSessionId)}
+        title="Usunąć czat?"
+        description="Wiadomości z tej sesji zostaną trwale usunięte."
+        confirmLabel="Usuń"
+        onCancel={() => setPendingDeleteSessionId(null)}
+        onConfirm={() => {
+          if (!pendingDeleteSessionId) return;
+          void handleDeleteSession(pendingDeleteSessionId);
+          setPendingDeleteSessionId(null);
+        }}
+      />
     </div>
   );
 }
@@ -183,7 +216,7 @@ function ActiveChatSession({ householdId, sessionId }: { householdId: Id<"househ
   }
 
   return (
-    <div className="flex-1 overflow-hidden flex flex-col bg-white/40 backdrop-blur-xl border border-white/50 rounded-[2rem] shadow-[0_8px_32px_rgba(180,120,80,0.15)] relative">
+    <div className="flex-1 overflow-hidden flex flex-col bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl shadow-[0_8px_32px_rgba(180,120,80,0.15)] relative">
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
         {messages?.map((msg) => {
           const isMe = msg.role === "user";
@@ -198,7 +231,7 @@ function ActiveChatSession({ householdId, sessionId }: { householdId: Id<"househ
                   }`}
                 >
                   {isMe ? (
-                    <span className="text-[13px] font-semibold block leading-relaxed">{msg.text}</span>
+                    <span className="text-[13px] font-medium block leading-relaxed">{msg.text}</span>
                   ) : (
                     <div className="text-[14px] font-medium leading-relaxed prose prose-sm prose-orange max-w-none text-[#2b180a]">
                       <ReactMarkdown
@@ -264,12 +297,12 @@ function ActiveChatSession({ householdId, sessionId }: { householdId: Id<"househ
                       )}
                     </div>
                     {msg.pendingAction.status === "approved" && (
-                      <div className="text-[11px] font-extrabold text-[#4aad6f] flex items-center gap-1 bg-[#dcfce7]/50 px-2 py-1 rounded w-max">
+                      <div className="text-[11px] font-medium text-[#4aad6f] flex items-center gap-1 bg-[#dcfce7]/50 px-2 py-1 rounded w-max">
                         <Check className="w-3 h-3" /> Zgoda wydana
                       </div>
                     )}
                     {msg.pendingAction.status === "rejected" && (
-                      <div className="text-[11px] font-extrabold text-red-400 flex items-center gap-1 bg-red-50 px-2 py-1 rounded w-max">
+                      <div className="text-[11px] font-medium text-red-400 flex items-center gap-1 bg-red-50 px-2 py-1 rounded w-max">
                         <X className="w-3 h-3" /> Odrzucono
                       </div>
                     )}
@@ -298,7 +331,7 @@ function ActiveChatSession({ householdId, sessionId }: { householdId: Id<"househ
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Zapytaj o przepis..."
-            className="flex-1 bg-white border border-[#f5e5cf] rounded-full px-4 py-3 text-sm font-semibold outline-none focus:border-[#cf833f] text-[#2b180a] shadow-inner"
+            className="flex-1 bg-white border border-[#f5e5cf] rounded-full px-4 py-3 text-sm font-medium outline-none focus:border-[#cf833f] text-[#2b180a] shadow-inner"
             disabled={isTyping || isLimitReached}
           />
           <button
@@ -321,6 +354,7 @@ function ActiveChatSession({ householdId, sessionId }: { householdId: Id<"househ
 
 function ShoppingListView({ householdId, items }: { householdId: Id<"households">; items: any[] }) {
   const [newItem, setNewItem] = useState("");
+  const [pendingDeleteItemId, setPendingDeleteItemId] = useState<Id<"shopping_items"> | null>(null);
   const add = useMutation(api.shopping.add);
   const toggle = useMutation(api.shopping.toggleBuy);
   const remove = useMutation(api.shopping.remove);
@@ -338,8 +372,17 @@ function ShoppingListView({ householdId, items }: { householdId: Id<"households"
   const unbought = items.filter(i => !i.isBought);
   const bought = items.filter(i => i.isBought);
 
+  async function handleDeleteItem(itemId: Id<"shopping_items">) {
+    try {
+      await remove({ householdId, itemId });
+      toast.success("Produkt usunięty.");
+    } catch (err: any) {
+      toast.error(err?.message || "Nie udało się usunąć produktu.");
+    }
+  }
+
   return (
-    <div className="flex-1 overflow-hidden flex flex-col bg-white/40 backdrop-blur-xl border border-white/50 rounded-[2rem] shadow-[0_8px_32px_rgba(180,120,80,0.15)] relative">
+    <div className="flex-1 overflow-hidden flex flex-col bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl shadow-[0_8px_32px_rgba(180,120,80,0.15)] relative">
       <div className="p-4 bg-white/60 border-b border-white/50">
         <form onSubmit={handleAdd} className="flex gap-2">
            <input 
@@ -347,7 +390,7 @@ function ShoppingListView({ householdId, items }: { householdId: Id<"households"
              value={newItem}
              onChange={e => setNewItem(e.target.value)}
              placeholder="Dodaj ręcznie np. Mleko" 
-             className="flex-1 bg-white border border-[#f5e5cf] rounded-xl px-4 py-3 text-sm font-semibold outline-none focus:border-[#cf833f] shadow-inner"
+             className="flex-1 bg-white border border-[#f5e5cf] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-[#cf833f] shadow-inner"
            />
            <button type="submit" disabled={!newItem.trim()} className="px-4 bg-[#cf833f] text-white rounded-xl shadow-sm hover:bg-[#c76823] disabled:opacity-50 font-bold">
              <Plus className="w-5 h-5" />
@@ -360,7 +403,7 @@ function ShoppingListView({ householdId, items }: { householdId: Id<"households"
            <div className="text-center py-10 opacity-70">
              <ShoppingCart className="w-12 h-12 text-[#c76823] mx-auto mb-2 opacity-50" />
              <p className="text-sm font-bold text-[#8a7262]">Lista zakupów jest pusta</p>
-             <p className="text-xs font-semibold text-[#b89b87] mt-1">Sztuczna Inteligencja może ją dla Ciebie wypełnić!</p>
+             <p className="text-xs font-medium text-[#b89b87] mt-1">Sztuczna Inteligencja może ją dla Ciebie wypełnić!</p>
            </div>
         )}
 
@@ -368,16 +411,14 @@ function ShoppingListView({ householdId, items }: { householdId: Id<"households"
           <div className="space-y-2">
             <h4 className="text-[11px] font-bold text-[#b89b87] uppercase tracking-wider mb-2 ml-1">Do kupienia</h4>
             {unbought.map(item => (
-              <div key={item._id} className="group flex items-center justify-between p-3 bg-white border border-[#f5e5cf] rounded-2xl shadow-sm">
+              <div key={item._id} className="group flex items-center justify-between p-3 bg-white border border-[#f5e5cf] rounded-xl shadow-sm">
                  <div className="flex items-center gap-3 cursor-pointer" onClick={() => toggle({ householdId, itemId: item._id, isBought: true })}>
-                   <div className="w-6 h-6 border-2 border-[#cf833f] rounded-lg flex items-center justify-center as transition-all group-hover:bg-[#fcf4e4]">
+                   <div className="w-6 h-6 border-2 border-[#cf833f] rounded-xl flex items-center justify-center as transition-all group-hover:bg-[#fcf4e4]">
                       <Square className="w-4 h-4 text-transparent" />
                    </div>
-                   <span className="text-sm font-extrabold text-[#2b180a]">{item.name}</span>
+                   <span className="text-sm font-medium text-[#2b180a]">{item.name}</span>
                  </div>
-                 <button onClick={() => remove({ householdId, itemId: item._id })} className="p-2 text-zinc-300 hover:text-red-400 rounded-lg">
-                   <Trash2 className="w-4 h-4" />
-                 </button>
+                 <button type="button" onClick={() => setPendingDeleteItemId(item._id)} title="Usuń produkt" aria-label="Usuń produkt" className="h-7 w-7 rounded-full text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-400"><X className="mx-auto h-4 w-4" /></button>
               </div>
             ))}
           </div>
@@ -387,21 +428,36 @@ function ShoppingListView({ householdId, items }: { householdId: Id<"households"
           <div className="space-y-2">
             <div className="flex items-center justify-between mt-6 mb-2">
               <h4 className="text-[11px] font-bold text-[#b89b87] uppercase tracking-wider ml-1">Kupione</h4>
-              <button onClick={() => clearBought({ householdId })} className="text-[10px] font-extrabold text-red-400 hover:underline">Wyczyść kupione</button>
+              <button onClick={() => clearBought({ householdId })} className="text-[10px] font-medium text-red-400 hover:underline">Wyczyść kupione</button>
             </div>
             {bought.map(item => (
-              <div key={item._id} className="flex items-center justify-between p-3 bg-white/50 border border-[#f5e5cf]/50 rounded-2xl">
+              <div key={item._id} className="flex items-center justify-between p-3 bg-white/50 border border-[#f5e5cf]/50 rounded-xl">
                  <div className="flex items-center gap-3 cursor-pointer opacity-50" onClick={() => toggle({ householdId, itemId: item._id, isBought: false })}>
-                   <div className="w-6 h-6 bg-[#4aad6f] border-2 border-[#4aad6f] rounded-lg flex items-center justify-center">
+                   <div className="w-6 h-6 bg-[#4aad6f] border-2 border-[#4aad6f] rounded-xl flex items-center justify-center">
                       <Check className="w-4 h-4 text-white" />
                    </div>
-                   <span className="text-sm font-extrabold text-[#2b180a] line-through">{item.name}</span>
+                   <span className="text-sm font-medium text-[#2b180a] line-through">{item.name}</span>
                  </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(pendingDeleteItemId)}
+        title="Usunąć produkt?"
+        description="Pozycja zniknie z listy zakupów."
+        confirmLabel="Usuń"
+        onCancel={() => setPendingDeleteItemId(null)}
+        onConfirm={() => {
+          if (!pendingDeleteItemId) return;
+          void handleDeleteItem(pendingDeleteItemId);
+          setPendingDeleteItemId(null);
+        }}
+      />
     </div>
   );
 }
+
+

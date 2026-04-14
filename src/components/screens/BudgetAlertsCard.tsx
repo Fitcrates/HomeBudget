@@ -28,14 +28,14 @@ export function BudgetAlertsCard({
   if (budgets === undefined || byCategory === undefined) return null;
   if (budgets.length === 0) {
     return (
-      <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-[2rem] p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]">
+      <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2 drop-shadow-sm">
             <Target className="w-6 h-6 text-[#c76823]" />
-            <h3 className="text-[15px] font-extrabold text-[#2b180a]">Budżety kategorii</h3>
+            <h3 className="text-[15px] font-medium text-[#2b180a]">Budżety kategorii</h3>
           </div>
         </div>
-        <p className="text-xs text-[#b89b87] font-semibold text-center py-3">
+        <p className="text-xs text-[#b89b87] font-medium text-center py-3">
           Brak ustawionych limitów. Kliknij ustawienia w sekcji Zarządzanie Domem, aby dodać budżety.
         </p>
       </div>
@@ -57,11 +57,11 @@ export function BudgetAlertsCard({
   alerts.sort((a, b) => b.pct - a.pct);
 
   return (
-    <div className="bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-[2rem] p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]">
+    <div className="bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2 drop-shadow-sm">
           <Target className="w-6 h-6 text-[#c76823]" />
-          <h3 className="text-[15px] font-extrabold text-[#2b180a]">Budżety kategorii</h3>
+          <h3 className="text-[15px] font-medium text-[#2b180a]">Budżety kategorii</h3>
         </div>
       </div>
 

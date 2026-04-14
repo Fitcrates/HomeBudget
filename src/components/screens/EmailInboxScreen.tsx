@@ -97,7 +97,7 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
     }
   }
 
-  const cardClass = "bg-white/40 backdrop-blur-xl border border-white/50 rounded-[2rem] p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
+  const cardClass = "bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
 
   return (
     <div className="space-y-6 pb-6">
@@ -110,11 +110,11 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
             ←
           </button>
           <Mail className="w-8 h-8 text-[#c76823] drop-shadow-sm" />
-          <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a] drop-shadow-sm">
+          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a] drop-shadow-sm">
             Skrzynka e-mail
           </h2>
         </div>
-        <p className="text-xs text-[#8a7262] font-semibold ml-10 mt-1">
+        <p className="text-xs text-[#8a7262] font-medium ml-10 mt-1">
           Wydatki wykryte z przesłanych maili — zatwierdź lub odrzuć
         </p>
       </div>
@@ -127,7 +127,7 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
         <div className={`${cardClass} text-center py-10`}>
           <Mail className="w-16 h-16 text-[#b89b87] mx-auto mb-4" />
           <p className="text-[#3e2815] font-bold mb-1">Brak oczekujących maili</p>
-          <p className="text-xs text-[#b89b87] font-semibold">
+          <p className="text-xs text-[#b89b87] font-medium">
             Prześlij maila z potwierdzeniem zakupu na swój adres, a pojawi się tutaj.
           </p>
         </div>
@@ -141,7 +141,7 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
             return (
               <div
                 key={p._id}
-                className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-[24px] shadow-sm overflow-hidden"
+                className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl shadow-sm overflow-hidden"
               >
                 {/* Header row */}
                 <button
@@ -159,22 +159,22 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 drop-shadow-sm">
                         <Mail className="w-6 h-6 text-[#c76823]" />
-                        <p className="text-[15px] font-extrabold text-[#2b180a] truncate">
+                        <p className="text-[15px] font-medium text-[#2b180a] truncate">
                           {p.emailSubject || "(brak tematu)"}
                         </p>
                       </div>
-                      <p className="text-[11px] text-[#8a7262] font-semibold truncate">
+                      <p className="text-[11px] text-[#8a7262] font-medium truncate">
                         {p.emailFrom}
                       </p>
-                      <p className="text-[10px] text-[#b89b87] font-semibold mt-0.5">
+                      <p className="text-[10px] text-[#b89b87] font-medium mt-0.5">
                         {new Date(p.emailReceivedAt).toLocaleString("pl-PL")}
                       </p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-base font-extrabold text-[#cf833f]">
+                      <p className="text-base font-medium text-[#cf833f]">
                         {formatAmount(totalAmount, currency)}
                       </p>
-                      <p className="text-[10px] text-[#b89b87] font-semibold">
+                      <p className="text-[10px] text-[#b89b87] font-medium">
                         {p.items.length} pozycji
                       </p>
                     </div>
@@ -195,7 +195,7 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                         onChange={(e) =>
                           setReviewDates((prev) => ({ ...prev, [p._id]: e.target.value }))
                         }
-                        className="w-full text-base bg-white/70 backdrop-blur-sm border border-white/60 rounded-2xl px-4 py-2.5 outline-none focus:border-[#cf833f] focus:bg-white text-[#2b180a] font-bold shadow-inner transition-all"
+                        className="w-full text-base bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-4 py-2.5 outline-none focus:border-[#cf833f] focus:bg-white text-[#2b180a] font-bold shadow-inner transition-all"
                       />
                     </div>
 
@@ -206,7 +206,7 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                         return (
                           <div
                             key={idx}
-                            className="bg-white rounded-2xl p-3.5 border border-[#f5e5cf] space-y-2"
+                            className="bg-white rounded-xl p-3.5 border border-[#f5e5cf] space-y-2"
                           >
                             <div className="flex gap-2">
                               <input
@@ -312,7 +312,7 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                       <button
                         onClick={() => handleApprove(p._id)}
                         disabled={saving === p._id}
-                        className="flex-[2] py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-xl font-extrabold text-sm shadow-sm hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                        className="flex-[2] py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-xl font-medium text-sm shadow-sm hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
                       >
                         {saving === p._id ? (
                           "Zapisywanie..."

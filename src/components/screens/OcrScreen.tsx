@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+﻿import { useRef, useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -7,6 +7,8 @@ import { ScannerIcon } from "../ui/icons/ScannerIcon";
 import { FileText, Image } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { IconTrashButton } from "../ui/IconTrashButton";
 
 import catLottie from "../../assets/Cat playing animation.lottie?url";
 
@@ -171,6 +173,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
   const [uploading, setUploading] = useState(false);
   const [currentStorageIds, setCurrentStorageIds] = useState<Id<"_storage">[]>(storageIds);
   const [currentMimeTypes, setCurrentMimeTypes] = useState<string[]>(mimeTypes || []);
+  const [pendingRemoveItemId, setPendingRemoveItemId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processAI = useAction(api.ocr.processReceiptWithAI);
@@ -512,11 +515,11 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
   }
 
   const cardStyle =
-    "bg-[#fdf9f1] w-full rounded-[2rem] p-6 shadow-[0_8px_24px_rgba(180,120,80,0.15)] space-y-3";
+    "bg-[#fdf9f1] w-full rounded-xl p-6 shadow-[0_8px_24px_rgba(180,120,80,0.15)] space-y-3";
   const labelStyle =
     "block text-[11px] font-bold text-[#b89b87] uppercase tracking-wider mb-2 ml-1";
   const inputStyle =
-    "w-full text-sm bg-white border border-[#f5e5cf] rounded-2xl px-4 py-3 outline-none focus:border-[#cf833f] transition-colors text-[#2b180a] font-bold";
+    "w-full text-sm bg-white border border-[#f5e5cf] rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] transition-colors text-[#2b180a] font-bold";
 
   return (
     <div className="space-y-6 pb-4">
@@ -530,13 +533,13 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
             ←
           </button>
           <ScannerIcon className="w-8 h-8 text-[#c76823]" />
-          <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a]">
+          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a]">
             Skaner Paragonów
           </h2>
         </div>
       </div>
 
-      {/* ── IMAGE / PDF UPLOAD SECTION ── */}
+      {/* IMAGE / PDF UPLOAD SECTION */}
       <div className={cardStyle}>
         <label className={labelStyle}>
           Zdjęcia / PDF ({currentStorageIds.length}/3)
@@ -592,7 +595,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="w-full py-3 border-2 border-dashed border-[#d2bcad]/70 text-[#8a7262] bg-white/40 rounded-2xl font-bold text-sm hover:border-[#cf833f]/50 hover:bg-white/60 transition-colors disabled:opacity-50"
+              className="w-full py-3 border-2 border-dashed border-[#d2bcad]/70 text-[#8a7262] bg-white/40 rounded-xl font-bold text-sm hover:border-[#cf833f]/50 hover:bg-white/60 transition-colors disabled:opacity-50"
             >
               + Dodaj kolejny kadr / plik
             </button>
@@ -605,7 +608,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
         {/* Upload buttons */}
         <div className="flex gap-3">
           <label
-            className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-2xl transition-colors cursor-pointer ${currentStorageIds.length >= 3
+            className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-xl transition-colors cursor-pointer ${currentStorageIds.length >= 3
               ? "border-[#e0d0c0] opacity-40 cursor-not-allowed"
               : "border-[#8bc5a0] bg-[#ebf7ef]/60 hover:border-[#67a57e] hover:bg-[#d8eedf]"
               }`}
@@ -626,7 +629,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           </label>
 
           <label
-            className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-2xl transition-colors cursor-pointer ${currentStorageIds.length >= 3
+            className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-xl transition-colors cursor-pointer ${currentStorageIds.length >= 3
               ? "border-[#e0d0c0] opacity-40 cursor-not-allowed"
               : "border-[#d2bcad] bg-white/40 hover:border-orange-400 hover:bg-orange-50/50"
               }`}
@@ -646,7 +649,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           </label>
 
           <label
-            className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-2xl transition-colors cursor-pointer ${currentStorageIds.length >= 3
+            className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-xl transition-colors cursor-pointer ${currentStorageIds.length >= 3
               ? "border-[#e0d0c0] opacity-40 cursor-not-allowed"
               : "border-[#b8a8d8] bg-[#f5f0ff]/60 hover:border-[#8b6fd4] hover:bg-[#ede8ff]"
               }`}
@@ -685,7 +688,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
             <button
               onClick={handleExtract}
               disabled={processing || !categories || currentStorageIds.length === 0}
-              className="w-full py-3.5 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-extrabold text-[15px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none disabled:opacity-50 mt-1"
+              className="w-full py-3.5 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-medium text-[15px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none disabled:opacity-50 mt-1"
             >
               {processing ? (
                 <span className="flex items-center justify-center gap-2">
@@ -713,7 +716,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
         )}
       </div>
 
-      {/* ── RESULTS SECTION ── */}
+      {/* RESULTS SECTION */}
       {items && (
         <div className="space-y-6">
           <div className={cardStyle}>
@@ -729,13 +732,13 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           {/* Re-analyse button */}
           <button
             onClick={() => { setItems(null); setReceiptSummaries([]); }}
-            className="w-full py-2.5 border-2 border-dashed border-[#d2bcad] text-[#8a7262] rounded-2xl font-bold text-sm hover:border-[#cf833f] hover:text-[#cf833f] transition-colors"
+            className="w-full py-2.5 border-2 border-dashed border-[#d2bcad] text-[#8a7262] rounded-xl font-bold text-sm hover:border-[#cf833f] hover:text-[#cf833f] transition-colors"
           >
             ↩ Skanuj ponownie
           </button>
 
           {(receiptSummaries.length > 1 || items.some((i) => i.receiptIndex > 0)) && (
-            <div className="bg-[#eef4ff] border border-[#c8d8ff] rounded-2xl p-3 text-xs font-bold text-[#3856a8]">
+            <div className="bg-[#eef4ff] border border-[#c8d8ff] rounded-xl p-3 text-xs font-bold text-[#3856a8]">
               Wykryto wiele paragonów. Zapis nastąpi sekwencyjnie, paragon po paragonie.
             </div>
           )}
@@ -798,10 +801,10 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           )}
 
           <div>
-            <div className="bg-white/40 backdrop-blur-xl border border-white/50 shadow-[0_8px_32px_rgba(180,120,80,0.2)] rounded-[2rem] p-2 relative overflow-hidden">
+            <div className="bg-white/40 backdrop-blur-xl border border-white/50 shadow-[0_8px_32px_rgba(180,120,80,0.2)] rounded-xl p-2 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/40 to-white/10 pointer-events-none" />
               <div className="relative z-10">
-                <h3 className="text-[14px] font-extrabold text-[#3e2815] p-4 pb-2">
+                <h3 className="text-[14px] font-medium text-[#3e2815] p-4 pb-2">
                   OCR: Tekst wyodrębniony! ({items.length})
                 </h3>
                 
@@ -846,35 +849,34 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                     return (
                       <div
                         key={item.id}
-                        className="bg-white/60 backdrop-blur-md rounded-[1.5rem] p-2 shadow-sm border border-white/60"
+                        className="bg-white/60 backdrop-blur-md rounded-xl p-2 shadow-sm border border-white/60"
                       >
                         <div className="flex justify-between items-start mb-3">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[10px] font-bold text-[#b89b87] bg-[#f5e5cf]/50 px-2 py-1 rounded-lg">
+                            <span className="text-[10px] font-bold text-[#b89b87] bg-[#f5e5cf]/50 px-2 py-1 rounded-xl">
                               Pozycja {index + 1}
                             </span>
                             {(receiptSummaries.length > 1 || item.receiptIndex > 0) && (
-                              <span className="text-[10px] font-bold text-[#3856a8] bg-[#eef4ff] border border-[#c8d8ff] px-2 py-1 rounded-lg">
+                              <span className="text-[10px] font-bold text-[#3856a8] bg-[#eef4ff] border border-[#c8d8ff] px-2 py-1 rounded-xl">
                                 {item.receiptLabel || `Paragon ${item.receiptIndex + 1}`}
                               </span>
                             )}
                             {item.fromMapping && (
-                              <span className="text-[10px] font-bold text-[#46825d] bg-[#ebf7ef] border border-[#8bc5a0] px-2 py-1 rounded-lg">
+                              <span className="text-[10px] font-bold text-[#46825d] bg-[#ebf7ef] border border-[#8bc5a0] px-2 py-1 rounded-xl">
                                 Z historii 🧠
                               </span>
                             )}
                             {uncertainPrice && (
-                              <span className="text-[10px] font-bold text-[#9a2b00] bg-[#ffe1d6] border border-[#ffc2af] px-2 py-1 rounded-lg">
+                              <span className="text-[10px] font-bold text-[#9a2b00] bg-[#ffe1d6] border border-[#ffc2af] px-2 py-1 rounded-xl">
                                 Niepewna cena
                               </span>
                             )}
                           </div>
-                          <button
-                            onClick={() => removeItem(item.id)}
-                            className="text-red-400 hover:text-red-500 text-xs font-bold p-1"
-                          >
-                            Usuń
-                          </button>
+                          <IconTrashButton
+                            onClick={() => setPendingRemoveItemId(item.id)}
+                            title="Usuń pozycję"
+                            className="h-7 w-7 text-red-400 hover:bg-red-50 hover:text-red-500"
+                          />
                         </div>
 
                         <div className="flex gap-2 mb-3">
@@ -903,7 +905,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                         </div>
 
                         {uncertainPrice && (
-                          <p className="text-[11px] font-semibold text-[#a94d22] bg-[#fff2ec] border border-[#ffd4c4] rounded-lg px-2 py-1 mb-2">
+                          <p className="text-[11px] font-medium text-[#a94d22] bg-[#fff2ec] border border-[#ffd4c4] rounded-xl px-2 py-1 mb-2">
                             OCR nie był pewny kwoty. Uzupełnij ręcznie przed zapisem.
                           </p>
                         )}
@@ -968,7 +970,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                       },
                     ])
                   }
-                  className="mt-4 w-full py-3 border-2 border-dashed border-[#d2bcad]/60 text-[#8a7262] bg-white/30 rounded-2xl font-bold text-sm hover:border-[#cf833f]/50 hover:bg-white/50 transition-colors"
+                  className="mt-4 w-full py-3 border-2 border-dashed border-[#d2bcad]/60 text-[#8a7262] bg-white/30 rounded-xl font-bold text-sm hover:border-[#cf833f]/50 hover:bg-white/50 transition-colors"
                 >
                   + Dodaj kolejną pozycję ręcznie
                 </button>
@@ -979,12 +981,26 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           <button
             onClick={handleSaveAll}
             disabled={saving || items.length === 0}
-            className="w-full py-4 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-extrabold text-[16px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none mt-2 disabled:opacity-50"
+            className="w-full py-4 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-medium text-[16px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none mt-2 disabled:opacity-50"
           >
             {saving ? "Poczekaj..." : `💾 Zapisz ${items.length} wydatków`}
           </button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(pendingRemoveItemId)}
+        title="Usunąć pozycję?"
+        description="Ta pozycja nie zostanie zapisana jako wydatek."
+        confirmLabel="Usuń"
+        onCancel={() => setPendingRemoveItemId(null)}
+        onConfirm={() => {
+          if (!pendingRemoveItemId) return;
+          removeItem(pendingRemoveItemId);
+          setPendingRemoveItemId(null);
+        }}
+      />
     </div>
   );
 }
+

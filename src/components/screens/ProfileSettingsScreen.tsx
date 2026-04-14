@@ -1,19 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { toast } from "sonner";
-import { User, Camera, Eye, EyeOff, LogOut, Trash2 } from "lucide-react";
+import { User, Camera, Eye, EyeOff, LogOut } from "lucide-react";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { IconTrashButton } from "../ui/IconTrashButton";
 
 const cardStyle =
-  "bg-white/40 backdrop-blur-xl border border-white/50 rounded-[2rem] p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
+  "bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
 const labelStyle =
   "block text-[11px] font-bold text-[#b89b87] uppercase tracking-wider mb-2 ml-1 drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]";
 const inputStyle =
-  "w-full text-base bg-white/70 backdrop-blur-sm border border-white/60 rounded-2xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white transition-all text-[#2b180a] font-bold placeholder-[#e0c9b7] shadow-inner";
+  "w-full text-base bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white transition-all text-[#2b180a] font-bold placeholder-[#e0c9b7] shadow-inner";
 const btnPrimary =
-  "w-full py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-extrabold text-[14px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none disabled:opacity-50";
+  "w-full py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-medium text-[14px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none disabled:opacity-50";
 
 export function ProfileSettingsScreen() {
   const myProfile = useQuery(api.profile.getMyProfile);
@@ -26,6 +28,7 @@ export function ProfileSettingsScreen() {
   const [displayName, setDisplayName] = useState("");
   const [avatarImageId, setAvatarImageId] = useState<Id<"_storage"> | undefined>(undefined);
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
+  const [showRemoveAvatarModal, setShowRemoveAvatarModal] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -73,9 +76,9 @@ export function ProfileSettingsScreen() {
       const { storageId } = await res.json();
       setAvatarImageId(storageId as Id<"_storage">);
       setAvatarPreviewUrl(URL.createObjectURL(file));
-      toast.success("Zdjęcie przesłane — zapisz profil, aby zastosować.");
+      toast.success("ZdjÄ™cie przesĹ‚ane â€” zapisz profil, aby zastosowaÄ‡.");
     } catch {
-      toast.error("Nie udało się przesłać zdjęcia.");
+      toast.error("Nie udaĹ‚o siÄ™ przesĹ‚aÄ‡ zdjÄ™cia.");
     } finally {
       setUploadingAvatar(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -87,9 +90,9 @@ export function ProfileSettingsScreen() {
     setAvatarImageId(undefined);
     try {
       await removeAvatar();
-      toast.success("Zdjęcie profilowe usunięte.");
+      toast.success("ZdjÄ™cie profilowe usuniÄ™te.");
     } catch {
-      toast.error("Nie udało się usunąć zdjęcia.");
+      toast.error("Nie udaĹ‚o siÄ™ usunÄ…Ä‡ zdjÄ™cia.");
     }
   }
 
@@ -100,7 +103,7 @@ export function ProfileSettingsScreen() {
       await updateMyProfile({ displayName, avatarImageId });
       toast.success("Profil zapisany!");
     } catch (err: any) {
-      toast.error(err?.message || "Błąd zapisu profilu.");
+      toast.error(err?.message || "BĹ‚Ä…d zapisu profilu.");
     } finally {
       setSavingProfile(false);
     }
@@ -108,10 +111,10 @@ export function ProfileSettingsScreen() {
 
   async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();
-    if (!currentPassword) { toast.error("Podaj aktualne hasło."); return; }
-    if (newPassword.length < 8) { toast.error("Nowe hasło musi mieć co najmniej 8 znaków."); return; }
-    if (newPassword !== confirmPassword) { toast.error("Nowe hasła nie są zgodne."); return; }
-    if (!myProfile?.email) { toast.error("Nie można pobrać adresu e-mail."); return; }
+    if (!currentPassword) { toast.error("Podaj aktualne hasĹ‚o."); return; }
+    if (newPassword.length < 8) { toast.error("Nowe hasĹ‚o musi mieÄ‡ co najmniej 8 znakĂłw."); return; }
+    if (newPassword !== confirmPassword) { toast.error("Nowe hasĹ‚a nie sÄ… zgodne."); return; }
+    if (!myProfile?.email) { toast.error("Nie moĹĽna pobraÄ‡ adresu e-mail."); return; }
 
     setChangingPassword(true);
     try {
@@ -129,16 +132,16 @@ export function ProfileSettingsScreen() {
       fd2.set("flow", "signUp");
       await signIn("password", fd2);
 
-      toast.success("Hasło zostało zmienione!");
+      toast.success("HasĹ‚o zostaĹ‚o zmienione!");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (err: any) {
       const msg = err?.message || "";
       if (msg.toLowerCase().includes("invalid") || msg.toLowerCase().includes("password")) {
-        toast.error("Aktualne hasło jest nieprawidłowe.");
+        toast.error("Aktualne hasĹ‚o jest nieprawidĹ‚owe.");
       } else {
-        toast.error("Nie udało się zmienić hasła. Spróbuj ponownie.");
+        toast.error("Nie udaĹ‚o siÄ™ zmieniÄ‡ hasĹ‚a. SprĂłbuj ponownie.");
       }
     } finally {
       setChangingPassword(false);
@@ -147,10 +150,10 @@ export function ProfileSettingsScreen() {
 
   function passwordStrength(pw: string) {
     if (!pw) return null;
-    if (pw.length < 8) return { label: "Za krótkie", color: "bg-red-400", width: "w-1/4" };
-    if (pw.length < 10) return { label: "Słabe", color: "bg-orange-400", width: "w-2/4" };
+    if (pw.length < 8) return { label: "Za krĂłtkie", color: "bg-red-400", width: "w-1/4" };
+    if (pw.length < 10) return { label: "SĹ‚abe", color: "bg-orange-400", width: "w-2/4" };
     if (!/[A-Z]/.test(pw) || !/[0-9]/.test(pw))
-      return { label: "Średnie", color: "bg-yellow-400", width: "w-3/4" };
+      return { label: "Ĺšrednie", color: "bg-yellow-400", width: "w-3/4" };
     return { label: "Silne", color: "bg-green-400", width: "w-full" };
   }
   const strength = passwordStrength(newPassword);
@@ -161,7 +164,7 @@ export function ProfileSettingsScreen() {
       <div className="pt-1 pb-1 px-1">
         <div className="flex items-center gap-2 mb-1">
           <User className="w-8 h-8 text-[#c76823] drop-shadow-sm" />
-          <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a] drop-shadow-sm">Mój Profil</h2>
+          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a] drop-shadow-sm">MĂłj Profil</h2>
         </div>
         {myProfile?.email && (
           <p className="text-sm text-[#6d4d38] font-bold ml-1 mt-1 drop-shadow-sm">{myProfile.email}</p>
@@ -170,7 +173,7 @@ export function ProfileSettingsScreen() {
 
       {/* Avatar + Display Name */}
       <form onSubmit={handleSaveProfile} className={`${cardStyle} space-y-5`}>
-        <p className={labelStyle}>Zdjęcie profilowe</p>
+        <p className={labelStyle}>ZdjÄ™cie profilowe</p>
 
         <div className="flex items-center gap-5">
           <div className="relative shrink-0">
@@ -178,15 +181,15 @@ export function ProfileSettingsScreen() {
               <img
                 src={avatarPreviewUrl}
                 alt="Avatar"
-                className="h-20 w-20 rounded-2xl object-cover border-[3px] border-[#f2d6bf] shadow-md"
+                className="h-20 w-20 rounded-xl object-cover border-[3px] border-[#f2d6bf] shadow-md"
               />
             ) : (
-              <div className="h-20 w-20 rounded-2xl bg-white/60 backdrop-blur-md border-[3px] border-[#f2d6bf]/60 flex items-center justify-center text-[#8a4f2a] font-extrabold text-2xl shadow-sm">
+              <div className="h-20 w-20 rounded-xl bg-white/60 backdrop-blur-md border-[3px] border-[#f2d6bf]/60 flex items-center justify-center text-[#8a4f2a] font-medium text-2xl shadow-sm">
                 {initials}
               </div>
             )}
             {uploadingAvatar && (
-              <div className="absolute inset-0 rounded-2xl bg-black/30 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-xl bg-black/30 flex items-center justify-center">
                 <div className="animate-spin rounded-full h-6 w-6 border-2 border-white/30 border-t-white" />
               </div>
             )}
@@ -195,7 +198,7 @@ export function ProfileSettingsScreen() {
           <div className="flex flex-col gap-2 flex-1">
             <label className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white/60 backdrop-blur-sm border border-white/60 hover:border-[#cf833f] hover:bg-white transition-all cursor-pointer text-sm font-bold text-[#6d4d38] shadow-sm">
               <Camera className="w-4 h-4" />
-              <span>{uploadingAvatar ? "Przesyłanie..." : "Zmień zdjęcie"}</span>
+              <span>{uploadingAvatar ? "PrzesyĹ‚anie..." : "ZmieĹ„ zdjÄ™cie"}</span>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -206,24 +209,23 @@ export function ProfileSettingsScreen() {
               />
             </label>
             {avatarPreviewUrl && (
-              <button
-                type="button"
-                onClick={handleRemoveAvatar}
-                className="py-2.5 px-4 rounded-xl bg-white/60 backdrop-blur-sm border border-red-200/60 hover:border-red-400/80 hover:bg-red-50 transition-all text-sm font-bold text-red-500 shadow-sm flex items-center justify-center gap-2"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>Usuń zdjęcie</span>
-              </button>
+              <div className="flex justify-center">
+                <IconTrashButton
+                  onClick={() => setShowRemoveAvatarModal(true)}
+                  title="Usuń zdjęcie"
+                  className="h-10 w-10 rounded-xl border border-red-200/60 bg-white/60 text-red-500 hover:border-red-400/80 hover:bg-red-50"
+                />
+              </div>
             )}
           </div>
         </div>
 
         <div>
-          <label className={labelStyle}>Nazwa wyświetlana</label>
+          <label className={labelStyle}>Nazwa wyĹ›wietlana</label>
           <input
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Jak mamy Cię wyświetlać?"
+            placeholder="Jak mamy CiÄ™ wyĹ›wietlaÄ‡?"
             className={inputStyle}
           />
         </div>
@@ -236,20 +238,20 @@ export function ProfileSettingsScreen() {
       {/* Password Change */}
       <form onSubmit={handleChangePassword} className={`${cardStyle} space-y-4`}>
         <div>
-          <p className={labelStyle}>Zmiana hasła</p>
-          <p className="text-xs text-[#8a7262] font-semibold drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">
-            Podaj aktualne hasło, aby ustawić nowe.
+          <p className={labelStyle}>Zmiana hasĹ‚a</p>
+          <p className="text-xs text-[#8a7262] font-medium drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">
+            Podaj aktualne hasĹ‚o, aby ustawiÄ‡ nowe.
           </p>
         </div>
 
         <div>
-          <label className={labelStyle}>Aktualne hasło</label>
+          <label className={labelStyle}>Aktualne hasĹ‚o</label>
           <div className="relative">
             <input
               type={showCurrent ? "text" : "password"}
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder="â€˘â€˘â€˘â€˘â€˘â€˘â€˘â€˘"
               className={`${inputStyle} pr-12`}
               autoComplete="current-password"
             />
@@ -264,13 +266,13 @@ export function ProfileSettingsScreen() {
         </div>
 
         <div>
-          <label className={labelStyle}>Nowe hasło</label>
+          <label className={labelStyle}>Nowe hasĹ‚o</label>
           <div className="relative">
             <input
               type={showNew ? "text" : "password"}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Min. 8 znaków"
+              placeholder="Min. 8 znakĂłw"
               className={`${inputStyle} pr-12`}
               autoComplete="new-password"
             />
@@ -295,13 +297,13 @@ export function ProfileSettingsScreen() {
         </div>
 
         <div>
-          <label className={labelStyle}>Potwierdź nowe hasło</label>
+          <label className={labelStyle}>PotwierdĹş nowe hasĹ‚o</label>
           <div className="relative">
             <input
               type={showConfirm ? "text" : "password"}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Powtórz nowe hasło"
+              placeholder="PowtĂłrz nowe hasĹ‚o"
               className={`${inputStyle} pr-12 ${
                 confirmPassword && confirmPassword !== newPassword
                   ? "border-red-300 focus:border-red-400"
@@ -320,10 +322,10 @@ export function ProfileSettingsScreen() {
             </button>
           </div>
           {confirmPassword && confirmPassword !== newPassword && (
-            <p className="text-[11px] font-bold text-red-500 ml-1 mt-1">Hasła nie są zgodne</p>
+            <p className="text-[11px] font-bold text-red-500 ml-1 mt-1">HasĹ‚a nie sÄ… zgodne</p>
           )}
           {confirmPassword && confirmPassword === newPassword && newPassword.length >= 8 && (
-            <p className="text-[11px] font-bold text-green-600 ml-1 mt-1">✓ Hasła są zgodne</p>
+            <p className="text-[11px] font-bold text-green-600 ml-1 mt-1">âś“ HasĹ‚a sÄ… zgodne</p>
           )}
         </div>
 
@@ -337,26 +339,39 @@ export function ProfileSettingsScreen() {
           }
           className={btnPrimary}
         >
-          {changingPassword ? "Zmienianie..." : "Zmień hasło"}
+          {changingPassword ? "Zmienianie..." : "ZmieĹ„ hasĹ‚o"}
         </button>
       </form>
 
       {/* Sign out */}
       <div className={`${cardStyle} space-y-3`}>
         <p className={labelStyle}>Konto</p>
-        <p className="text-xs text-[#8a7262] font-semibold drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">
+        <p className="text-xs text-[#8a7262] font-medium drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">
           Zalogowany jako:{" "}
           <span className="text-[#cf833f]">{myProfile?.email || "..."}</span>
         </p>
         <button
           type="button"
           onClick={() => void signOut()}
-          className="w-full py-3.5 rounded-2xl border border-[#e6c9b0]/50 bg-white/60 backdrop-blur-sm text-[#8a4f2a] font-bold text-[15px] hover:border-[#cf833f]/60 hover:bg-white transition-all shadow-sm flex items-center justify-center gap-2"
+          className="w-full py-3.5 rounded-xl border border-[#e6c9b0]/50 bg-white/60 backdrop-blur-sm text-[#8a4f2a] font-bold text-[15px] hover:border-[#cf833f]/60 hover:bg-white transition-all shadow-sm flex items-center justify-center gap-2"
         >
           <LogOut className="w-5 h-5" />
-          <span>Wyloguj się</span>
+          <span>Wyloguj siÄ™</span>
         </button>
       </div>
+
+      <ConfirmDialog
+        open={showRemoveAvatarModal}
+        title="Usunąć zdjęcie profilowe?"
+        description="Aktualny avatar zostanie usunięty z profilu."
+        confirmLabel="Usuń"
+        onCancel={() => setShowRemoveAvatarModal(false)}
+        onConfirm={() => {
+          void handleRemoveAvatar();
+          setShowRemoveAvatarModal(false);
+        }}
+      />
     </div>
   );
 }
+

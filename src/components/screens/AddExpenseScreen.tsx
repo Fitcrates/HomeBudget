@@ -148,39 +148,39 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
     }
   }
 
-  const cardStyle = "bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-[2rem] p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)] space-y-3";
+  const cardStyle = "bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)] space-y-3";
   const labelStyle = "block text-[11px] font-bold text-[#b89b87] uppercase tracking-wider mb-2 ml-1 drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]";
-  const inputStyle = "w-full text-base bg-white/70 backdrop-blur-sm border border-white/60 rounded-2xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white transition-all text-[#2b180a] font-bold shadow-inner placeholder-[#e0c9b7]";
+  const inputStyle = "w-full text-base bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white transition-all text-[#2b180a] font-bold shadow-inner placeholder-[#e0c9b7]";
 
   return (
     <div className="space-y-6 pb-4">
       <div className="pt-2 pb-1">
         <div className="flex items-center gap-3 mb-1">
           <DollarSign className="w-8 h-8 text-[#c76823] drop-shadow-sm" />
-          <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a] drop-shadow-sm">Dodaj wydatek</h2>
+          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a] drop-shadow-sm">Dodaj wydatek</h2>
         </div>
         <p className="text-[#6d4d38] text-[15px] ml-1 font-bold drop-shadow-sm">Wprowadź szczegóły transakcji</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Receipt / Uploads (Moved to top) */}
-        <div className="bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-[2rem] p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)] space-y-4">
+        <div className="bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)] space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <div className="bg-gradient-to-br from-[#de9241] to-[#ca782a] p-2 rounded-xl text-white shadow-sm">
               <CloudUpload className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-[17px] font-extrabold text-[#2b180a]">Dowód zakupu</h3>
+              <h3 className="text-[17px] font-medium text-[#2b180a]">Dowód zakupu</h3>
               <p className="text-[11px] font-bold text-[#8a7262]">Opcjonalne. AI samo wypełni formularz.</p>
             </div>
           </div>
 
           <div className="flex gap-4">
-            <label className="flex-1 flex flex-col items-center justify-center gap-3 py-6 px-2 border-2 border-dashed border-[#de9241]/40 bg-white/60 hover:bg-white backdrop-blur-sm rounded-2xl cursor-pointer hover:border-[#de9241] transition-all shadow-sm group">
+            <label className="flex-1 flex flex-col items-center justify-center gap-3 py-6 px-2 border-2 border-dashed border-[#de9241]/40 bg-white/60 hover:bg-white backdrop-blur-sm rounded-xl cursor-pointer hover:border-[#de9241] transition-all shadow-sm group">
               <div className="bg-[#fcf4e4] text-[#ca782a] p-3 rounded-full group-hover:scale-110 transition-transform">
                 <FileText className="w-6 h-6" />
               </div>
-              <span className="text-[13px] font-extrabold text-[#6d4d38] group-hover:text-[#ca782a] transition-colors">Załącz plik</span>
+              <span className="text-[13px] font-medium text-[#6d4d38] group-hover:text-[#ca782a] transition-colors">Załącz plik</span>
               <input
                 type="file"
                 accept="image/*,application/pdf"
@@ -191,11 +191,11 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
               />
             </label>
 
-            <label className="flex-1 flex flex-col items-center justify-center gap-3 py-6 px-2 border-2 border-dashed border-[#4aad6f]/40 bg-[#f0fbf4]/60 hover:bg-[#ebf7ef] backdrop-blur-sm rounded-2xl cursor-pointer hover:border-[#4aad6f] transition-all shadow-sm group">
+            <label className="flex-1 flex flex-col items-center justify-center gap-3 py-6 px-2 border-2 border-dashed border-[#4aad6f]/40 bg-[#f0fbf4]/60 hover:bg-[#ebf7ef] backdrop-blur-sm rounded-xl cursor-pointer hover:border-[#4aad6f] transition-all shadow-sm group">
               <div className="bg-[#dcfce7] text-[#4aad6f] p-3 rounded-full group-hover:scale-110 transition-transform">
                 <ImageIcon className="w-6 h-6" />
               </div>
-              <span className="text-[13px] font-extrabold text-[#4aad6f] group-hover:text-[#388e57] transition-colors">Skanuj OCR</span>
+              <span className="text-[13px] font-medium text-[#4aad6f] group-hover:text-[#388e57] transition-colors">Skanuj OCR</span>
               <input
                 type="file"
                 accept="image/*"
@@ -209,14 +209,14 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
           </div>
 
           {uploading && (
-            <div className="flex items-center gap-2 text-sm font-extrabold text-[#ca782a] justify-center py-3 bg-[#fcf4e4] rounded-xl shadow-inner border border-[#de9241]/20">
+            <div className="flex items-center gap-2 text-sm font-medium text-[#ca782a] justify-center py-3 bg-[#fcf4e4] rounded-xl shadow-inner border border-[#de9241]/20">
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#ca782a]" />
               Przetwarzanie dokumentu...
             </div>
           )}
           {receiptPreview && (
             <div className="relative pt-2">
-              <img src={receiptPreview} alt="Paragon" className="w-full rounded-2xl object-cover max-h-48 border-[4px] border-white shadow-[0_4px_16px_rgba(0,0,0,0.1)]" />
+              <img src={receiptPreview} alt="Paragon" className="w-full rounded-xl object-cover max-h-48 border-[4px] border-white shadow-[0_4px_16px_rgba(0,0,0,0.1)]" />
             </div>
           )}
         </div>
@@ -236,7 +236,7 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full text-3xl bg-white/70 backdrop-blur-sm border border-white/60 rounded-2xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white transition-all text-[#2b180a] font-bold shadow-inner placeholder-[#e0c9b7]"
+                className="w-full text-3xl bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white transition-all text-[#2b180a] font-bold shadow-inner placeholder-[#e0c9b7]"
                 required
               />
               <span className="absolute right-4 text-xl font-bold text-[#b89b87]">PLN</span>
@@ -273,7 +273,7 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
             </div>
           </div>
 
-          <label className="flex items-center gap-3 mt-2 cursor-pointer bg-white/50 p-3 rounded-2xl border border-white/60 hover:bg-white/80 transition-all shadow-sm">
+          <label className="flex items-center gap-3 mt-2 cursor-pointer bg-white/50 p-3 rounded-xl border border-white/60 hover:bg-white/80 transition-all shadow-sm">
             <input
               type="checkbox"
               checked={isSubscription}
@@ -317,10 +317,10 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
                       className="w-full flex items-center justify-between p-3.5 outline-none"
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-xl ${isOpen ? "bg-[#fcf4e4] text-[#ca782a]" : "bg-white/50 text-[#8a7262]"}`}>
+                        <div className={`p-2 rounded-xl ${isOpen ? "bg-[#fcf4e4] text-[#ca782a]" : " text-[#8a7262]"}`}>
                            <DynamicIcon name={cat.icon} className="w-5 h-5 drop-shadow-sm" />
                         </div>
-                        <span className={`text-[14px] font-extrabold ${isOpen ? "text-[#2b180a]" : "text-[#6d4d38]"}`}>
+                        <span className={`text-[14px] font-medium ${isOpen ? "text-[#2b180a]" : "text-[#6d4d38]"}`}>
                           {cat.name}
                         </span>
                       </div>
@@ -333,7 +333,7 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
                     </button>
                     
                     {isOpen && (
-                      <div className="px-3 pb-3 pt-1 grid grid-cols-3 gap-2 border-t border-black/5 bg-[#faf6f0]/50 animate-in fade-in slide-in-from-top-2">
+                      <div className="px-3 pb-3 pt-1 grid grid-cols-3 gap-2  animate-in fade-in slide-in-from-top-2">
                         {cat.subcategories.map((sub) => (
                           <button
                             key={sub._id}
@@ -342,7 +342,7 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
                             className={`p-2.5 rounded-xl flex flex-col items-center gap-1.5 transition-all outline-none ${
                               subcategoryId === sub._id
                                 ? "border border-orange-400 bg-orange-100/50 shadow-inner scale-[1.02]"
-                                : "border border-black/5 bg-white hover:bg-orange-50/50 shadow-sm"
+                                : " hover:bg-orange-50/50 shadow-sm"
                             }`}
                           >
                             <DynamicIcon name={sub.icon} className="w-6 h-6 text-[#ca782a] opacity-90 drop-shadow-sm" />

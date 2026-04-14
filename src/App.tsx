@@ -24,10 +24,10 @@ export default function App() {
               <div className="flex justify-center mb-4">
                 <HomeIcon className="w-16 h-16 text-[#c76823]" />
               </div>
-              <h1 className="text-3xl font-extrabold text-[#2b180a] tracking-tight drop-shadow-sm">Domowe Gniazdo</h1>
+              <h1 className="text-3xl font-medium text-[#2b180a] tracking-tight drop-shadow-sm">Domowe Gniazdo</h1>
               <p className="text-[#6d4d38] mt-2 font-bold drop-shadow-sm">Zarządzaj budżetem domowym</p>
             </div>
-            <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-[2rem] shadow-[0_8px_32px_rgba(180,120,80,0.15)] overflow-hidden p-6">
+            <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl shadow-[0_8px_32px_rgba(180,120,80,0.15)] overflow-hidden p-6">
               <SignInForm />
             </div>
           </div>

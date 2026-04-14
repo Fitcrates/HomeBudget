@@ -60,7 +60,7 @@ export function PeriodSelector({ value, onChange, customFrom, customTo, onCustom
           <button
             key={p.key}
             onClick={() => onChange(p.key)}
-            className={`whitespace-nowrap px-4 py-2 rounded-full font-extrabold text-[13px] transition-all focus:outline-none ${
+            className={`whitespace-nowrap px-4 py-2 rounded-full font-medium text-[13px] transition-all focus:outline-none ${
               value === p.key
                 ? "bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white shadow-[0_4px_12px_rgba(200,120,50,0.3)]"
                 : "text-[#6d4d38] bg-white/40 hover:bg-white/60 border border-white/40 shadow-sm backdrop-blur-sm"

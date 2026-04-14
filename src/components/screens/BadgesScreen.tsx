@@ -64,17 +64,17 @@ export function BadgesScreen({ householdId }: Props) {
       <div className="pt-1">
         <div className="flex items-center gap-2 mb-1">
           <Award className="w-8 h-8 text-[#c76823] drop-shadow-sm" />
-          <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a] drop-shadow-sm">Osiągnięcia</h2>
+          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a] drop-shadow-sm">Osiągnięcia</h2>
         </div>
         <p className="text-[14px] text-[#6d4d38] font-bold ml-1 drop-shadow-sm">
           Zbieraj odznaki za aktywność w domowym budżecie
         </p>
-        <div className="flex bg-[#fdf9f1] rounded-2xl p-1 shadow-[0_4px_12px_rgba(180,120,80,0.1)] gap-1 mt-4">
+        <div className="flex bg-[#fdf9f1] rounded-xl p-1 shadow-[0_4px_12px_rgba(180,120,80,0.1)] gap-1 mt-4">
           {(["achievements", "fame", "all"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`flex-1 py-2.5 text-[13px] font-extrabold rounded-xl transition-all ${
+              className={`flex-1 py-2.5 text-[13px] font-medium rounded-xl transition-all ${
                 tab === t
                   ? "bg-white text-[#cf833f] shadow-sm ring-1 ring-[#ede0d4]/60"
                   : "text-[#aa9382] hover:text-[#cf833f] hover:bg-[#f6eedf]"
@@ -102,24 +102,24 @@ export function BadgesScreen({ householdId }: Props) {
           return (
             <div key={member.userId} className="space-y-5">
               {/* Member header card */}
-              <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-[2rem] p-5 shadow-[0_8px_32px_rgba(180,120,80,0.15)]">
+              <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-5 shadow-[0_8px_32px_rgba(180,120,80,0.15)]">
                 <div className="flex items-center gap-4 mb-5">
                   {member.avatarUrl ? (
                     <img
                       src={member.avatarUrl}
                       alt={member.displayName}
-                      className="h-14 w-14 rounded-2xl object-cover border-[3px] border-[#f2d6bf] shadow-sm"
+                      className="h-14 w-14 rounded-xl object-cover border-[3px] border-[#f2d6bf] shadow-sm"
                     />
                   ) : (
-                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-[#f8e8d6] to-[#f2d6bf] flex items-center justify-center text-[#8a4f2a] font-extrabold text-xl border-[3px] border-[#f2d6bf]">
+                    <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-[#f8e8d6] to-[#f2d6bf] flex items-center justify-center text-[#8a4f2a] font-medium text-xl border-[3px] border-[#f2d6bf]">
                       {member.displayName.slice(0, 2).toUpperCase()}
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="font-extrabold text-[#2b180a] text-base truncate">
+                    <p className="font-medium text-[#2b180a] text-base truncate">
                       {member.displayName}
                     </p>
-                    <p className="text-xs text-[#8a7262] font-semibold truncate">{member.email}</p>
+                    <p className="text-xs text-[#8a7262] font-medium truncate">{member.email}</p>
                     <div className="flex items-center gap-1 mt-1">
                       <Award className="w-4 h-4 text-[#cf833f]" />
                       <span className="text-xs font-bold text-[#cf833f]">
@@ -159,7 +159,7 @@ export function BadgesScreen({ householdId }: Props) {
                             <button
                               key={badge.id}
                               onClick={() => setSelectedBadge({ badge, earned: true })}
-                              className="flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-white/30 backdrop-blur-sm border border-white/40 hover:bg-white/50 transition-all active:scale-95"
+                              className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/30 backdrop-blur-sm border border-white/40 hover:bg-white/50 transition-all active:scale-95"
                             >
                               <BadgeEmblem
                                 tier={badge.tier}
@@ -167,7 +167,7 @@ export function BadgesScreen({ householdId }: Props) {
                                 earned
                                 size={80}
                               />
-                              <p className="text-[11px] font-extrabold text-[#2b180a] leading-tight text-center line-clamp-2">
+                              <p className="text-[11px] font-medium text-[#2b180a] leading-tight text-center line-clamp-2">
                                 {badge.name}
                               </p>
                             </button>
@@ -178,7 +178,7 @@ export function BadgesScreen({ householdId }: Props) {
                   })}
                 </div>
               ) : (
-                <div className="bg-[#fdf9f1] rounded-2xl p-5 text-center shadow-sm">
+                <div className="bg-[#fdf9f1] rounded-xl p-5 text-center shadow-sm">
                   <Sprout className="w-12 h-12 text-[#8a7262] mx-auto mb-2" />
                   <p className="text-sm font-bold text-[#8a7262]">
                     Brak odznak — zacznij dodawać wydatki!
@@ -197,7 +197,7 @@ export function BadgesScreen({ householdId }: Props) {
                       <button
                         key={badge.id}
                         onClick={() => setSelectedBadge({ badge, earned: false })}
-                        className="flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-white/20 backdrop-blur-sm border border-[#ede0d4]/40 hover:bg-white/30 transition-all active:scale-95"
+                        className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/20 backdrop-blur-sm border border-[#ede0d4]/40 hover:bg-white/30 transition-all active:scale-95"
                       >
                         <BadgeEmblem
                           tier={badge.tier}
@@ -220,11 +220,11 @@ export function BadgesScreen({ householdId }: Props) {
       {/* ============ FAME (Hall of Glory) TAB ============ */}
       {tab === "fame" && (
         <div className="space-y-4">
-          <div className="bg-gradient-to-br from-[#2b180a] to-[#4a2e1b] rounded-[2rem] p-6 shadow-xl relative overflow-hidden">
+          <div className="bg-gradient-to-br from-[#2b180a] to-[#4a2e1b] rounded-xl p-6 shadow-xl relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4 opacity-10">
               <Flame className="w-32 h-32 text-white" />
             </div>
-            <h3 className="text-xl font-extrabold text-white mb-6 relative z-10">
+            <h3 className="text-xl font-medium text-white mb-6 relative z-10">
               Sala Chwały
             </h3>
             <div className="space-y-3 relative z-10">
@@ -255,7 +255,7 @@ export function BadgesScreen({ householdId }: Props) {
                 .map((x, idx) => (
                   <div
                     key={x.member.userId}
-                    className="flex items-center gap-4 bg-white/10 rounded-2xl p-4 backdrop-blur-md border border-white/10"
+                    className="flex items-center gap-4 bg-white/10 rounded-xl p-4 backdrop-blur-md border border-white/10"
                   >
                     <div className="w-8 flex justify-center text-xl font-black text-white/50">
                       #{idx + 1}
@@ -266,12 +266,12 @@ export function BadgesScreen({ householdId }: Props) {
                         className="w-12 h-12 rounded-xl object-cover border-2 border-white/20"
                       />
                     ) : (
-                      <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-white font-extrabold text-lg">
+                      <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-white font-medium text-lg">
                         {x.member.displayName.slice(0, 2).toUpperCase()}
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-white font-extrabold truncate">
+                      <p className="text-white font-medium truncate">
                         {x.member.displayName}
                       </p>
                       <p className="text-white/60 text-xs font-bold">
@@ -331,7 +331,7 @@ export function BadgesScreen({ householdId }: Props) {
                       <button
                         key={badge.id}
                         onClick={() => setSelectedBadge({ badge, earned: isEarned })}
-                        className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl backdrop-blur-sm border transition-all active:scale-95 ${
+                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl backdrop-blur-sm border transition-all active:scale-95 ${
                           isEarned
                             ? "bg-white/40 border-white/50 hover:bg-white/55"
                             : "bg-white/15 border-[#ede0d4]/30 hover:bg-white/25"
@@ -344,7 +344,7 @@ export function BadgesScreen({ householdId }: Props) {
                           size={80}
                         />
                         <p
-                          className={`text-[11px] font-extrabold leading-tight text-center line-clamp-2 ${
+                          className={`text-[11px] font-medium leading-tight text-center line-clamp-2 ${
                             isEarned ? "text-[#2b180a]" : "text-[#b89b87]"
                           }`}
                         >
@@ -389,9 +389,9 @@ function StatPill({
   label: string;
 }) {
   return (
-    <div className="bg-white/60 backdrop-blur-md rounded-2xl p-2.5 flex flex-col items-center gap-0.5 border border-white/60 shadow-sm">
+    <div className="bg-white/60 backdrop-blur-md rounded-xl p-2.5 flex flex-col items-center gap-0.5 border border-white/60 shadow-sm">
       <Icon className="w-5 h-5 text-[#c76823] drop-shadow-sm" />
-      <span className="text-sm font-extrabold text-[#2b180a] mt-1">{value}</span>
+      <span className="text-sm font-medium text-[#2b180a] mt-1">{value}</span>
       <span className="text-[9px] font-bold text-[#b89b87] text-center leading-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">
         {label}
       </span>
@@ -419,7 +419,7 @@ function BadgeDetailModal({
 
       {/* Card */}
       <div
-        className="badge-detail-card relative z-10 bg-gradient-to-b from-[#fffdf8] to-[#fff5e6] rounded-[2rem] p-6 max-w-[300px] w-[90vw] border-2 border-white/60 flex flex-col items-center text-center"
+        className="badge-detail-card relative z-10 bg-gradient-to-b from-[#fffdf8] to-[#fff5e6] rounded-xl p-6 max-w-[300px] w-[90vw] border-2 border-white/60 flex flex-col items-center text-center"
         style={{
           boxShadow: `0 0 50px 8px ${TIER_GLOWS[badge.tier]}, 0 20px 50px rgba(0,0,0,0.2)`,
         }}
@@ -442,7 +442,7 @@ function BadgeDetailModal({
         />
 
         {/* Name */}
-        <h3 className="text-xl font-extrabold text-[#2b180a] mt-3 leading-tight">
+        <h3 className="text-xl font-medium text-[#2b180a] mt-3 leading-tight">
           {badge.name}
         </h3>
 

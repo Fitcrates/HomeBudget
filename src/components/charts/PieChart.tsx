@@ -83,7 +83,7 @@ export function PieChart({ data, currency }: Props) {
                 <DynamicIcon name={s.icon} className="flex-shrink-0 w-[14px] h-[14px] text-[#cf833f]" />
                 <span className="text-[13px] font-bold text-[#6d4d38] truncate">{s.name}</span>
               </div>
-              <span className="text-[13px] font-extrabold text-[#3e2815]">{fmt(s.total)}</span>
+              <span className="text-[13px] font-medium text-[#3e2815]">{fmt(s.total)}</span>
               <span className="text-[10px] font-bold text-[#b89b87] w-8 text-right">{((s.total / total) * 100).toFixed(0)}%</span>
             </div>
           ))}

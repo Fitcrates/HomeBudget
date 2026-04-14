@@ -63,7 +63,7 @@ export function InsightsCard({ householdId }: Props) {
   }
 
   const cardClass =
-    "bg-white/40 backdrop-blur-xl border border-white/50 rounded-[2rem] p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
+    "bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
 
   const isStale =
     !latest || Date.now() - latest.generatedAt > 24 * 60 * 60 * 1000;
@@ -73,7 +73,7 @@ export function InsightsCard({ householdId }: Props) {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2 drop-shadow-sm">
           <Bot className="w-6 h-6 text-[#c76823]" />
-          <h3 className="text-[15px] font-extrabold text-[#2b180a]">Analiza AI</h3>
+          <h3 className="text-[15px] font-medium text-[#2b180a]">Analiza AI</h3>
           {latest && (
             <span className="text-[10px] font-bold text-[#b89b87] bg-[#f5e5cf]/60 px-2 py-0.5 rounded-full">
               {new Date(latest.generatedAt).toLocaleDateString("pl-PL")}
@@ -150,19 +150,19 @@ export function InsightsCard({ householdId }: Props) {
             return (
                 <div
                   key={i}
-                  className={`flex gap-3 p-3.5 rounded-2xl border ${styles.bg} ${styles.border} shadow-sm backdrop-blur-sm bg-opacity-80`}
+                  className={`flex gap-3 p-3.5 rounded-xl border ${styles.bg} ${styles.border} shadow-sm backdrop-blur-sm bg-opacity-80`}
                 >
                   <span className="text-[22px] shrink-0 mt-0.5 drop-shadow-sm">{insight.emoji}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <p className="text-sm font-extrabold text-[#2b180a]">{insight.title}</p>
+                    <p className="text-sm font-medium text-[#2b180a]">{insight.title}</p>
                     <span
                       className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider ${styles.badge}`}
                     >
                       {TYPE_LABELS[insight.type] ?? insight.type}
                     </span>
                   </div>
-                  <p className="text-xs text-[#6d4d38] font-semibold leading-snug">
+                  <p className="text-xs text-[#6d4d38] font-medium leading-snug">
                     {insight.body}
                   </p>
                 </div>

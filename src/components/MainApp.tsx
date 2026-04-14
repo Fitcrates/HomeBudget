@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useMutation } from "convex/react";
 import { DashboardScreen } from "./screens/DashboardScreen";
 import { ExpensesScreen } from "./screens/ExpensesScreen";
@@ -12,8 +12,6 @@ import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { DashboardIcon } from "./ui/icons/DashboardIcon";
 import { ExpensesIcon } from "./ui/icons/ExpensesIcon";
-import { HomeIcon } from "./ui/icons/HomeIcon";
-import { ScannerIcon } from "./ui/icons/ScannerIcon";
 import { Star, Bot } from "lucide-react";
 
 type Screen = "dashboard" | "expenses" | "add" | "household" | "ocr" | "goals" | "chat";
@@ -53,12 +51,27 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
 
   return (
     <BadgeNotificationProvider householdId={household._id}>
-      {/* Main Container */}
-      <div className="w-full max-w-[420px] h-dvh flex flex-col mx-auto relative bg-gradient-to-b from-[#ebae69] via-[#faebcd] to-[#fcf4e4] text-[#2b180a] font-sans selection:bg-orange-200 lg:shadow-2xl lg:rounded-[2rem] lg:my-4 lg:h-[90vh]">
-        {/* Screen Content */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden pt-8 pb-28 relative z-10 px-2 sm:px-4 space-y-6 scrollbar-hide">
+      <div className="w-full max-w-[420px] h-dvh flex flex-col mx-auto relative bg-gradient-to-b from-[#ebae69] via-[#faebcd] to-[#fcf4e4] text-[#2b180a] font-sans selection:bg-orange-200 lg:shadow-2xl lg:rounded-xl lg:my-4 lg:h-[90vh]">
+        {/* Global top bar: always fixed in the same place across screens */}
+        <header className="relative z-20 px-2 sm:px-4 pt-3 pb-2">
+          <div className="flex justify-end">
+            <button
+              onClick={() => setScreen("household")}
+              disabled={screen === "household"}
+              className={`text-xs font-bold border rounded-full px-3 py-1.5 shadow-sm transition-all ${
+                screen === "household"
+                  ? "text-[#b9ab9f] bg-white/60 border-[#e8ddd3] cursor-default"
+                  : "text-[#cf833f] bg-white/80 hover:bg-white border-[#f5e5cf]"
+              }`}
+            >
+              ⚙️ Dom
+            </button>
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-y-auto overflow-x-hidden pt-2 pb-28 relative z-10 px-2 sm:px-4 space-y-6 scrollbar-hide">
           {screen === "dashboard" && (
-            <DashboardScreen householdId={household._id} currency={household.currency} onGoToHousehold={() => setScreen("household")} />
+            <DashboardScreen householdId={household._id} currency={household.currency} />
           )}
           {screen === "expenses" && (
             <ExpensesScreen householdId={household._id} currency={household.currency} />
@@ -94,9 +107,8 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
         </main>
       </div>
 
-      {/* Fixed Bottom Nav - Outside main container */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[420px] bg-gradient-to-t from-[#fcf4e4] via-[#fcf4e4]/95 to-transparent pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] px-3 z-50 pointer-events-none lg:bottom-4">
-        <nav className="w-full max-w-[360px] mx-auto bg-[#fffcf5]/90 backdrop-blur-xl border border-[#ebd8c8]/50 flex items-center justify-between px-3 py-2 shadow-[0_12px_40px_rgba(200,120,60,0.25)] rounded-[2rem] pointer-events-auto">
+        <nav className="w-full max-w-[360px] mx-auto bg-[#fffcf5]/90 backdrop-blur-xl border border-[#ebd8c8]/50 flex items-center justify-between px-3 py-2 shadow-[0_12px_40px_rgba(200,120,60,0.25)] rounded-xl pointer-events-auto">
           <NavBtn icon={<DashboardIcon className="w-6 h-6 text-[#cf833f]" />} active={screen === "dashboard"} onClick={() => setScreen("dashboard")} />
           <NavBtn icon={<ExpensesIcon className="w-6 h-6 text-[#cf833f]" />} active={screen === "expenses"} onClick={() => setScreen("expenses")} />
           <button
@@ -125,10 +137,11 @@ function NavBtn({
   return (
     <button
       onClick={onClick}
-      className={`relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all outline-none ${active
+      className={`relative flex items-center justify-center w-12 h-12 rounded-xl transition-all outline-none ${
+        active
           ? "bg-[#faebcd]/60 shadow-sm scale-105"
           : "opacity-60 hover:opacity-100 hover:bg-[#faebcd]/30"
-        }`}
+      }`}
     >
       <div className={`transition-all duration-300 ${active ? "scale-110 drop-shadow-md" : "grayscale opacity-70 drop-shadow-sm"}`}>
         {icon}

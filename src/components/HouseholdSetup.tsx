@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
@@ -10,8 +10,13 @@ interface Props {
   onCreated: (id: string) => void;
 }
 
+const HOUSEHOLD_INTENT_KEY = "homebudget_household_intent";
+
 export function HouseholdSetup({ onCreated }: Props) {
-  const [tab, setTab] = useState<"create" | "join">("create");
+  const [tab, setTab] = useState<"create" | "join">(() => {
+    if (typeof window === "undefined") return "create";
+    return sessionStorage.getItem(HOUSEHOLD_INTENT_KEY) === "join" ? "join" : "create";
+  });
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -57,6 +62,7 @@ export function HouseholdSetup({ onCreated }: Props) {
     try {
       const id = await createHousehold({ name: name.trim() });
       toast.success("Gospodarstwo domowe utworzone!");
+      sessionStorage.removeItem(HOUSEHOLD_INTENT_KEY);
       onCreated(id);
     } catch (err: any) {
       toast.error(err.message);
@@ -111,6 +117,7 @@ export function HouseholdSetup({ onCreated }: Props) {
     try {
       const id = await joinByCode({ code: code.trim() });
       toast.success("Dołączono do gospodarstwa!");
+      sessionStorage.removeItem(HOUSEHOLD_INTENT_KEY);
       onCreated(id);
     } catch (err: any) {
       toast.error(err.message);
@@ -126,11 +133,11 @@ export function HouseholdSetup({ onCreated }: Props) {
           <div className="flex justify-center mb-4">
             <HomeIcon className="w-16 h-16 text-[#c76823]" />
           </div>
-          <h1 className="text-3xl font-extrabold text-[#2b180a] tracking-tight drop-shadow-sm">Domowe Gniazdo</h1>
+          <h1 className="text-3xl font-medium text-[#2b180a] tracking-tight drop-shadow-sm">Domowe Gniazdo</h1>
           <p className="text-[#6d4d38] mt-2 font-bold drop-shadow-sm">Utwórz lub dołącz do gospodarstwa</p>
         </div>
 
-        <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-[2rem] shadow-[0_8px_32px_rgba(180,120,80,0.15)] overflow-hidden">
+        <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl shadow-[0_8px_32px_rgba(180,120,80,0.15)] overflow-hidden">
           <div className="flex border-b border-[#f5e5cf]/50">
             <button
               onClick={() => setTab("create")}
@@ -165,13 +172,13 @@ export function HouseholdSetup({ onCreated }: Props) {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="np. Rodzina Kowalskich"
-                    className="w-full text-base bg-white/70 backdrop-blur-sm border border-white/60 rounded-2xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white text-[#2b180a] font-bold placeholder-[#e0c9b7] transition-all shadow-inner"
+                    className="w-full text-base bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white text-[#2b180a] font-bold placeholder-[#e0c9b7] transition-all shadow-inner"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={loading || !name.trim()}
-                  className="w-full py-4 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-extrabold text-[15px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none disabled:opacity-50"
+                  className="w-full py-4 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-medium text-[15px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none disabled:opacity-50"
                 >
                   {loading ? "Tworzenie..." : "Utwórz gospodarstwo"}
                 </button>
@@ -186,14 +193,14 @@ export function HouseholdSetup({ onCreated }: Props) {
                     value={code}
                     onChange={(e) => setCode(e.target.value.toUpperCase())}
                     placeholder="np. ABC123"
-                    className="w-full text-2xl bg-white/70 backdrop-blur-sm border border-white/60 rounded-2xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white text-[#cf833f] font-mono font-bold tracking-widest text-center shadow-inner transition-all placeholder-[#e0c9b7]"
+                    className="w-full text-2xl bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white text-[#cf833f] font-mono font-bold tracking-widest text-center shadow-inner transition-all placeholder-[#e0c9b7]"
                     maxLength={6}
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={loading || !code.trim()}
-                  className="w-full py-4 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-extrabold text-[15px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none disabled:opacity-50"
+                  className="w-full py-4 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-medium text-[15px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none disabled:opacity-50"
                 >
                   {loading ? "Dołączanie..." : "Dołącz do gospodarstwa"}
                 </button>
@@ -202,10 +209,10 @@ export function HouseholdSetup({ onCreated }: Props) {
           </div>
         </div>
 
-        <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-[2rem] shadow-[0_8px_32px_rgba(180,120,80,0.15)] p-6 space-y-5">
+        <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl shadow-[0_8px_32px_rgba(180,120,80,0.15)] p-6 space-y-5">
           <div>
-            <h2 className="text-lg font-extrabold text-[#2b180a]">Ustawienia osobiste</h2>
-            <p className="text-xs text-[#8a7262] font-semibold mt-1">Avatar, nazwa profilu i konto</p>
+            <h2 className="text-lg font-medium text-[#2b180a]">Ustawienia osobiste</h2>
+            <p className="text-xs text-[#8a7262] font-medium mt-1">Avatar, nazwa profilu i konto</p>
           </div>
 
           <form onSubmit={handleSaveProfile} className="space-y-4">
@@ -214,10 +221,10 @@ export function HouseholdSetup({ onCreated }: Props) {
                 <img
                   src={avatarPreviewUrl}
                   alt="Avatar"
-                  className="h-16 w-16 rounded-2xl object-cover border-2 border-[#f2d6bf]"
+                  className="h-16 w-16 rounded-xl object-cover border-2 border-[#f2d6bf]"
                 />
               ) : (
-                <div className="h-16 w-16 rounded-2xl bg-[#f8e8d6] border-2 border-[#f2d6bf] flex items-center justify-center text-[#8a4f2a] font-extrabold text-xl">
+                <div className="h-16 w-16 rounded-xl bg-[#f8e8d6] border-2 border-[#f2d6bf] flex items-center justify-center text-[#8a4f2a] font-medium text-xl">
                   {initials}
                 </div>
               )}
@@ -242,14 +249,14 @@ export function HouseholdSetup({ onCreated }: Props) {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Jak mamy Cię wyświetlać?"
-                className="w-full text-base bg-white/70 backdrop-blur-sm border border-white/60 rounded-2xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white text-[#2b180a] font-bold placeholder-[#e0c9b7] transition-all shadow-inner"
+                className="w-full text-base bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white text-[#2b180a] font-bold placeholder-[#e0c9b7] transition-all shadow-inner"
               />
             </div>
 
             <button
               type="submit"
               disabled={savingProfile || uploadingAvatar}
-              className="w-full py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-extrabold text-[14px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none disabled:opacity-50"
+              className="w-full py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-medium text-[14px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none disabled:opacity-50"
             >
               {savingProfile ? "Zapisywanie..." : "Zapisz ustawienia"}
             </button>
@@ -257,7 +264,7 @@ export function HouseholdSetup({ onCreated }: Props) {
 
           <div className="pt-1 border-t border-[#f0ddcb] space-y-2">
             <p className="text-[11px] font-bold text-[#b89b87] uppercase tracking-wider">Hasło</p>
-            <p className="text-xs text-[#8a7262] font-semibold">
+            <p className="text-xs text-[#8a7262] font-medium">
               Zmiana hasła jest dostępna przez ekran logowania. Wyloguj się i użyj opcji logowania hasłem.
             </p>
             <button

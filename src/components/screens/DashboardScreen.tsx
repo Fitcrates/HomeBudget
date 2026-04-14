@@ -1,4 +1,4 @@
-import { useQuery } from "convex/react";
+﻿import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { useState, useMemo } from "react";
@@ -17,10 +17,9 @@ import catLottie from "../../assets/Cat playing animation.lottie?url";
 interface Props {
   householdId: Id<"households">;
   currency: string;
-  onGoToHousehold: () => void;
 }
 
-export function DashboardScreen({ householdId, currency, onGoToHousehold }: Props) {
+export function DashboardScreen({ householdId, currency }: Props) {
   const [period, setPeriod] = useState<string>("month");
   const [customFrom, setCustomFrom] = useState<number | null>(null);
   const [customTo, setCustomTo] = useState<number | null>(null);
@@ -30,7 +29,6 @@ export function DashboardScreen({ householdId, currency, onGoToHousehold }: Prop
     [period, customFrom, customTo]
   );
 
-  // Always compute current month range for income monitor
   const now = new Date();
   const monthFrom = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   const monthTo = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).getTime();
@@ -51,25 +49,18 @@ export function DashboardScreen({ householdId, currency, onGoToHousehold }: Prop
 
   const isLoading = summary === undefined || byCategory === undefined || byPeriod === undefined;
 
-  const cardClass = "bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-[2rem] p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
+  const cardClass = "bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
 
   return (
     <div className="space-y-6">
-      <div className="pt-2 pb-1 flex justify-between items-start">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <HomeIcon className="w-9 h-9 text-[#c76823] drop-shadow-sm" />
-            <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a] drop-shadow-sm">Cześć, Rodzinko!</h2>
-          </div>
-          <h3 className="text-[1.2rem] font-bold text-[#3e2815] mb-5 ml-1 drop-shadow-sm">Dashboard</h3>
+      <div className="pt-2 pb-1">
+        <div className="flex items-center gap-2 mb-2">
+          <HomeIcon className="w-9 h-9 text-[#c76823] drop-shadow-sm" />
+          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a] drop-shadow-sm">Cześć, Rodzinko!</h2>
         </div>
-        <button
-          onClick={onGoToHousehold}
-          className="mt-2 text-xs font-bold text-[#cf833f] bg-white/70 hover:bg-white border border-[#f5e5cf] rounded-full px-3 py-1.5 shadow-sm transition-all"
-        >
-          ⚙️ Domostwo
-        </button>
+        <h3 className="text-[1.2rem] font-bold text-[#3e2815] mb-5 ml-1 drop-shadow-sm">Dashboard</h3>
       </div>
+
       <PeriodSelector
         value={period}
         onChange={setPeriod}
@@ -88,49 +79,46 @@ export function DashboardScreen({ householdId, currency, onGoToHousehold }: Prop
               <DotLottieReact src={catLottie} loop autoplay />
             </div>
           </div>
-          <p className="text-[#8a7262] font-bold text-sm animate-pulse">
-            Ładowanie danych...
-          </p>
+          <p className="text-[#8a7262] font-bold text-sm animate-pulse">Ładowanie danych...</p>
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Summary pill */}
-          {summary && summary.count > 0 && (
-            <div className="flex items-center justify-between bg-white/40 backdrop-blur-xl border border-white/50 rounded-2xl px-5 py-4 shadow-[0_8px_24px_rgba(180,120,80,0.1)]">
-              <div>
-                <p className="text-[10px] font-bold text-[#b89b87] uppercase tracking-wider">Łącznie wydano</p>
-                <p className="text-xl font-extrabold text-[#2b180a]">{formatAmount(summary.total, currency)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] font-bold text-[#b89b87] uppercase tracking-wider">Transakcji</p>
-                <p className="text-xl font-extrabold text-[#2b180a]">{summary.count}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Pie Chart Card */}
-          {byCategory.length > 0 && (
+          {(summary?.count > 0 || byCategory.length > 0 || byPeriod.length > 0) && (
             <div className={cardClass}>
-              <PieChart data={byCategory} currency={currency} />
+              {summary && summary.count > 0 && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold text-[#b89b87] uppercase tracking-wider">Łącznie wydano</p>
+                    <p className="text-xl font-medium text-[#2b180a]">{formatAmount(summary.total, currency)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-[#b89b87] uppercase tracking-wider">Transakcji</p>
+                    <p className="text-xl font-medium text-[#2b180a]">{summary.count}</p>
+                  </div>
+                </div>
+              )}
+
+              {summary?.count > 0 && byCategory.length > 0 && <div className="border-t border-[#e8d5c4]/60 my-1" />}
+
+              {byCategory.length > 0 && <PieChart data={byCategory} currency={currency} />}
+
+              {byCategory.length > 0 && byPeriod.length > 0 && <div className="border-t border-[#e8d5c4]/60 my-1" />}
+
+              {byPeriod.length > 0 && (
+                <>
+                  <h3 className="text-sm font-medium mt-2 text-[#3e2815] mb-4">Wydatki w czasie</h3>
+                  <BarChart data={byPeriod} currency={currency} />
+                </>
+              )}
             </div>
           )}
 
-          {/* Bar Chart Card */}
-          {byPeriod.length > 0 && (
-            <div className={cardClass}>
-              <h3 className="text-sm font-bold text-[#3e2815] mb-4">Wydatki w czasie</h3>
-              <BarChart data={byPeriod} currency={currency} />
-            </div>
-          )}
-
-          {/* Income Monitor — always shows current month */}
           <IncomeMonitorCard
             householdId={householdId}
             currency={currency}
             spentThisMonth={monthlySummary?.total ?? 0}
           />
 
-          {/* Budget Alerts */}
           <BudgetAlertsCard
             householdId={householdId}
             currency={currency}
@@ -138,7 +126,6 @@ export function DashboardScreen({ householdId, currency, onGoToHousehold }: Prop
             dateTo={to}
           />
 
-          {/* AI Insights */}
           <InsightsCard householdId={householdId} />
 
           {byCategory.length === 0 && (

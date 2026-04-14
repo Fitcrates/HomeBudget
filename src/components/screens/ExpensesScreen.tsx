@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from "convex/react";
+﻿import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { useState, useMemo } from "react";
@@ -7,6 +7,9 @@ import { formatAmount } from "../../lib/format";
 import { toast } from "sonner";
 import { ExpensesIcon } from "../ui/icons/ExpensesIcon";
 import { CalendarIcon } from "../ui/icons/CalendarIcon";
+import { Search, X } from "lucide-react";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { IconTrashButton } from "../ui/IconTrashButton";
 
 interface Props {
   householdId: Id<"households">;
@@ -19,6 +22,8 @@ export function ExpensesScreen({ householdId, currency }: Props) {
   const [customTo, setCustomTo] = useState<number | null>(null);
   const [filterCategoryId, setFilterCategoryId] = useState<Id<"categories"> | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<Id<"expenses"> | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const { from, to } = useMemo(
     () => getPeriodRange(period, customFrom, customTo),
@@ -36,7 +41,6 @@ export function ExpensesScreen({ householdId, currency }: Props) {
   const removeExpense = useMutation(api.expenses.remove);
 
   async function handleDelete(expenseId: Id<"expenses">) {
-    if (!confirm("Usunąć ten wydatek?")) return;
     try {
       await removeExpense({ expenseId });
       toast.success("Wydatek usunięty");
@@ -45,7 +49,24 @@ export function ExpensesScreen({ householdId, currency }: Props) {
     }
   }
 
-  // Consistent category pill colors
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+
+  const filteredExpenses = useMemo(() => {
+    if (!expenses) return expenses;
+    if (!normalizedSearch) return expenses;
+
+    return expenses.filter((expense) => {
+      const description = (expense.description || "").toLowerCase();
+      const subcategory = ((expense.subcategory as any)?.name || "").toLowerCase();
+      const category = ((expense.category as any)?.name || "").toLowerCase();
+      return (
+        description.includes(normalizedSearch) ||
+        subcategory.includes(normalizedSearch) ||
+        category.includes(normalizedSearch)
+      );
+    });
+  }, [expenses, normalizedSearch]);
+
   const getPillColor = (catName: string) => {
     const map: Record<string, string> = {
       Jedzenie: "bg-[#719873] text-white",
@@ -59,22 +80,56 @@ export function ExpensesScreen({ householdId, currency }: Props) {
   return (
     <div className="space-y-5 pb-8">
       <div className="pt-2">
-        <div className="flex items-center gap-2 mb-6">
-          <ExpensesIcon className="w-10 h-10 text-[#c76823]" />
-          <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a]">Wszystkie Wydatki</h2>
+        <div className="mb-6 flex items-center gap-2">
+          <ExpensesIcon className="h-10 w-10 text-[#c76823]" />
+          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a]">Wszystkie wydatki</h2>
         </div>
-        
-        {/* Date Indicator mimicking reference */}
-        <div className="bg-[#fdf9f1] rounded-[1.5rem] py-3.5 px-6 shadow-[0_4px_24px_rgba(180,120,80,0.15)] flex items-center justify-center gap-3 w-full mb-6 border border-[#ebd8c8]/30">
-          <CalendarIcon className="w-5 h-5 text-[#c76823]" />
-          <span className="text-[#3e2815] font-extrabold text-[14px]">
-            {new Date(from).toLocaleDateString("pl-PL")} - {new Date(to).toLocaleDateString("pl-PL")}
-          </span>
+
+        <div className="mb-4 rounded-xl border border-[#ebd8c8]/30 bg-[#fdf9f1] px-4 py-3 shadow-[0_4px_24px_rgba(180,120,80,0.15)]">
+          <PeriodSelector
+            value={period}
+            onChange={(value) => {
+              setPeriod(value);
+              setExpandedId(null);
+            }}
+            customFrom={customFrom}
+            customTo={customTo}
+            onCustomFrom={setCustomFrom}
+            onCustomTo={setCustomTo}
+          />
+
+          <div className="mt-2 flex items-center justify-center gap-3 rounded-xl border border-[#ebd8c8]/40 bg-white/60 px-4 py-2.5">
+            <CalendarIcon className="h-5 w-5 text-[#c76823]" />
+            <span className="text-[13px] font-medium text-[#3e2815]">
+              {new Date(from).toLocaleDateString("pl-PL")} - {new Date(to).toLocaleDateString("pl-PL")}
+            </span>
+          </div>
+        </div>
+
+        <div className="relative mb-4">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#b89b87]" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Szukaj po nazwie, kategorii lub podkategorii"
+            className="w-full rounded-xl border border-[#ebd8c8]/50 bg-white/70 py-2.5 pl-10 pr-4 text-sm font-medium text-[#2b180a] shadow-sm outline-none transition-colors focus:border-[#cf833f]"
+          />
+          {searchTerm.trim().length > 0 && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-[#b89b87] transition-colors hover:bg-[#fff0e8] hover:text-[#cf833f]"
+              aria-label="Wyczyść wyszukiwanie"
+              title="Wyczyść"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Category Filter */}
-      <div className="flex gap-2.5 overflow-x-auto pb-4 pt-1 scrollbar-hide px-1">
+      <div className="scrollbar-hide flex gap-2.5 overflow-x-auto px-1 pb-4 pt-1">
         <FilterChip
           label="Wszystkie"
           active={!filterCategoryId}
@@ -90,68 +145,72 @@ export function ExpensesScreen({ householdId, currency }: Props) {
         ))}
       </div>
 
-      {/* Expenses List */}
-      {expenses === undefined ? (
+      {filteredExpenses === undefined ? (
         <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#d87635]" />
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#d87635]" />
         </div>
-      ) : expenses.length === 0 ? (
-        <div className="bg-[#fdf9f1] rounded-[2rem] p-8 text-center shadow-[0_4px_24px_rgba(180,120,80,0.15)]">
-          <ExpensesIcon className="w-16 h-16 mx-auto mb-4 text-[#d8c5bc]" />
-          <p className="text-[#8a7262] font-bold">Brak wydatków w tym okresie</p>
+      ) : filteredExpenses.length === 0 ? (
+        <div className="rounded-xl bg-[#fdf9f1] p-8 text-center shadow-[0_4px_24px_rgba(180,120,80,0.15)]">
+          <ExpensesIcon className="mx-auto mb-4 h-16 w-16 text-[#d8c5bc]" />
+          <p className="font-bold text-[#8a7262]">
+            {normalizedSearch ? "Brak wyników dla tej frazy" : "Brak wydatków w tym okresie"}
+          </p>
         </div>
       ) : (
         <div className="space-y-4">
-          {expenses.map((expense) => {
+          {filteredExpenses.map((expense) => {
             const catName = (expense.category as any)?.name || "Inne";
             const isExpanded = expandedId === expense._id;
             return (
               <div
                 key={expense._id}
                 onClick={() => setExpandedId(isExpanded ? null : expense._id)}
-                className={`bg-[#fdf9f1] rounded-[24px] shadow-[0_4px_20px_rgba(180,120,80,0.12)] cursor-pointer overflow-hidden transition-all ${isExpanded ? 'scale-[1.02] shadow-[0_8px_30px_rgba(180,120,80,0.2)]' : 'hover:scale-[1.01]'}`}
+                className={`cursor-pointer overflow-hidden rounded-xl bg-[#fdf9f1] shadow-[0_4px_20px_rgba(180,120,80,0.12)] transition-all ${
+                  isExpanded ? "scale-[1.02] shadow-[0_8px_30px_rgba(180,120,80,0.2)]" : "hover:scale-[1.01]"
+                }`}
               >
-                <div className="p-5 flex flex-col gap-3">
-                  <div className="flex justify-between items-start">
-                    <p className="text-[16px] font-bold text-[#2b180a] leading-tight">
-                      {expense.description || (expense.subcategory as any)?.name} 
-                      <span className="whitespace-nowrap"> - {formatAmount(expense.amount, "PLN")}</span>
+                <div className="flex flex-col gap-3 p-5">
+                  <div className="flex items-start justify-between">
+                    <p className="text-[16px] font-bold leading-tight text-[#2b180a]">
+                      {expense.description || (expense.subcategory as any)?.name}
+                      <span className="whitespace-nowrap"> - {formatAmount(expense.amount, currency)}</span>
                     </p>
                   </div>
-                  
-                  <div className="flex justify-between items-center w-full">
-                    <span className={`text-[11px] font-bold px-3 py-1.5 rounded-xl ${getPillColor(catName)}`}>
+
+                  <div className="flex w-full items-center justify-between">
+                    <span className={`rounded-xl px-3 py-1.5 text-[11px] font-bold ${getPillColor(catName)}`}>
                       {catName}
                     </span>
-                    <span className="text-sm font-semibold text-[#8a7262]">
-                      {new Date(expense.date).toLocaleDateString("pl-PL", { day: '2-digit', month: '2-digit' })}
+                    <span className="text-sm font-medium text-[#8a7262]">
+                      {new Date(expense.date).toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit" })}
                     </span>
                   </div>
                 </div>
 
                 {isExpanded && (
-                  <div className="px-5 pb-5 border-t border-[#ebd8c8]/50 pt-4 space-y-4 animate-in fade-in slide-in-from-top-2">
+                  <div className="animate-in fade-in slide-in-from-top-2 space-y-4 border-t border-[#ebd8c8]/50 px-5 pb-5 pt-4">
                     {expense.ocrRawText && (
-                      <div className="bg-[#fffdf9] rounded-2xl p-4 border border-[#ebd8c8]">
-                        <p className="text-xs font-bold text-[#8a7262] mb-2 uppercase tracking-wider">Tekst z paragonu</p>
-                        <p className="text-xs text-[#4a3b32] font-mono whitespace-pre-wrap leading-relaxed max-h-32 overflow-y-auto">
+                      <div className="rounded-xl border border-[#ebd8c8] bg-[#fffdf9] p-4">
+                        <p className="mb-2 text-xs font-bold uppercase tracking-wider text-[#8a7262]">Tekst z paragonu</p>
+                        <p className="max-h-32 overflow-y-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-[#4a3b32]">
                           {expense.ocrRawText}
                         </p>
                       </div>
                     )}
                     {expense.receiptUrl && (
                       <img
-                         src={expense.receiptUrl}
+                        src={expense.receiptUrl}
                         alt="Paragon"
-                        className="w-full rounded-2xl object-cover max-h-56 border border-white/50 shadow-sm"
+                        className="max-h-56 w-full rounded-xl border border-white/50 object-cover shadow-sm"
                       />
                     )}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDelete(expense._id); }}
-                      className="w-full py-3.5 text-sm text-[#e65a5a] font-bold bg-[#fffdf9] hover:bg-[#ffeaea] rounded-xl transition-colors border border-[#ffd2d2]"
-                    >
-                      Usuń wydatek
-                    </button>
+                    <div className="flex justify-end">
+                      <IconTrashButton
+                        onClick={() => setPendingDeleteId(expense._id)}
+                        title="Usuń wydatek"
+                        className="border border-[#ffd2d2] bg-[#fffdf9] text-[#e65a5a] hover:bg-[#ffeaea] hover:text-[#d44f43]"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -159,6 +218,19 @@ export function ExpensesScreen({ householdId, currency }: Props) {
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(pendingDeleteId)}
+        title="Usunąć wydatek?"
+        description="Ta operacja usunie wydatek z historii."
+        confirmLabel="Usuń"
+        onCancel={() => setPendingDeleteId(null)}
+        onConfirm={() => {
+          if (!pendingDeleteId) return;
+          void handleDelete(pendingDeleteId);
+          setPendingDeleteId(null);
+        }}
+      />
     </div>
   );
 }
@@ -175,10 +247,8 @@ function FilterChip({
   return (
     <button
       onClick={onClick}
-      className={`flex-shrink-0 px-4 py-2 rounded-full font-extrabold text-[12px] transition-all focus:outline-none whitespace-nowrap shadow-sm ${
-        active
-          ? "bg-[#cf833f] text-white"
-          : "bg-[#fdf9f1] text-[#6d4d38] hover:bg-white"
+      className={`whitespace-nowrap rounded-full px-4 py-2 text-[12px] font-medium shadow-sm transition-all focus:outline-none ${
+        active ? "bg-[#cf833f] text-white" : "bg-[#fdf9f1] text-[#6d4d38] hover:bg-white"
       }`}
     >
       {label}

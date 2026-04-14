@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,6 +7,8 @@
 :root {
   --color-light: #fcf4e4;
   --color-dark: #2e1e0f;
+  --font-body: 'Nunito', sans-serif;
+  --font-heading: 'Poppins', sans-serif;
 }
 
 * {
@@ -26,15 +28,26 @@ body,
 
 body {
   margin: 0;
-  font-family: 'Nunito', sans-serif;
+  font-family: var(--font-body);
   color: var(--color-dark);
   background: var(--color-light);
   overflow-x: hidden;
 }
 
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+[role="heading"] {
+  font-family: var(--font-heading);
+  letter-spacing: -0.01em;
+}
+
 /* only use this to update the style of the auth input fields. use a different class for all other input fields */
 .auth-input-field {
-  @apply w-full px-4 py-3 rounded-2xl bg-[#fffdf9] border border-[#ebd8c8] focus:border-[#d87635] focus:ring-1 focus:ring-[#d87635] outline-none transition-shadow shadow-sm hover:shadow text-[#4a3b32];
+  @apply w-full px-4 py-3 rounded-xl bg-[#fffdf9] border border-[#ebd8c8] focus:border-[#d87635] focus:ring-1 focus:ring-[#d87635] outline-none transition-shadow shadow-sm hover:shadow text-[#4a3b32];
 }
 
 /* only use this to update the style of the auth buttons. use the button class for all other buttons */
@@ -101,13 +114,11 @@ body {
   align-items: center;
   text-align: center;
   cursor: default;
-  /* Entry animation */
   opacity: 0;
   transform: scale(0.3) translateY(40px);
   animation: badgeCardEnter 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s forwards;
 }
 .badge-overlay-card--visible {
-  /* After enter, allow idle subtle float */
   animation: badgeCardEnter 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s forwards,
              badgeCardFloat 3s ease-in-out 1s infinite;
 }

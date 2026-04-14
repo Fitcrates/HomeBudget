@@ -6,6 +6,8 @@ import { Id } from "../../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { formatAmount } from "../../lib/format";
 import { Target, Calendar, Save } from "lucide-react";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { IconTrashButton } from "../ui/IconTrashButton";
 
 interface Props {
   householdId: Id<"households">;
@@ -20,6 +22,7 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
   const removeBudget = useMutation(api.budgets.remove);
 
   const [editingCatId, setEditingCatId] = useState<Id<"categories"> | null>(null);
+  const [pendingDeleteCatId, setPendingDeleteCatId] = useState<Id<"categories"> | null>(null);
   const [editAmount, setEditAmount] = useState("");
   const [editPeriod, setEditPeriod] = useState<"month" | "week">("month");
   const [saving, setSaving] = useState(false);
@@ -68,9 +71,9 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
   }
 
   const cardClass =
-    "bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-[2rem] p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
+    "bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
   const inputStyle =
-    "w-full text-sm bg-white/70 backdrop-blur-sm border border-white/60 rounded-2xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white text-[#2b180a] font-bold shadow-inner transition-all";
+    "w-full text-sm bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white text-[#2b180a] font-bold shadow-inner transition-all";
 
   return (
     <div className="space-y-6 pb-6">
@@ -84,11 +87,11 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
             ←
           </button>
           <Target className="w-8 h-8 text-[#c76823] drop-shadow-sm" />
-          <h2 className="text-[26px] font-extrabold tracking-tight text-[#2b180a] drop-shadow-sm">
+          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a] drop-shadow-sm">
             Limity budżetu
           </h2>
         </div>
-        <p className="text-xs text-[#8a7262] font-semibold ml-10 mt-1">
+        <p className="text-xs text-[#8a7262] font-medium ml-10 mt-1">
           Ustaw sugerowane limity wydatków dla każdej kategorii
         </p>
       </div>
@@ -106,7 +109,7 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
             return (
               <div key={cat._id}>
                 <div
-                  className={`rounded-2xl transition-all shadow-sm ${
+                  className={`rounded-xl transition-all shadow-sm ${
                     isEditing
                       ? "border-[2px] border-orange-400 bg-white/80 backdrop-blur-md p-4"
                       : "border border-white/60 bg-white/50 hover:bg-white/70 backdrop-blur-sm p-3.5"
@@ -131,12 +134,11 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
 
                     <div className="flex items-center gap-2">
                       {existing && !isEditing && (
-                        <button
-                          onClick={() => handleRemove(cat._id)}
-                          className="text-xs text-red-400 hover:text-red-500 font-bold px-2 py-1"
-                        >
-                          Usuń
-                        </button>
+                        <IconTrashButton
+                          onClick={() => setPendingDeleteCatId(cat._id)}
+                          title="Usuń limit"
+                          className="h-8 w-8 text-red-400 hover:bg-red-50 hover:text-red-500"
+                        />
                       )}
                       <button
                         onClick={() => (isEditing ? setEditingCatId(null) : startEdit(cat._id))}
@@ -197,7 +199,7 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
           <button
             onClick={handleSave}
             disabled={saving || !editAmount}
-            className="w-full py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-extrabold text-[14px] shadow-sm hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-medium text-[14px] shadow-sm hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <Save className="w-4 h-4" />
             <span>{saving ? "Zapisywanie..." : "Zapisz limit"}</span>
@@ -210,6 +212,19 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(pendingDeleteCatId)}
+        title="Usunąć limit budżetu?"
+        description="Kategoria wróci do stanu bez ustawionego limitu."
+        confirmLabel="Usuń"
+        onCancel={() => setPendingDeleteCatId(null)}
+        onConfirm={() => {
+          if (!pendingDeleteCatId) return;
+          void handleRemove(pendingDeleteCatId);
+          setPendingDeleteCatId(null);
+        }}
+      />
     </div>
   );
 }

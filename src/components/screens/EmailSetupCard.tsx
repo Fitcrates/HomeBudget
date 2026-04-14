@@ -54,15 +54,15 @@ export function EmailSetupCard({ householdId, deploymentUrl }: Props) {
     : null;
 
   return (
-    <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-[2rem] p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)] space-y-4">
+    <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)] space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 drop-shadow-sm">
           <Mail className="w-6 h-6 text-[#c76823]" />
-          <h3 className="text-[15px] font-extrabold text-[#2b180a]">Automatyzacja emaili (zaawansowane)</h3>
+          <h3 className="text-[15px] font-medium text-[#2b180a]">Automatyzacja emaili (zaawansowane)</h3>
         </div>
       </div>
 
-      <p className="text-xs text-[#8a7262] font-semibold leading-relaxed">
+      <p className="text-xs text-[#8a7262] font-medium leading-relaxed">
         Funkcja automatycznego przetwarzania emaili wymaga zaawansowanej konfiguracji technicznej. Zamiast tego, użyj prostszych metod dodawania wydatków:
       </p>
 
@@ -99,8 +99,8 @@ export function EmailSetupCard({ householdId, deploymentUrl }: Props) {
       ) : (
         <div className="space-y-3">
           {/* Technical Info - Collapsed by default */}
-          <details className="bg-white/60 backdrop-blur-md border border-white/60 rounded-2xl p-4 shadow-sm">
-            <summary className="text-[11px] font-extrabold text-[#6d4d38] cursor-pointer hover:text-[#2b180a]">
+          <details className="bg-white/60 backdrop-blur-md border border-white/60 rounded-xl p-4 shadow-sm">
+            <summary className="text-[11px] font-medium text-[#6d4d38] cursor-pointer hover:text-[#2b180a]">
               🔧 Dla programistów: Webhook URL (wymaga konfiguracji zewnętrznej)
             </summary>
             <div className="mt-3 space-y-3">
@@ -109,7 +109,7 @@ export function EmailSetupCard({ householdId, deploymentUrl }: Props) {
                   URL webhooka
                 </label>
                 <div className="flex gap-2">
-                  <div className="flex-1 bg-white/70 backdrop-blur-sm border border-white/60 rounded-2xl px-3 py-2.5 overflow-hidden shadow-inner hidden scrollbar-hide">
+                  <div className="flex-1 bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-3 py-2.5 overflow-hidden shadow-inner hidden scrollbar-hide">
                     <p className="text-[10px] font-mono text-[#6d4d38] truncate">{webhookUrl}</p>
                   </div>
                   <button
@@ -125,7 +125,7 @@ export function EmailSetupCard({ householdId, deploymentUrl }: Props) {
                 <p className="text-[10px] font-bold text-[#856404] mb-1">
                   ⚠️ Wymaga zaawansowanej konfiguracji
                 </p>
-                <p className="text-[10px] text-[#856404] font-semibold">
+                <p className="text-[10px] text-[#856404] font-medium">
                   Musisz skonfigurować usługę email-to-webhook (Mailgun, SendGrid, własny serwer). To rozwiązanie dla programistów i firm, nie dla zwykłych użytkowników.
                 </p>
               </div>
@@ -133,12 +133,12 @@ export function EmailSetupCard({ householdId, deploymentUrl }: Props) {
           </details>
 
           {/* Recommendation */}
-          <div className="bg-gradient-to-r from-[#3b82f6] to-[#2563eb] text-white rounded-2xl p-4">
+          <div className="bg-gradient-to-r from-[#3b82f6] to-[#2563eb] text-white rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <Lightbulb className="w-5 h-5" />
-              <p className="text-xs font-extrabold">Nasza rekomendacja</p>
+              <p className="text-xs font-medium">Nasza rekomendacja</p>
             </div>
-            <p className="text-[11px] font-semibold opacity-90">
+            <p className="text-[11px] font-medium opacity-90">
               Zamiast konfigurować emaile, po prostu rób zdjęcia paragonów aparatem w aplikacji. To szybsze, prostsze i działa od razu!
             </p>
           </div>

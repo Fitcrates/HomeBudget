@@ -5,6 +5,8 @@ import { Id } from "../../../convex/_generated/dataModel";
 import { formatAmount } from "../../lib/format";
 import { toast } from "sonner";
 import { DollarSign, Zap, Check, Save } from "lucide-react";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { IconTrashButton } from "../ui/IconTrashButton";
 
 interface Props {
   householdId: Id<"households">;
@@ -18,6 +20,7 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
   const removeIncome = useMutation(api.income.remove);
 
   const [editing, setEditing] = useState(false);
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [inputAmount, setInputAmount] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -48,7 +51,6 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
   }
 
   async function handleRemove() {
-    if (!confirm("Usunąć ustawiony dochód?")) return;
     try {
       await removeIncome({ householdId });
       toast.success("Dochód usunięty.");
@@ -59,7 +61,7 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
   }
 
   const cardClass =
-    "bg-white/40 backdrop-blur-xl border border-white/50 rounded-[2rem] p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
+    "bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
 
   // Loading state
   if (income === undefined) {
@@ -79,7 +81,7 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2 drop-shadow-sm">
             <DollarSign className="w-6 h-6 text-[#c76823]" />
-            <h3 className="text-[15px] font-extrabold text-[#2b180a]">Dochód miesięczny</h3>
+            <h3 className="text-[15px] font-medium text-[#2b180a]">Dochód miesięczny</h3>
           </div>
           <button
             onClick={startEdit}
@@ -88,7 +90,7 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
             Ustaw →
           </button>
         </div>
-        <p className="text-xs text-[#b89b87] font-semibold text-center py-2">
+        <p className="text-xs text-[#b89b87] font-medium text-center py-2">
           Ustaw miesięczny dochód, aby śledzić budżet w czasie rzeczywistym.
         </p>
       </div>
@@ -119,16 +121,15 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2 drop-shadow-sm">
           <DollarSign className="w-6 h-6 text-[#c76823]" />
-          <h3 className="text-[15px] font-extrabold text-[#2b180a]">Dochód miesięczny</h3>
+          <h3 className="text-[15px] font-medium text-[#2b180a]">Dochód miesięczny</h3>
         </div>
         <div className="flex items-center gap-2">
           {income && (
-            <button
-              onClick={handleRemove}
-              className="text-[10px] font-bold text-red-400 hover:text-red-500"
-            >
-              Usuń
-            </button>
+            <IconTrashButton
+              onClick={() => setShowRemoveModal(true)}
+              title="Usuń dochód"
+              className="h-8 w-8 text-red-400 hover:bg-red-50 hover:text-red-500"
+            />
           )}
           <button
             onClick={editing ? () => setEditing(false) : startEdit}
@@ -152,17 +153,17 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
               value={inputAmount}
               onChange={(e) => setInputAmount(e.target.value)}
               placeholder="np. 8000.00"
-              className="w-full text-base bg-white/70 backdrop-blur-sm border border-white/60 rounded-2xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white transition-all text-[#2b180a] font-bold shadow-inner"
+              className="w-full text-base bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white transition-all text-[#2b180a] font-bold shadow-inner"
               autoFocus
             />
-            <p className="text-[10px] text-[#b89b87] font-semibold mt-1 ml-1">
+            <p className="text-[10px] text-[#b89b87] font-medium mt-1 ml-1">
               Łączny dochód netto całego gospodarstwa domowego
             </p>
           </div>
           <button
             onClick={handleSave}
             disabled={saving || !inputAmount}
-            className="w-full py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-extrabold text-[14px] shadow-sm hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-medium text-[14px] shadow-sm hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <Save className="w-4 h-4" />
             <span>{saving ? "Zapisywanie..." : "Zapisz dochód"}</span>
@@ -176,7 +177,7 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
               <p className="text-[10px] font-bold text-[#b89b87] uppercase tracking-wider mb-0.5">
                 Wydano w tym miesiącu
               </p>
-              <p className={`text-2xl font-extrabold ${isOver ? "text-red-500" : "text-[#2b180a]"}`}>
+              <p className={`text-2xl font-medium ${isOver ? "text-red-500" : "text-[#2b180a]"}`}>
                 {formatAmount(spentThisMonth, currency)}
               </p>
             </div>
@@ -184,7 +185,7 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
               <p className="text-[10px] font-bold text-[#b89b87] uppercase tracking-wider mb-0.5">
                 Dochód
               </p>
-              <p className="text-lg font-extrabold text-[#6d4d38]">
+              <p className="text-lg font-medium text-[#6d4d38]">
                 {formatAmount(monthly, currency)}
               </p>
             </div>
@@ -245,6 +246,18 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={showRemoveModal}
+        title="Usunąć ustawiony dochód?"
+        description="Po usunięciu karta wróci do trybu konfiguracji dochodu."
+        confirmLabel="Usuń"
+        onCancel={() => setShowRemoveModal(false)}
+        onConfirm={() => {
+          void handleRemove();
+          setShowRemoveModal(false);
+        }}
+      />
     </div>
   );
 }
