@@ -76,9 +76,9 @@ export function ProfileSettingsScreen() {
       const { storageId } = await res.json();
       setAvatarImageId(storageId as Id<"_storage">);
       setAvatarPreviewUrl(URL.createObjectURL(file));
-      toast.success("ZdjÄ™cie przesĹ‚ane â€” zapisz profil, aby zastosowaÄ‡.");
+      toast.success("Zdjęcie przesłane - zapisz profil, aby zastosować.");
     } catch {
-      toast.error("Nie udaĹ‚o siÄ™ przesĹ‚aÄ‡ zdjÄ™cia.");
+      toast.error("Nie udało się przesłać zdjęcia.");
     } finally {
       setUploadingAvatar(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -90,9 +90,9 @@ export function ProfileSettingsScreen() {
     setAvatarImageId(undefined);
     try {
       await removeAvatar();
-      toast.success("ZdjÄ™cie profilowe usuniÄ™te.");
+      toast.success("Zdjęcie profilowe usunięte.");
     } catch {
-      toast.error("Nie udaĹ‚o siÄ™ usunÄ…Ä‡ zdjÄ™cia.");
+      toast.error("Nie udało się usunąć zdjęcia.");
     }
   }
 
@@ -103,7 +103,7 @@ export function ProfileSettingsScreen() {
       await updateMyProfile({ displayName, avatarImageId });
       toast.success("Profil zapisany!");
     } catch (err: any) {
-      toast.error(err?.message || "BĹ‚Ä…d zapisu profilu.");
+      toast.error(err?.message || "Błąd zapisu profilu.");
     } finally {
       setSavingProfile(false);
     }
@@ -111,10 +111,10 @@ export function ProfileSettingsScreen() {
 
   async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();
-    if (!currentPassword) { toast.error("Podaj aktualne hasĹ‚o."); return; }
-    if (newPassword.length < 8) { toast.error("Nowe hasĹ‚o musi mieÄ‡ co najmniej 8 znakĂłw."); return; }
-    if (newPassword !== confirmPassword) { toast.error("Nowe hasĹ‚a nie sÄ… zgodne."); return; }
-    if (!myProfile?.email) { toast.error("Nie moĹĽna pobraÄ‡ adresu e-mail."); return; }
+    if (!currentPassword) { toast.error("Podaj aktualne hasło."); return; }
+    if (newPassword.length < 8) { toast.error("Nowe hasło musi mieć co najmniej 8 znaków."); return; }
+    if (newPassword !== confirmPassword) { toast.error("Nowe hasła nie są zgodne."); return; }
+    if (!myProfile?.email) { toast.error("Nie można pobrać adresu e-mail."); return; }
 
     setChangingPassword(true);
     try {
@@ -132,16 +132,16 @@ export function ProfileSettingsScreen() {
       fd2.set("flow", "signUp");
       await signIn("password", fd2);
 
-      toast.success("HasĹ‚o zostaĹ‚o zmienione!");
+      toast.success("Hasło zostało zmienione!");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (err: any) {
       const msg = err?.message || "";
       if (msg.toLowerCase().includes("invalid") || msg.toLowerCase().includes("password")) {
-        toast.error("Aktualne hasĹ‚o jest nieprawidĹ‚owe.");
+        toast.error("Aktualne hasło jest nieprawidłowe.");
       } else {
-        toast.error("Nie udaĹ‚o siÄ™ zmieniÄ‡ hasĹ‚a. SprĂłbuj ponownie.");
+        toast.error("Nie udało się zmienić hasła. Spróbuj ponownie.");
       }
     } finally {
       setChangingPassword(false);
@@ -150,10 +150,10 @@ export function ProfileSettingsScreen() {
 
   function passwordStrength(pw: string) {
     if (!pw) return null;
-    if (pw.length < 8) return { label: "Za krĂłtkie", color: "bg-red-400", width: "w-1/4" };
-    if (pw.length < 10) return { label: "SĹ‚abe", color: "bg-orange-400", width: "w-2/4" };
+    if (pw.length < 8) return { label: "Za krótkie", color: "bg-red-400", width: "w-1/4" };
+    if (pw.length < 10) return { label: "Słabe", color: "bg-orange-400", width: "w-2/4" };
     if (!/[A-Z]/.test(pw) || !/[0-9]/.test(pw))
-      return { label: "Ĺšrednie", color: "bg-yellow-400", width: "w-3/4" };
+      return { label: "Średnie", color: "bg-yellow-400", width: "w-3/4" };
     return { label: "Silne", color: "bg-green-400", width: "w-full" };
   }
   const strength = passwordStrength(newPassword);
@@ -164,7 +164,7 @@ export function ProfileSettingsScreen() {
       <div className="pt-1 pb-1 px-1">
         <div className="flex items-center gap-2 mb-1">
           <User className="w-8 h-8 text-[#c76823] drop-shadow-sm" />
-          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a] drop-shadow-sm">MĂłj Profil</h2>
+          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a] drop-shadow-sm">Mój profil</h2>
         </div>
         {myProfile?.email && (
           <p className="text-sm text-[#6d4d38] font-bold ml-1 mt-1 drop-shadow-sm">{myProfile.email}</p>
@@ -173,7 +173,7 @@ export function ProfileSettingsScreen() {
 
       {/* Avatar + Display Name */}
       <form onSubmit={handleSaveProfile} className={`${cardStyle} space-y-5`}>
-        <p className={labelStyle}>ZdjÄ™cie profilowe</p>
+        <p className={labelStyle}>Zdjęcie profilowe</p>
 
         <div className="flex items-center gap-5">
           <div className="relative shrink-0">
@@ -198,7 +198,7 @@ export function ProfileSettingsScreen() {
           <div className="flex flex-col gap-2 flex-1">
             <label className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white/60 backdrop-blur-sm border border-white/60 hover:border-[#cf833f] hover:bg-white transition-all cursor-pointer text-sm font-bold text-[#6d4d38] shadow-sm">
               <Camera className="w-4 h-4" />
-              <span>{uploadingAvatar ? "PrzesyĹ‚anie..." : "ZmieĹ„ zdjÄ™cie"}</span>
+              <span>{uploadingAvatar ? "Przesyłanie..." : "Zmień zdjęcie"}</span>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -221,11 +221,11 @@ export function ProfileSettingsScreen() {
         </div>
 
         <div>
-          <label className={labelStyle}>Nazwa wyĹ›wietlana</label>
+          <label className={labelStyle}>Nazwa wyświetlana</label>
           <input
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Jak mamy CiÄ™ wyĹ›wietlaÄ‡?"
+            placeholder="Jak mamy Cię wyświetlać?"
             className={inputStyle}
           />
         </div>
@@ -238,20 +238,20 @@ export function ProfileSettingsScreen() {
       {/* Password Change */}
       <form onSubmit={handleChangePassword} className={`${cardStyle} space-y-4`}>
         <div>
-          <p className={labelStyle}>Zmiana hasĹ‚a</p>
+          <p className={labelStyle}>Zmiana hasła</p>
           <p className="text-xs text-[#8a7262] font-medium drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">
-            Podaj aktualne hasĹ‚o, aby ustawiÄ‡ nowe.
+            Podaj aktualne hasło, aby ustawić nowe.
           </p>
         </div>
 
         <div>
-          <label className={labelStyle}>Aktualne hasĹ‚o</label>
+          <label className={labelStyle}>Aktualne hasło</label>
           <div className="relative">
             <input
               type={showCurrent ? "text" : "password"}
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder="â€˘â€˘â€˘â€˘â€˘â€˘â€˘â€˘"
+              placeholder="••••••••"
               className={`${inputStyle} pr-12`}
               autoComplete="current-password"
             />
@@ -266,13 +266,13 @@ export function ProfileSettingsScreen() {
         </div>
 
         <div>
-          <label className={labelStyle}>Nowe hasĹ‚o</label>
+          <label className={labelStyle}>Nowe hasło</label>
           <div className="relative">
             <input
               type={showNew ? "text" : "password"}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Min. 8 znakĂłw"
+              placeholder="Min. 8 znaków"
               className={`${inputStyle} pr-12`}
               autoComplete="new-password"
             />
@@ -297,13 +297,13 @@ export function ProfileSettingsScreen() {
         </div>
 
         <div>
-          <label className={labelStyle}>PotwierdĹş nowe hasĹ‚o</label>
+          <label className={labelStyle}>Potwierdź nowe hasło</label>
           <div className="relative">
             <input
               type={showConfirm ? "text" : "password"}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="PowtĂłrz nowe hasĹ‚o"
+              placeholder="Powtórz nowe hasło"
               className={`${inputStyle} pr-12 ${
                 confirmPassword && confirmPassword !== newPassword
                   ? "border-red-300 focus:border-red-400"
@@ -322,10 +322,10 @@ export function ProfileSettingsScreen() {
             </button>
           </div>
           {confirmPassword && confirmPassword !== newPassword && (
-            <p className="text-[11px] font-bold text-red-500 ml-1 mt-1">HasĹ‚a nie sÄ… zgodne</p>
+            <p className="text-[11px] font-bold text-red-500 ml-1 mt-1">Hasła nie są zgodne</p>
           )}
           {confirmPassword && confirmPassword === newPassword && newPassword.length >= 8 && (
-            <p className="text-[11px] font-bold text-green-600 ml-1 mt-1">âś“ HasĹ‚a sÄ… zgodne</p>
+            <p className="text-[11px] font-bold text-green-600 ml-1 mt-1">✓ Hasła są zgodne</p>
           )}
         </div>
 
@@ -339,7 +339,7 @@ export function ProfileSettingsScreen() {
           }
           className={btnPrimary}
         >
-          {changingPassword ? "Zmienianie..." : "ZmieĹ„ hasĹ‚o"}
+          {changingPassword ? "Zmienianie..." : "Zmień hasło"}
         </button>
       </form>
 
@@ -356,7 +356,7 @@ export function ProfileSettingsScreen() {
           className="w-full py-3.5 rounded-xl border border-[#e6c9b0]/50 bg-white/60 backdrop-blur-sm text-[#8a4f2a] font-bold text-[15px] hover:border-[#cf833f]/60 hover:bg-white transition-all shadow-sm flex items-center justify-center gap-2"
         >
           <LogOut className="w-5 h-5" />
-          <span>Wyloguj siÄ™</span>
+          <span>Wyloguj się</span>
         </button>
       </div>
 
@@ -374,4 +374,3 @@ export function ProfileSettingsScreen() {
     </div>
   );
 }
-

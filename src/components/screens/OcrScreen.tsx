@@ -510,6 +510,50 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
     setItems(items ? items.map((i) => (i.id === id ? { ...i, ...updates } : i)) : null);
   }
 
+  function applyCategoryToItems(sourceItemId: string, mode: "all" | "remaining") {
+    if (!items) return;
+
+    const sourceItem = items.find((item) => item.id === sourceItemId);
+    if (!sourceItem?.categoryId || !sourceItem?.subcategoryId) {
+      toast.error("Najpierw wybierz kategorię i podkategorię dla tej pozycji.");
+      return;
+    }
+
+    const targetItems = items.filter((item) => mode === "all" || item.id !== sourceItemId);
+    const changedCount = targetItems.filter(
+      (item) =>
+        item.categoryId !== sourceItem.categoryId ||
+        item.subcategoryId !== sourceItem.subcategoryId
+    ).length;
+
+    if (changedCount === 0) {
+      toast.info(mode === "all"
+        ? "Wszystkie pozycje mają już to przypisanie."
+        : "Pozostałe pozycje mają już to przypisanie.");
+      return;
+    }
+
+    setItems(
+      items.map((item) => {
+        if (mode === "remaining" && item.id === sourceItemId) {
+          return item;
+        }
+
+        return {
+          ...item,
+          categoryId: sourceItem.categoryId,
+          subcategoryId: sourceItem.subcategoryId,
+        };
+      })
+    );
+
+    toast.success(
+      mode === "all"
+        ? `Przypisano kategorię do ${items.length} pozycji.`
+        : `Przypisano kategorię do ${changedCount} pozostałych pozycji.`
+    );
+  }
+
   function removeItem(id: string) {
     setItems(items ? items.filter((i) => i.id !== id) : null);
   }
@@ -960,6 +1004,27 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                             ))}
                           </select>
                         </div>
+
+                        {items.length > 1 && (
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              type="button"
+                              onClick={() => applyCategoryToItems(item.id, "remaining")}
+                              disabled={!item.categoryId || !item.subcategoryId}
+                              className="flex-1 rounded-xl border border-[#ead8c5] bg-[#fff8f2] px-3 py-2 text-[11px] font-bold text-[#8a7262] transition-colors hover:border-[#cf833f] hover:text-[#cf833f] disabled:opacity-40"
+                            >
+                              Przypisz do pozostałych
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => applyCategoryToItems(item.id, "all")}
+                              disabled={!item.categoryId || !item.subcategoryId}
+                              className="flex-1 rounded-xl border border-[#f3d3b6] bg-[#fff3e7] px-3 py-2 text-[11px] font-bold text-[#b86a28] transition-colors hover:border-[#cf833f] hover:text-[#cf833f] disabled:opacity-40"
+                            >
+                              Przypisz do wszystkich
+                            </button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

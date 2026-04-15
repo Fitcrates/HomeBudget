@@ -589,9 +589,127 @@ function resolveCategoryNames(
 
 function resolveHeuristicCategory(
   description: string,
-  categoriesArray: any[]
+  categoriesArray: any[],
+  receiptContextText?: string
 ): { categoryId: string | null; subcategoryId: string | null } | null {
   const text = stripDiacritics(description);
+  const receiptContext = stripDiacritics(receiptContextText || "");
+  const combinedContext = `${receiptContext} ${text}`.trim();
+
+  const isCafeIssuer = /(kawiar|cafe\b|coffee\b|starbucks|costa|green caffe|nero|etno|so coffee|coffeedesk|cukierni|pijalni|palarni)/i.test(receiptContext);
+  const isRestaurantIssuer = /(restaur|bistro|bar\b|oberza|karczm|trattor|ramen|kebab|burger|mcdonald|kfc|subway|pizzer|pizza|sushi)/i.test(receiptContext);
+  const isFastFoodIssuer = /(mcdonald|kfc|subway|burger|kebab|drive|fast food)/i.test(receiptContext);
+  const isPizzaIssuer = /(pizzer|pizza|telepizza|domino)/i.test(receiptContext);
+  const isSushiIssuer = /(sushi|maki|nigiri|uramaki)/i.test(receiptContext);
+  const isGroceryIssuer = /(biedronka|lidl|kaufland|auchan|carrefour|stokrot|netto|dino|zabka|spar|aldi|lewiatan|intermarche|supermarket|dyskont|delikates)/i.test(receiptContext);
+  const isDrugstoreIssuer = /(rossmann|hebe|super.?pharm|douglas|sephora)/i.test(receiptContext);
+  const isPharmacyIssuer = /(apteka|doz|ziko|gemini|cefarm|dr\.?\s?max)/i.test(receiptContext);
+  const isPetIssuer = /(zoo|pet|kakadu|maxi zoo|weteryn)/i.test(receiptContext);
+  const isHomeIssuer = /(castorama|leroy|obi|ikea|jysk|agata|mebl|ogrodnicz|bricomarche)/i.test(receiptContext);
+
+  if (isCafeIssuer && /(kawa|coffee|espresso|americano|latte|cappuccino|flat white|macchiato|mocha|frappe|herbat|tea|matcha|ciast|sernik|deser|muffin|brownie|croissant|kanapk|sandw|lemoniad|napoj)/i.test(text)) {
+    return resolveCategoryNames("Restauracje i kawiarnie", "Kawiarnia", categoriesArray);
+  }
+
+  if ((isRestaurantIssuer || isFastFoodIssuer || isPizzaIssuer || isSushiIssuer) && /(burger|frytki|wrap|kebab|zestaw|meal|combo|pizza|sushi|maki|nigiri|uramaki|ramen|pad thai|pierogi|schab|obiad|lunch|danie|zupa|makaron|salat|salad|napoj|cola|lemoniad|kawa|herbat|ciast)/i.test(text)) {
+    if (isPizzaIssuer || /(pizza|margherit|capricios|pepperoni|hawaii)/i.test(combinedContext)) {
+      return resolveCategoryNames("Restauracje i kawiarnie", "Pizza", categoriesArray);
+    }
+    if (isSushiIssuer || /(sushi|maki|nigiri|uramaki|hosomaki|futomaki)/i.test(combinedContext)) {
+      return resolveCategoryNames("Restauracje i kawiarnie", "Sushi", categoriesArray);
+    }
+    if (isFastFoodIssuer || /(burger|frytki|kebab|wrap|nuggets|happy meal|mcflurry|zinger)/i.test(combinedContext)) {
+      return resolveCategoryNames("Restauracje i kawiarnie", "Fast food", categoriesArray);
+    }
+    return resolveCategoryNames("Restauracje i kawiarnie", "Restauracja", categoriesArray);
+  }
+
+  if (isPharmacyIssuer || /(lek|tablet|tabl|syrop|kaps|suplement|wit|vit|masc|krem lecz|plaster)/i.test(text)) {
+    return resolveCategoryNames("Zdrowie i uroda", "Apteka", categoriesArray);
+  }
+
+  if (isDrugstoreIssuer && /(szampon|odzywk|krem|masc|balsam|dezodor|podklad|tusz|pomadk|perfum|zel pod prysznic|mydlo|pasta do zeb|szczotecz|higien)/i.test(text)) {
+    return resolveCategoryNames("Zdrowie i uroda", "Kosmetyki", categoriesArray);
+  }
+
+  if (isPetIssuer || /(karma|przysmak dla psa|przysmak dla kota|zwirek|zwir|drapak|smycz|miska|weteryn)/i.test(text)) {
+    if (/(zwirek|zwir|podklad higieniczn)/i.test(text)) {
+      return resolveCategoryNames("Zwierzeta", "Zwirek i higiena", categoriesArray);
+    }
+    if (/(weteryn|vet)/i.test(combinedContext)) {
+      return resolveCategoryNames("Zwierzeta", "Weterynarz", categoriesArray);
+    }
+    if (/(karma|puszka|saszetka|sucha karma)/i.test(text)) {
+      return resolveCategoryNames("Zwierzeta", "Karma", categoriesArray);
+    }
+    return resolveCategoryNames("Zwierzeta", "Akcesoria", categoriesArray);
+  }
+
+  if (isHomeIssuer && /(donicz|ziemia|nawoz|zarowk|mebel|poduszk|posciel|pojemnik|narzedz|wiert|mlotek|farba|pedzel|balkon|ogrod)/i.test(text)) {
+    if (/(donicz|ziemia|nawoz|balkon|ogrod|roslin)/i.test(text)) {
+      return resolveCategoryNames("Dom i mieszkanie", "Ogrod i balkon", categoriesArray);
+    }
+    if (/(narzedz|wiert|mlotek|farba|pedzel|remont)/i.test(text)) {
+      return resolveCategoryNames("Dom i mieszkanie", "Remonty", categoriesArray);
+    }
+    return resolveCategoryNames("Dom i mieszkanie", "Wyposazenie", categoriesArray);
+  }
+
+  if (/(kawa|coffee|espresso|americano|latte|cappuccino|flat white|macchiato|mocha|herbat|tea|matcha)/i.test(text)) {
+    if (isCafeIssuer || isRestaurantIssuer) {
+      return resolveCategoryNames("Restauracje i kawiarnie", isCafeIssuer ? "Kawiarnia" : "Restauracja", categoriesArray);
+    }
+    if (isGroceryIssuer) {
+      return resolveCategoryNames("Zywnosc i napoje", "Kawa i herbata", categoriesArray);
+    }
+  }
+
+  if (/(chleb|bulka|bajgel|drozdz|drozdzow|croissant|bagiet|chalka|paczek|donut)/i.test(text)) {
+    if (isCafeIssuer) {
+      return resolveCategoryNames("Restauracje i kawiarnie", "Kawiarnia", categoriesArray);
+    }
+    return resolveCategoryNames("Zywnosc i napoje", "Piekarnia", categoriesArray);
+  }
+
+  if (/(chips|chrupk|paluszki|baton|czekolad|cukierk|wafel|zelki|ciastk|orzeszk)/i.test(text)) {
+    return resolveCategoryNames("Zywnosc i napoje", "Slodycze i przekaski", categoriesArray);
+  }
+
+  if (/(woda|sok|cola|pepsi|sprite|fanta|napoj|lemoniad)/i.test(text)) {
+    if (isCafeIssuer || isRestaurantIssuer) {
+      return resolveCategoryNames("Restauracje i kawiarnie", isCafeIssuer ? "Kawiarnia" : "Restauracja", categoriesArray);
+    }
+    return resolveCategoryNames("Zywnosc i napoje", "Napoje bezalkoholowe", categoriesArray);
+  }
+
+  if (/(krzew|rosl|roslina|kwiat|bukiet|lawend|pelarg|surfin|sadzon|ogrod|balkon|donicz|ziemia ogrod|nawoz)/i.test(text)) {
+    return resolveCategoryNames("Dom i mieszkanie", "Ogrod i balkon", categoriesArray);
+  }
+
+  if (/(piwo|lager|ipa|porter|pils|ale\b|nep\b|vodka|wino|whisk|gin\b)/i.test(text)) {
+    if (isCafeIssuer || isRestaurantIssuer) {
+      return resolveCategoryNames("Restauracje i kawiarnie", "Restauracja", categoriesArray);
+    }
+    return resolveCategoryNames("Zywnosc i napoje", "Alkohol", categoriesArray);
+  }
+
+  if (/(jogurt|mleko|maslo|ser|twarog|serek|smietan|kefir)/i.test(text)) {
+    return resolveCategoryNames("Zywnosc i napoje", "Nabial i jaja", categoriesArray);
+  }
+
+  if (/(rukola|surowka|pomidor|ogorek|salat|warzyw|owoc)/i.test(text)) {
+    if (isCafeIssuer || isRestaurantIssuer) {
+      return resolveCategoryNames("Restauracje i kawiarnie", isCafeIssuer ? "Kawiarnia" : "Restauracja", categoriesArray);
+    }
+    return resolveCategoryNames("Zywnosc i napoje", "Owoce i warzywa", categoriesArray);
+  }
+
+  if (/(granola|makaron|ryz|maka|kasza|platk)/i.test(text)) {
+    if (isRestaurantIssuer && /(makaron|ramen)/i.test(text)) {
+      return resolveCategoryNames("Restauracje i kawiarnie", "Restauracja", categoriesArray);
+    }
+    return resolveCategoryNames("Zywnosc i napoje", "Produkty sypkie", categoriesArray);
+  }
 
   if (/(krzew|rosl|roslina|kwiat|bukiet|lawend|pelarg|surfin|sadzon|ogrod|balkon|donicz|ziemia ogrod|nawoz)/i.test(text)) {
     return resolveCategoryNames("Dom i mieszkanie", "Ogród i balkon", categoriesArray);
@@ -670,6 +788,11 @@ ${source}ZASADY:
 DOPASOWANIE KATEGORII DO WYSTAWCY:
 - Najpierw zidentyfikuj sklep lub wystawce rachunku.
 - Biedronka, Lidl, Auchan, Kaufland, Zabka, Dino, Netto, Carrefour, Stokrotka: pozycje to zwykle "Zywnosc i napoje" albo "Chemia domowa i higiena".
+- Kawiarnie i cukiernie (np. Starbucks, Costa, Green Caffe Nero, lokalne cafe/cukiernia): kawa, herbata, ciasto, deser, croissant, kanapka, lemoniada -> "Restauracje i kawiarnie" / "Kawiarnia", a nie "Zywnosc i napoje".
+- Restauracje, bary i bistro: dania oraz napoje kupione do spozycia -> "Restauracje i kawiarnie".
+- Pizzerie: pizza -> "Restauracje i kawiarnie" / "Pizza".
+- Sushi bary: sushi, maki, nigiri -> "Restauracje i kawiarnie" / "Sushi".
+- Fast food (McDonald's, KFC, Burger King, Subway, kebab): zestawy, frytki, burgery, wrapy -> "Restauracje i kawiarnie" / "Fast food".
 - Rossmann, Hebe, Super-Pharm, Sephora, Douglas: zwykle "Zdrowie i uroda".
 - Castorama, Leroy Merlin, OBI, Jysk, IKEA, Agata Meble: zwykle "Dom i mieszkanie".
 - Orlen, BP, Shell, Circle K, Amic, Moya, Lotos: paliwo -> "Transport" / "Paliwo".
@@ -684,6 +807,11 @@ KATEGORYZACJA SZCZEGOLOWA:
 - Makaron, ryz, maka, kasza -> "Produkty sypkie"
 - Czekolada, chipsy, cukierki -> "Slodycze i przekaski"
 - Woda, sok, cola -> "Napoje bezalkoholowe"
+- Kawa ziarnista, kawa mielona i herbata z marketu -> "Kawa i herbata"
+- Espresso, americano, latte, cappuccino, herbata, ciasto, deser kupione w kawiarni -> "Restauracje i kawiarnie" / "Kawiarnia"
+- Burger, frytki, wrap, kebab, zestaw -> "Restauracje i kawiarnie" / "Fast food"
+- Pizza -> "Restauracje i kawiarnie" / "Pizza"
+- Sushi, maki, nigiri -> "Restauracje i kawiarnie" / "Sushi"
 - Piwo, wino, wodka -> "Alkohol"
 - Czystosc (plyny, proszki, papier toaletowy) -> "Chemia domowa i higiena"
 
@@ -838,6 +966,23 @@ async function parseAndNormalizeResponse(
           }));
 
     const parsedItems = parsedItemsWithMeta.map((entry) => entry.item);
+    const globalReceiptContext = asString(parsed?.rawText);
+    const receiptContextByIndex = new Map<number, string>();
+
+    if (receiptEntries.length > 0) {
+      receiptEntries.forEach((receipt: any, idx: number) => {
+        const contextParts = [
+          asString(receipt?.receiptLabel),
+          asString(receipt?.rawText),
+          asString(receipt?.merchant),
+          asString(receipt?.storeName),
+          globalReceiptContext,
+        ].filter(Boolean);
+        receiptContextByIndex.set(idx, contextParts.join(" "));
+      });
+    } else {
+      receiptContextByIndex.set(0, globalReceiptContext);
+    }
 
     const currency = asString(parsed?.currency).toUpperCase();
     const exchangeRate = await fetchExchangeRate(currency);
@@ -958,29 +1103,33 @@ async function parseAndNormalizeResponse(
              rawDescription: item.originalRawDescription
           });
           
-          if (mapping) {
-             item.categoryId = mapping.categoryId;
-             item.subcategoryId = mapping.subcategoryId;
-             if (exchangeRate === 1) {
-                item.description = mapping.correctedDescription; // Only override text if no currency inject
-             }
-             item.fromMapping = true;
-          } else {
-             // Fallback to AI's category resolution
-             const originalAiCategory = parsedItems.find((i: any) => asString(i?.description) === item.originalRawDescription);
-             const resolved = resolveCategoryNames(
-               asString(originalAiCategory?.category),
-               asString(originalAiCategory?.subcategory),
-               categoriesArray
-             );
+           if (mapping) {
+              item.categoryId = mapping.categoryId;
+              item.subcategoryId = mapping.subcategoryId;
+              if (exchangeRate === 1) {
+                 item.description = mapping.correctedDescription; // Only override text if no currency inject
+              }
+              item.fromMapping = true;
+           } else {
+              // Fallback to AI's category resolution
+              const originalAiCategory = parsedItemsWithMeta.find((entry) =>
+                entry.receiptIndex === item.receiptIndex &&
+                asString(entry.item?.description) === item.originalRawDescription
+              )?.item ?? parsedItems.find((i: any) => asString(i?.description) === item.originalRawDescription);
+              const resolved = resolveCategoryNames(
+                asString(originalAiCategory?.category),
+                asString(originalAiCategory?.subcategory),
+                categoriesArray
+              );
              item.categoryId = resolved.categoryId;
              item.subcategoryId = resolved.subcategoryId;
           }
 
-          const heuristicCategory = resolveHeuristicCategory(
-            item.originalRawDescription || item.description,
-            categoriesArray
-          );
+           const heuristicCategory = resolveHeuristicCategory(
+             item.originalRawDescription || item.description,
+             categoriesArray,
+             receiptContextByIndex.get(item.receiptIndex) || item.receiptLabel || globalReceiptContext
+           );
           if (heuristicCategory?.categoryId && heuristicCategory?.subcategoryId && !item.fromMapping) {
             item.categoryId = heuristicCategory.categoryId;
             item.subcategoryId = heuristicCategory.subcategoryId;
