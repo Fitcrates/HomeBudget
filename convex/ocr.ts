@@ -500,6 +500,13 @@ function asString(v: unknown): string {
 function stripDiacritics(s: string): string {
   return s
     .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/ł/g, "l")
+    .replace(/đ/g, "d")
+    .replace(/ß/g, "ss")
+    .replace(/æ/g, "ae")
+    .replace(/ø/g, "o")
     .replace(/ą/g, "a").replace(/ć/g, "c").replace(/ę/g, "e")
     .replace(/ł/g, "l").replace(/ń/g, "n").replace(/ó/g, "o")
     .replace(/ś/g, "s").replace(/ź/g, "z").replace(/ż/g, "z");
@@ -587,6 +594,29 @@ function resolveCategoryNames(
   };
 }
 
+function resolveBusinessToolsCategory(categoriesArray: any[]) {
+  return resolveCategoryNames("Praca i biznes", "Narzedzia / SaaS", categoriesArray);
+}
+
+function isCloudOrBusinessSaaSIssuer(text: string): boolean {
+  return /\b(railway|railway corporation|vercel|render|fly\.io|digitalocean|linode|supabase|firebase|cloudflare|netlify|aws|amazon web services|gcp|google cloud|azure|mongodb atlas|planetscale|neon|upstash|replicate|openai|anthropic|resend|posthog|sentry|datadog|new relic|clerk|auth0|github|gitlab|atlassian|notion|slack)\b/i.test(text);
+}
+
+function isBusinessSaaSLine(text: string, combinedContext: string): boolean {
+  const explicitInfrastructureUsage = /\b(vcpu|cpu|memory|ram|disk|storage|bandwidth|egress|ingress|container|instance|compute|runtime|build minutes?|deployment|hosting|backend|server|database|postgres|redis|cdn|domain|ssl|smtp|workspace|seat|seats|monitoring|observability|log ingestion|network transfer)\b/i;
+  if (explicitInfrastructureUsage.test(text)) {
+    return true;
+  }
+
+  const meteredBillingPattern = /\b(network\s*\(|disk\s*\(|memory\s*\(|vcpu\s*\(|per\s+(mb|gb|tb|vcpu|min|minute|request|requests|seat)|api\s+(calls?|usage)|usage\b|subscription\b|monthly\b|invoice\b|billing\b)\b/i;
+  if (meteredBillingPattern.test(text) && isCloudOrBusinessSaaSIssuer(combinedContext)) {
+    return true;
+  }
+
+  const planPattern = /\b(pro|team|starter|hobby|developer|enterprise)\s+plan\b/i;
+  return planPattern.test(text) && isCloudOrBusinessSaaSIssuer(combinedContext);
+}
+
 function resolveHeuristicCategory(
   description: string,
   categoriesArray: any[],
@@ -606,6 +636,14 @@ function resolveHeuristicCategory(
   const isPharmacyIssuer = /(apteka|doz|ziko|gemini|cefarm|dr\.?\s?max)/i.test(receiptContext);
   const isPetIssuer = /(zoo|pet|kakadu|maxi zoo|weteryn)/i.test(receiptContext);
   const isHomeIssuer = /(castorama|leroy|obi|ikea|jysk|agata|mebl|ogrodnicz|bricomarche)/i.test(receiptContext);
+  const isBusinessSaaSIssuer = isCloudOrBusinessSaaSIssuer(receiptContext);
+
+  if (
+    isBusinessSaaSLine(text, combinedContext) ||
+    (isBusinessSaaSIssuer && /\b(plan|usage|subscription|invoice|billing|service|charges?)\b/i.test(text))
+  ) {
+    return resolveBusinessToolsCategory(categoriesArray);
+  }
 
   if (isCafeIssuer && /(kawa|coffee|espresso|americano|latte|cappuccino|flat white|macchiato|mocha|frappe|herbat|tea|matcha|ciast|sernik|deser|muffin|brownie|croissant|kanapk|sandw|lemoniad|napoj)/i.test(text)) {
     return resolveCategoryNames("Restauracje i kawiarnie", "Kawiarnia", categoriesArray);
@@ -798,6 +836,8 @@ DOPASOWANIE KATEGORII DO WYSTAWCY:
 - Orlen, BP, Shell, Circle K, Amic, Moya, Lotos: paliwo -> "Transport" / "Paliwo".
 - Apteki (DOZ, Gemini, Ziko, Cefarm, Dr.Max): leki i suplementy -> "Zdrowie i uroda" / "Apteka".
 - Sklepy zoologiczne: domyslnie "Zwierzeta".
+- Dostawcy backendu, hostingu, chmury i narzedzi dla developerow (np. Railway, Vercel, Render, AWS, Google Cloud, Azure, DigitalOcean, Supabase, Cloudflare, OpenAI): pozycje typu Pro plan, Memory, vCPU, Disk, Network, bandwidth, requests, storage, seats -> "Praca i biznes" / "Narzedzia / SaaS".
+- Nie wolno mapowac technicznych oplat cloudowych do "Transport" / "Paliwo" tylko dlatego, ze wystawca ma w nazwie np. "Railway" albo pozycja ma slowo "Network".
 
 KATEGORYZACJA SZCZEGOLOWA:
 - Jajka, mleko, ser, maslo, jogurt -> "Nabial i jaja"
@@ -1505,6 +1545,8 @@ async function auditReceiptWithAI(
         "Jedna linia ilosciowa ma dac jedna pozycje JSON z laczna kwota po uwzglednieniu rabatu.",
         "Jesli rabat jest pokazany jako osobna linia koncowa lub globalna, mozesz zwrocic go jako osobna pozycje z ujemna kwota.",
         "Krzew/roslina/kwiat ma byc kategoryzowany do Dom i mieszkanie -> Ogród i balkon lub zblizonej podkategorii domowej, a nie do zywnosci.",
+        "Jesli wystawca to usluga cloud/backend/SaaS (np. Railway, Vercel, AWS, Supabase), to pozycje typu Memory, vCPU, Disk, Network, Pro plan, requests, seats maja trafic do Praca i biznes -> Narzedzia / SaaS.",
+        "Nie wolno klasyfikowac oplat cloudowych do Transport/Paliwo przez skojarzenie ze slowem Railway albo Network.",
         "W polu audit.productLines zwroc KAŻDĄ linię produktową w KOLEJNOŚCI z paragonu, przed kategoryzacją. To pole jest ważniejsze niż zwykłe items.",
         "Dla kazdej linii produktowej podaj co najmniej description i total. Przyklad: Nep. 04'2026 piwo -> 19.98, Surowka 300g -> 6.98, Calcium Wit. D tabl. -> 5.59.",
         "",

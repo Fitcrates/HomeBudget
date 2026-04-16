@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle } from "lucide-react";
 
 interface ConfirmDialogProps {
@@ -21,17 +23,24 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  if (!open) return null;
+  const [mounted, setMounted] = useState(false);
 
-  return (
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  if (!open || !mounted) return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-[#1f1208]/40 backdrop-blur-[2px] p-3 sm:p-4"
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-[#1f1208]/40 backdrop-blur-[2px] p-4"
       role="dialog"
       aria-modal="true"
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-md rounded-[1.75rem] border border-[#f1dcc6] bg-[#fff9f2] p-5 sm:p-6 shadow-[0_20px_60px_rgba(90,40,10,0.28)]"
+        className="w-full max-w-md rounded-[1.75rem] border border-[#f1dcc6] bg-[#fff9f2] p-5 sm:p-6 shadow-[0_20px_60px_rgba(90,40,10,0.28)] max-h-[calc(100dvh-2rem)] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-3">
@@ -65,6 +74,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
