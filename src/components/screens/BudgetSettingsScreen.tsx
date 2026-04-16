@@ -1,3 +1,6 @@
+export { BudgetSettingsScreen } from "./BudgetSettingsScreenV2";
+// Legacy implementation kept temporarily below; the active screen is exported from BudgetSettingsScreenV2.
+
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { DynamicIcon } from "../ui/DynamicIcon";
@@ -15,7 +18,7 @@ interface Props {
   onBack: () => void;
 }
 
-export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
+function LegacyBudgetSettingsScreen({ householdId, currency, onBack }: Props) {
   const categories = useQuery(api.categories.listForHousehold, { householdId });
   const budgets = useQuery(api.budgets.listForHousehold, { householdId });
   const upsertBudget = useMutation(api.budgets.upsert);
@@ -70,8 +73,7 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
     }
   }
 
-  const cardClass =
-    "bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
+  const cardClass = "app-card";
   const inputStyle =
     "w-full text-sm bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white text-[#2b180a] font-bold shadow-inner transition-all";
 

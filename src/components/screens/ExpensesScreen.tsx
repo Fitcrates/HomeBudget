@@ -7,7 +7,7 @@ import { formatAmount } from "../../lib/format";
 import { toast } from "sonner";
 import { ExpensesIcon } from "../ui/icons/ExpensesIcon";
 import { CalendarIcon } from "../ui/icons/CalendarIcon";
-import { Search, X } from "lucide-react";
+import { ChevronDown, Search, X } from "lucide-react";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { IconTrashButton } from "../ui/IconTrashButton";
 
@@ -85,7 +85,7 @@ export function ExpensesScreen({ householdId, currency }: Props) {
           <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a]">Wszystkie wydatki</h2>
         </div>
 
-        <div className="mb-4 rounded-xl border border-[#ebd8c8]/30 bg-[#fdf9f1] px-4 py-3 shadow-[0_4px_24px_rgba(180,120,80,0.15)]">
+        <div className="mb-4 rounded-xl border border-[#ebd8c8]/30 bg-white/60 px-4 py-3 shadow-[0_4px_24px_rgba(180,120,80,0.15)]">
           <PeriodSelector
             value={period}
             onChange={(value) => {
@@ -165,30 +165,44 @@ export function ExpensesScreen({ householdId, currency }: Props) {
               <div
                 key={expense._id}
                 onClick={() => setExpandedId(isExpanded ? null : expense._id)}
-                className={`cursor-pointer overflow-hidden rounded-xl bg-[#fdf9f1] shadow-[0_4px_20px_rgba(180,120,80,0.12)] transition-all ${
-                  isExpanded ? "scale-[1.02] shadow-[0_8px_30px_rgba(180,120,80,0.2)]" : "hover:scale-[1.01]"
+                className={`cursor-pointer overflow-hidden rounded-xl border border-white/70 bg-white/60 backdrop-blur-xl transition-all ${
+                  isExpanded
+                    ? "scale-[1.02] border-[#efd1af] shadow-[0_10px_30px_rgba(180,120,80,0.2)]"
+                    : "hover:scale-[1.01] hover:border-[#ead7c6]"
                 }`}
               >
                 <div className="flex flex-col gap-3 p-5">
-                  <div className="flex items-start justify-between">
-                    <p className="text-[16px] font-bold leading-tight text-[#2b180a]">
-                      {expense.description || (expense.subcategory as any)?.name}
-                      <span className="whitespace-nowrap"> - {formatAmount(expense.amount, currency)}</span>
-                    </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[16px] font-bold leading-tight text-[#2b180a]">
+                        {expense.description || (expense.subcategory as any)?.name}
+                      </p>
+                      <p className="mt-1 text-[15px] font-semibold text-[#cf833f]">
+                        {formatAmount(expense.amount, currency)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2 rounded-full border border-[#ead7c6] bg-white/75 px-2.5 py-1.5 text-[#8a7262]">
+                      <span className="text-xs font-bold">
+                        {new Date(expense.date).toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit" })}
+                      </span>
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180 text-[#cf833f]" : ""}`}
+                      />
+                    </div>
                   </div>
 
                   <div className="flex w-full items-center justify-between">
                     <span className={`rounded-xl px-3 py-1.5 text-[11px] font-bold ${getPillColor(catName)}`}>
                       {catName}
                     </span>
-                    <span className="text-sm font-medium text-[#8a7262]">
-                      {new Date(expense.date).toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit" })}
+                    <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#b89b87]">
+                      {isExpanded ? "Zwiń" : "Rozwiń"}
                     </span>
                   </div>
                 </div>
 
                 {isExpanded && (
-                  <div className="animate-in fade-in slide-in-from-top-2 space-y-4 border-t border-[#ebd8c8]/50 px-5 pb-5 pt-4">
+                  <div className="animate-in fade-in slide-in-from-top-2 space-y-4 border-t border-[#ebd8c8]/50 bg-white/45 px-5 pb-5 pt-4">
                     {expense.ocrRawText && (
                       <div className="rounded-xl border border-[#ebd8c8] bg-[#fffdf9] p-4">
                         <p className="mb-2 text-xs font-bold uppercase tracking-wider text-[#8a7262]">Tekst z paragonu</p>

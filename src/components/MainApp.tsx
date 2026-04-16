@@ -22,6 +22,7 @@ interface Household {
   currency: string;
   inviteCode: string;
   role: "owner" | "member";
+  financialRole?: "parent" | "partner" | "child";
 }
 
 interface Props {
@@ -51,7 +52,7 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
 
   return (
     <BadgeNotificationProvider householdId={household._id}>
-      <div className="w-full max-w-[420px] h-dvh flex flex-col mx-auto relative bg-gradient-to-b from-[#ebae69] via-[#faebcd] to-[#fcf4e4] text-[#2b180a] font-sans selection:bg-orange-200 lg:shadow-2xl lg:rounded-xl lg:my-4 lg:h-[90vh]">
+      <div className="w-full max-w-[420px] h-dvh flex flex-col mx-auto relative bg-gradient-to-b from-[#ebae69] via-[#faebcd] to-[#fcf4e4] text-[#2b180a] font-sans selection:bg-orange-200 pt-[env(safe-area-inset-top)] lg:shadow-2xl lg:rounded-xl lg:my-4 lg:h-[90vh]">
         {/* Global top bar: always fixed in the same place across screens */}
         <header className="relative z-20 px-2 sm:px-4 pt-3 pb-2">
           <div className="flex justify-end">

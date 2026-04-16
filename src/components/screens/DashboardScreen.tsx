@@ -6,23 +6,27 @@ import { PeriodSelector, getPeriodRange } from "../ui/PeriodSelector";
 import { PieChart } from "../charts/PieChart";
 import { BarChart } from "../charts/BarChart";
 import { formatAmount } from "../../lib/format";
-import { InsightsCard } from "./InsightsCard";
+import { InsightsOverviewCard, InsightsScenariosCard } from "./DashboardInsightsPanels";
 import { BudgetAlertsCard } from "./BudgetAlertsCard";
 import { IncomeMonitorCard } from "./IncomeMonitorCard";
 import { HomeIcon } from "../ui/icons/HomeIcon";
 import { ExpensesIcon } from "../ui/icons/ExpensesIcon";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import catLottie from "../../assets/Cat playing animation.lottie?url";
+import { BarChart3, WandSparkles } from "lucide-react";
 
 interface Props {
   householdId: Id<"households">;
   currency: string;
 }
 
+type DashboardTab = "overview" | "simulations";
+
 export function DashboardScreen({ householdId, currency }: Props) {
   const [period, setPeriod] = useState<string>("month");
   const [customFrom, setCustomFrom] = useState<number | null>(null);
   const [customTo, setCustomTo] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
 
   const { from, to } = useMemo(
     () => getPeriodRange(period, customFrom, customTo),
@@ -70,6 +74,30 @@ export function DashboardScreen({ householdId, currency }: Props) {
         onCustomTo={setCustomTo}
       />
 
+      <div className="flex gap-1 rounded-xl bg-[#fdf9f1] p-1 shadow-[0_4px_12px_rgba(180,120,80,0.1)]">
+        {(
+          [
+            { key: "overview", label: "Przegląd", icon: BarChart3 },
+            { key: "simulations", label: "Symulacje", icon: WandSparkles },
+          ] as { key: DashboardTab; label: string; icon: any }[]
+        ).map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`flex-1 rounded-xl py-2.5 text-xs font-bold transition-all ${
+              activeTab === key
+                ? "bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white shadow-sm"
+                : "text-[#8a7262] hover:text-[#cf833f]"
+            }`}
+          >
+            <span className="flex items-center justify-center gap-1.5">
+              <Icon className="h-4 w-4" />
+              {label}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-12 gap-4">
           <div className="w-32 h-32 relative flex items-center justify-center bg-[#fff8f2] rounded-full shadow-inner border border-[#f2d6bf]">
@@ -82,59 +110,63 @@ export function DashboardScreen({ householdId, currency }: Props) {
           <p className="text-[#8a7262] font-bold text-sm animate-pulse">Ładowanie danych...</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {(summary?.count > 0 || byCategory.length > 0 || byPeriod.length > 0) && (
-            <div className={cardClass}>
-              {summary && summary.count > 0 && (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[10px] font-bold text-[#b89b87] uppercase tracking-wider">Łącznie wydano</p>
-                    <p className="text-xl font-medium text-[#2b180a]">{formatAmount(summary.total, currency)}</p>
+        activeTab === "overview" ? (
+          <div className="space-y-6">
+            {(summary?.count > 0 || byCategory.length > 0 || byPeriod.length > 0) && (
+              <div className={cardClass}>
+                {summary && summary.count > 0 && (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold text-[#b89b87] uppercase tracking-wider">Łącznie wydano</p>
+                      <p className="text-xl font-medium text-[#2b180a]">{formatAmount(summary.total, currency)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-[#b89b87] uppercase tracking-wider">Transakcji</p>
+                      <p className="text-xl font-medium text-[#2b180a]">{summary.count}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold text-[#b89b87] uppercase tracking-wider">Transakcji</p>
-                    <p className="text-xl font-medium text-[#2b180a]">{summary.count}</p>
-                  </div>
-                </div>
-              )}
+                )}
 
-              {summary?.count > 0 && byCategory.length > 0 && <div className="border-t border-[#e8d5c4]/60 my-1" />}
+                {summary?.count > 0 && byCategory.length > 0 && <div className="border-t border-[#e8d5c4]/60 my-1" />}
 
-              {byCategory.length > 0 && <PieChart data={byCategory} currency={currency} />}
+                {byCategory.length > 0 && <PieChart data={byCategory} currency={currency} />}
 
-              {byCategory.length > 0 && byPeriod.length > 0 && <div className="border-t border-[#e8d5c4]/60 my-1" />}
+                {byCategory.length > 0 && byPeriod.length > 0 && <div className="border-t border-[#e8d5c4]/60 my-1" />}
 
-              {byPeriod.length > 0 && (
-                <>
-                  <h3 className="text-sm font-medium mt-2 text-[#3e2815] mb-4">Wydatki w czasie</h3>
-                  <BarChart data={byPeriod} currency={currency} />
-                </>
-              )}
-            </div>
-          )}
+                {byPeriod.length > 0 && (
+                  <>
+                    <h3 className="text-sm font-medium mt-2 text-[#3e2815] mb-4">Wydatki w czasie</h3>
+                    <BarChart data={byPeriod} currency={currency} />
+                  </>
+                )}
+              </div>
+            )}
 
-          <IncomeMonitorCard
-            householdId={householdId}
-            currency={currency}
-            spentThisMonth={monthlySummary?.total ?? 0}
-          />
+            <IncomeMonitorCard
+              householdId={householdId}
+              currency={currency}
+              spentThisMonth={monthlySummary?.total ?? 0}
+            />
 
-          <BudgetAlertsCard
-            householdId={householdId}
-            currency={currency}
-            dateFrom={from}
-            dateTo={to}
-          />
+            <BudgetAlertsCard
+              householdId={householdId}
+              currency={currency}
+              dateFrom={from}
+              dateTo={to}
+            />
 
-          <InsightsCard householdId={householdId} />
+            <InsightsOverviewCard householdId={householdId} />
 
-          {byCategory.length === 0 && (
-            <div className={`${cardClass} text-center py-10 opacity-80 backdrop-blur-xl border border-white/50 bg-white/40`}>
-              <ExpensesIcon className="w-16 h-16 mx-auto mb-4 text-[#d8c5bc]" />
-              <p className="text-[#8a7262] font-bold drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">Brak wydatków w tym okresie</p>
-            </div>
-          )}
-        </div>
+            {byCategory.length === 0 && (
+              <div className={`${cardClass} text-center py-10 opacity-80 backdrop-blur-xl border border-white/50 bg-white/40`}>
+                <ExpensesIcon className="w-16 h-16 mx-auto mb-4 text-[#d8c5bc]" />
+                <p className="text-[#8a7262] font-bold drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">Brak wydatków w tym okresie</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <InsightsScenariosCard householdId={householdId} currency={currency} />
+        )
       )}
     </div>
   );

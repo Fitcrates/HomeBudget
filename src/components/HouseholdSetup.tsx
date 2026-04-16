@@ -192,9 +192,9 @@ export function HouseholdSetup({ onCreated }: Props) {
                   <input
                     value={code}
                     onChange={(e) => setCode(e.target.value.toUpperCase())}
-                    placeholder="np. ABC123"
+                    placeholder="np. A7K9M2QX"
                     className="w-full text-2xl bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white text-[#cf833f] font-mono font-bold tracking-widest text-center shadow-inner transition-all placeholder-[#e0c9b7]"
-                    maxLength={6}
+                    maxLength={8}
                   />
                 </div>
                 <button

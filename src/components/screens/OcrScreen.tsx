@@ -4,7 +4,22 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { ScannerIcon } from "../ui/icons/ScannerIcon";
-import { FileText, Image } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Bot,
+  Brain,
+  CheckCircle2,
+  FileText,
+  Image,
+  MoreHorizontal,
+  Plus,
+  RefreshCcw,
+  Save,
+  Search,
+  Sparkles,
+  X,
+} from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
@@ -174,6 +189,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
   const [currentStorageIds, setCurrentStorageIds] = useState<Id<"_storage">[]>(storageIds);
   const [currentMimeTypes, setCurrentMimeTypes] = useState<string[]>(mimeTypes || []);
   const [pendingRemoveItemId, setPendingRemoveItemId] = useState<string | null>(null);
+  const [openBulkMenuId, setOpenBulkMenuId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processAI = useAction(api.ocr.processReceiptWithAI);
@@ -510,7 +526,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
     setItems(items ? items.map((i) => (i.id === id ? { ...i, ...updates } : i)) : null);
   }
 
-  function applyCategoryToItems(sourceItemId: string, mode: "all" | "remaining") {
+  function applyCategoryToRemainingItems(sourceItemId: string) {
     if (!items) return;
 
     const sourceItem = items.find((item) => item.id === sourceItemId);
@@ -519,7 +535,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
       return;
     }
 
-    const targetItems = items.filter((item) => mode === "all" || item.id !== sourceItemId);
+    const targetItems = items.filter((item) => item.id !== sourceItemId);
     const changedCount = targetItems.filter(
       (item) =>
         item.categoryId !== sourceItem.categoryId ||
@@ -527,15 +543,13 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
     ).length;
 
     if (changedCount === 0) {
-      toast.info(mode === "all"
-        ? "Wszystkie pozycje mają już to przypisanie."
-        : "Pozostałe pozycje mają już to przypisanie.");
+      toast.info("Pozostałe pozycje mają już to przypisanie.");
       return;
     }
 
     setItems(
       items.map((item) => {
-        if (mode === "remaining" && item.id === sourceItemId) {
+        if (item.id === sourceItemId) {
           return item;
         }
 
@@ -547,47 +561,100 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
       })
     );
 
-    toast.success(
-      mode === "all"
-        ? `Przypisano kategorię do ${items.length} pozycji.`
-        : `Przypisano kategorię do ${changedCount} pozostałych pozycji.`
-    );
+    toast.success(`Przypisano kategorię do ${changedCount} pozostałych pozycji.`);
   }
 
   function removeItem(id: string) {
     setItems(items ? items.filter((i) => i.id !== id) : null);
   }
 
-  const cardStyle =
-    "bg-[#fdf9f1] w-full rounded-xl p-6 shadow-[0_8px_24px_rgba(180,120,80,0.15)] space-y-3";
   const labelStyle =
     "block text-[11px] font-bold text-[#b89b87] uppercase tracking-wider mb-2 ml-1";
   const inputStyle =
-    "w-full text-sm bg-white border border-[#f5e5cf] rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] transition-colors text-[#2b180a] font-bold";
+    "w-full text-sm bg-white/60 border border-[#f5e5cf] rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] transition-colors text-[#2b180a] font-bold";
+  const shellCard =
+    "rounded-xl border border-white/60 bg-white/45 p-4 shadow-[0_10px_36px_rgba(180,120,80,0.14)] backdrop-blur-xl sm:p-5";
+  const sectionTitle = "text-[10px] font-bold uppercase tracking-[0.18em] text-[#b89b87]";
+  const itemCount = items?.length ?? 0;
+  const uncertainItemsCount = items?.filter((item) => isAmountUncertain(item.amount)).length ?? 0;
+  const mappedItemsCount = items?.filter((item) => item.fromMapping).length ?? 0;
+  const multiReceiptDetected = Boolean(items && (receiptSummaries.length > 1 || items.some((i) => i.receiptIndex > 0)));
+  const expectedComparison = items && expectedTotal && receiptSummaries.length === 0
+    ? (() => {
+        const sum = items.reduce((acc, curr) => {
+          const val = parseFloat((curr.amount || "").replace(",", "."));
+          return acc + (isNaN(val) ? 0 : val);
+        }, 0);
+        const expected = parseFloat(expectedTotal.replace(",", "."));
+        const diffValue = sum - expected;
+        const diff = Math.abs(diffValue);
+        return {
+          sum,
+          expected,
+          diffValue,
+          diff,
+          isMismatch: diff > 0.05,
+        };
+      })()
+    : null;
 
   return (
     <div className="space-y-6 pb-4">
-      {/* Header */}
       <div className="pt-2 pb-1">
-        <div className="flex items-center gap-2 mb-1">
+        <div className="mb-2 flex items-center gap-2">
           <button
             onClick={onDone}
-            className="text-2xl text-[#6d4d38] font-bold hover:text-[#2b180a] leading-none mb-0.5"
+            aria-label="Wróć"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#6d4d38] transition-colors hover:bg-white/60 hover:text-[#2b180a]"
           >
-            ←
+            <ArrowLeft className="h-5 w-5" />
           </button>
           <ScannerIcon className="w-8 h-8 text-[#c76823]" />
           <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a]">
             Skaner Paragonów
           </h2>
         </div>
+        <div className="space-y-4">
+          <div>
+            <h3 className="ml-1 text-[1.1rem] font-bold text-[#3e2815] drop-shadow-sm sm:text-[1.2rem]">
+              Zeskanuj, sprawdź i zapisz wydatki
+            </h3>
+            <p className="ml-1 mt-1 text-sm font-medium leading-relaxed text-[#8a7262]">
+              Jeden prosty flow: dodaj plik, uruchom OCR i popraw wynik przed zapisem.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-xl border border-white/60 bg-white/55 px-3 py-3">
+              <p className={sectionTitle}>Pliki</p>
+              <p className="mt-2 text-lg font-semibold text-[#2b180a]">{currentStorageIds.length}/3</p>
+            </div>
+            <div className="rounded-xl border border-white/60 bg-white/55 px-3 py-3">
+              <p className={sectionTitle}>Pozycje</p>
+              <p className="mt-2 text-lg font-semibold text-[#2b180a]">{itemCount}</p>
+            </div>
+            <div className="rounded-xl border border-white/60 bg-white/55 px-3 py-3">
+              <p className={sectionTitle}>Status</p>
+              <p className="mt-2 text-sm font-semibold text-[#2b180a]">
+                {items ? "Do zapisu" : processing ? "Analiza" : "Gotowe"}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* IMAGE / PDF UPLOAD SECTION */}
-      <div className={cardStyle}>
-        <label className={labelStyle}>
-          Zdjęcia / PDF ({currentStorageIds.length}/3)
-        </label>
+      <div className={shellCard}>
+        <div className="mb-4 space-y-3">
+          <div>
+            <p className={sectionTitle}>Krok 1</p>
+            <h3 className="mt-2 text-lg font-semibold text-[#2b180a]">Dodaj źródła do analizy</h3>
+            <p className="mt-1 max-w-2xl text-sm font-medium leading-relaxed text-[#8a7262]">
+              Wgraj zdjęcia albo PDF. Jeśli paragon jest długi, dodaj kolejne ujęcie dopiero po pierwszym.
+            </p>
+          </div>
+          <div className="rounded-xl border border-[#f2dfcb] bg-[#fff8f2] px-3 py-2 text-xs font-bold text-[#8a7262]">
+            Zdjęcia / PDF ({currentStorageIds.length}/3)
+          </div>
+        </div>
 
         <input
           ref={fileInputRef}
@@ -599,11 +666,10 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           disabled={uploading || currentStorageIds.length >= 3}
         />
 
-        {/* Thumbnails row */}
         {previewUrls.length > 0 && (
-          <div className="flex gap-2 flex-wrap">
+          <div className="mb-4 flex flex-wrap gap-3">
             {previewUrls.map((url, i) => (
-              <div key={i} className="relative">
+              <div key={i} className="relative rounded-xl border border-white/60 bg-white/60 p-2 shadow-sm">
                 {url === "pdf" ? (
                   <div className="h-20 w-20 rounded-xl border-2 border-[#f2d6bf] shadow-sm bg-[#fff8f2] flex flex-col items-center justify-center gap-1">
                     <FileText className="w-8 h-8 text-[#cf833f]" />
@@ -626,7 +692,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                   }}
                   className="absolute -top-1.5 -right-1.5 bg-white text-red-500 rounded-full w-5 h-5 flex items-center justify-center text-xs border border-red-200 shadow-sm"
                 >
-                  ×
+                  <X className="h-3 w-3" />
                 </button>
               </div>
             ))}
@@ -634,14 +700,17 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
         )}
 
         {currentStorageIds.length > 0 && currentStorageIds.length < 3 && (
-          <div className="space-y-2">
+          <div className="mb-4 space-y-2">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
               className="w-full py-3 border-2 border-dashed border-[#d2bcad]/70 text-[#8a7262] bg-white/40 rounded-xl font-bold text-sm hover:border-[#cf833f]/50 hover:bg-white/60 transition-colors disabled:opacity-50"
             >
-              + Dodaj kolejny kadr / plik
+              <span className="flex items-center justify-center gap-2">
+                <Plus className="h-4 w-4" />
+                Dodaj kolejny kadr / plik
+              </span>
             </button>
             <p className="text-[11px] font-bold text-[#8a7262] leading-relaxed">
               Dodaj kolejny kadr dopiero po pierwszym zdjęciu, jeśli paragon nie mieści się na jednym ujęciu.
@@ -649,10 +718,9 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           </div>
         )}
 
-        {/* Upload buttons */}
-        <div className="flex gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <label
-            className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-xl transition-colors cursor-pointer ${currentStorageIds.length >= 3
+            className={`flex min-h-[112px] flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed py-4 transition-colors cursor-pointer ${currentStorageIds.length >= 3
               ? "border-[#e0d0c0] opacity-40 cursor-not-allowed"
               : "border-[#8bc5a0] bg-[#ebf7ef]/60 hover:border-[#67a57e] hover:bg-[#d8eedf]"
               }`}
@@ -673,7 +741,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           </label>
 
           <label
-            className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-xl transition-colors cursor-pointer ${currentStorageIds.length >= 3
+            className={`flex min-h-[112px] flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed py-4 transition-colors cursor-pointer ${currentStorageIds.length >= 3
               ? "border-[#e0d0c0] opacity-40 cursor-not-allowed"
               : "border-[#d2bcad] bg-white/40 hover:border-orange-400 hover:bg-orange-50/50"
               }`}
@@ -693,7 +761,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           </label>
 
           <label
-            className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed rounded-xl transition-colors cursor-pointer ${currentStorageIds.length >= 3
+            className={`flex min-h-[112px] flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed py-4 transition-colors cursor-pointer ${currentStorageIds.length >= 3
               ? "border-[#e0d0c0] opacity-40 cursor-not-allowed"
               : "border-[#b8a8d8] bg-[#f5f0ff]/60 hover:border-[#8b6fd4] hover:bg-[#ede8ff]"
               }`}
@@ -713,22 +781,30 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
         </div>
 
         {hasPdf && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#f5f0ff] border border-[#d8ccf5] text-xs font-bold text-[#6b4fa8]">
+          <div className="mt-4 flex items-center gap-2 rounded-xl border border-[#d8ccf5] bg-[#f5f0ff] px-3 py-2 text-xs font-bold text-[#6b4fa8]">
             <FileText className="w-4 h-4" />
             <span>PDF wykryty — AI wyciągnie tekst i pozycje automatycznie</span>
           </div>
         )}
 
         {uploading && (
-          <div className="flex items-center gap-2 text-sm font-medium text-orange-600 justify-center py-1">
+          <div className="flex items-center justify-center gap-2 py-3 text-sm font-medium text-orange-600">
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600" />
             Przesyłanie...
           </div>
         )}
 
-        {/* Analyse button & Animation loading state */}
         {!items && (
-          <div className="flex flex-col items-center">
+          <div className="mt-5 rounded-xl border border-[#f2dfcb] bg-white/55 p-4">
+            <div className="mb-4 space-y-2">
+              <div>
+                <p className={sectionTitle}>Krok 2</p>
+                <h4 className="mt-1 text-base font-semibold text-[#2b180a]">Uruchom analizę OCR</h4>
+              </div>
+              <div className="text-xs font-bold text-[#8a7262]">
+                AI spróbuje rozpoznać pozycje, kwoty i podpowiedzieć kategorie
+              </div>
+            </div>
             <button
               onClick={handleExtract}
               disabled={processing || !categories || currentStorageIds.length === 0}
@@ -736,10 +812,14 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
             >
               {processing ? (
                 <span className="flex items-center justify-center gap-2">
-                  Przetwarzanie AI... 🤖
+                  <Bot className="h-4 w-4" />
+                  Przetwarzanie AI...
                 </span>
               ) : (
-                `🔍 Analizuj paragony/faktury`
+                <span className="flex items-center justify-center gap-2">
+                  <Search className="h-4 w-4" />
+                  Analizuj paragony/faktury
+                </span>
               )}
             </button>
             {processing && (
@@ -760,28 +840,63 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
         )}
       </div>
 
-      {/* RESULTS SECTION */}
       {items && (
         <div className="space-y-6">
-          <div className={cardStyle}>
-            <label className={labelStyle}>Data paragonu</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className={inputStyle}
-            />
+          <div className={shellCard}>
+            <div className="space-y-4">
+              <div>
+                <p className={sectionTitle}>Krok 3</p>
+                <h3 className="mt-2 text-lg font-semibold text-[#2b180a]">Sprawdź wynik i popraw szczegóły</h3>
+                <p className="mt-1 max-w-2xl text-sm font-medium leading-relaxed text-[#8a7262]">
+                  Najpierw podsumowanie, niżej lista pozycji do szybkiej korekty.
+                </p>
+              </div>
+              <div className="w-full">
+                <label className={labelStyle}>Data paragonu</label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className={inputStyle}
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-white/60 bg-white/60 p-4">
+                <p className={sectionTitle}>Pozycje</p>
+                <p className="mt-2 text-lg font-semibold text-[#2b180a]">{items.length}</p>
+              </div>
+              <div className="rounded-xl border border-white/60 bg-white/60 p-4">
+                <p className={sectionTitle}>Niepewne kwoty</p>
+                <p className="mt-2 text-lg font-semibold text-[#2b180a]">{uncertainItemsCount}</p>
+              </div>
+              <div className="rounded-xl border border-white/60 bg-white/60 p-4">
+                <p className={sectionTitle}>Z historii</p>
+                <p className="mt-2 text-lg font-semibold text-[#2b180a]">{mappedItemsCount}</p>
+              </div>
+              <div className="rounded-xl border border-white/60 bg-white/60 p-4">
+                <p className={sectionTitle}>Paragony</p>
+                <p className="mt-2 text-lg font-semibold text-[#2b180a]">
+                  {receiptSummaries.length > 0 ? receiptSummaries.length : multiReceiptDetected ? "wiele" : 1}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <button
+                onClick={() => { setItems(null); setReceiptSummaries([]); setOpenBulkMenuId(null); }}
+                className="w-full py-2.5 border-2 border-dashed border-[#d2bcad] text-[#8a7262] rounded-xl font-bold text-sm hover:border-[#cf833f] hover:text-[#cf833f] transition-colors"
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <RefreshCcw className="h-4 w-4" />
+                  Skanuj ponownie
+                </span>
+              </button>
+            </div>
           </div>
 
-          {/* Re-analyse button */}
-          <button
-            onClick={() => { setItems(null); setReceiptSummaries([]); }}
-            className="w-full py-2.5 border-2 border-dashed border-[#d2bcad] text-[#8a7262] rounded-xl font-bold text-sm hover:border-[#cf833f] hover:text-[#cf833f] transition-colors"
-          >
-            ↩ Skanuj ponownie
-          </button>
-
-          {(receiptSummaries.length > 1 || items.some((i) => i.receiptIndex > 0)) && (
+          {multiReceiptDetected && (
             <div className="bg-[#eef4ff] border border-[#c8d8ff] rounded-xl p-3 text-xs font-bold text-[#3856a8]">
               Wykryto wiele paragonów. Zapis nastąpi sekwencyjnie, paragon po paragonie.
             </div>
@@ -817,76 +932,86 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                       : "bg-[#ebf7ef] border border-[#8bc5a0] rounded-xl p-3"
                     }
                   >
-                    <p className={isMismatch
-                      ? "text-[#a94d22] text-xs font-bold leading-relaxed"
-                      : "text-[#46825d] text-xs font-bold"
-                    }>
-                      {isMismatch ? "⚠️" : "✅"} {receipt.receiptLabel || `Paragon ${receipt.receiptIndex + 1}`}: suma pozycji ({formatAmount(itemsSum)}) vs suma towarów ({formatAmount(expected)}).
-                      {payable > 0 && (
-                        <>
-                          <br />
-                          Kwota do zapłaty: {formatAmount(payable)}
-                          {deposit > 0 ? `, w tym kaucja ${formatAmount(deposit)}` : ""}.
-                        </>
+                    <div className="flex items-start gap-2.5">
+                      {isMismatch ? (
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#a94d22]" />
+                      ) : (
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#46825d]" />
                       )}
-                      {isMismatch && (
-                        <>
-                          <br />
-                          {diffValue > 0
-                            ? `Pozycje są wyższe o ${formatAmount(diff)} — zwykle brakuje uwzględnionego rabatu/promocji.`
-                            : `Pozycje są niższe o ${formatAmount(diff)} — prawdopodobnie brakuje pozycji.`}
-                        </>
-                      )}
-                    </p>
+                      <p className={isMismatch
+                        ? "text-[#a94d22] text-xs font-bold leading-relaxed"
+                        : "text-[#46825d] text-xs font-bold leading-relaxed"
+                      }>
+                        {receipt.receiptLabel || `Paragon ${receipt.receiptIndex + 1}`}: suma pozycji ({formatAmount(itemsSum)}) vs suma towarów ({formatAmount(expected)}).
+                        {payable > 0 && (
+                          <>
+                            <br />
+                            Kwota do zapłaty: {formatAmount(payable)}
+                            {deposit > 0 ? `, w tym kaucja ${formatAmount(deposit)}` : ""}.
+                          </>
+                        )}
+                        {isMismatch && (
+                          <>
+                            <br />
+                            {diffValue > 0
+                              ? `Pozycje są wyższe o ${formatAmount(diff)} — zwykle brakuje uwzględnionego rabatu/promocji.`
+                              : `Pozycje są niższe o ${formatAmount(diff)} — prawdopodobnie brakuje pozycji.`}
+                          </>
+                        )}
+                      </p>
+                    </div>
                   </div>
                 );
               })}
             </div>
           )}
 
-          <div>
-            <div className="bg-white/40 backdrop-blur-xl border border-white/50 shadow-[0_8px_32px_rgba(180,120,80,0.2)] rounded-xl p-2 relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/40 to-white/10 pointer-events-none" />
-              <div className="relative z-10">
-                <h3 className="text-[14px] font-medium text-[#3e2815] p-4 pb-2">
+          <div className={shellCard}>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <p className={sectionTitle}>Wynik OCR</p>
+                <h3 className="mt-1 text-lg font-semibold text-[#2b180a]">
+                  Rozpoznane pozycje ({items.length})
+                </h3>
+              </div>
+              <div className="rounded-full bg-[#fff1e1] px-3 py-1.5 text-xs font-bold text-[#b55b1d]">
+                Edytowalne
+              </div>
+            </div>
+            <div className="overflow-visible rounded-xl ">
+              <div className="border-b border-[#f2dfcb] px-4 py-4">
+                <h3 className="text-[14px] font-medium text-[#3e2815]">
                   OCR: Tekst wyodrębniony! ({items.length})
                 </h3>
-                
-                {expectedTotal && receiptSummaries.length === 0 && (
-                  (() => {
-                    const sum = items.reduce((acc, curr) => {
-                      const val = parseFloat((curr.amount || "").replace(",", "."));
-                      return acc + (isNaN(val) ? 0 : val);
-                    }, 0);
-                    const expected = parseFloat(expectedTotal.replace(",", "."));
-                    const diffValue = sum - expected;
-                    const diff = Math.abs(diffValue);
-                    
-                    if (diff > 0.05) {
-                      const overByDiscount = diffValue > 0;
-                      return (
-                        <div className="mx-4 mb-4 bg-[#fff2ec] border border-[#ffc2af] rounded-xl p-3 shadow-sm">
-                          <p className="text-[#a94d22] text-xs font-bold leading-relaxed">
-                            ⚠️ Suma pozycji ({sum.toFixed(2)}) nie zgadza się z sumą towarów ({expected.toFixed(2)}).
-                            <br />
-                            {overByDiscount
-                              ? `Pozycje są wyższe o ${diff.toFixed(2)} — najczęściej oznacza to brak uwzględnionych rabatów/promocji.`
-                              : `Pozycje są niższe o ${diff.toFixed(2)} — możliwe, że brakuje jednej lub więcej pozycji.`}
-                          </p>
-                        </div>
-                      );
-                    }
-                    return (
-                        <div className="mx-4 mb-4 bg-[#ebf7ef] border border-[#8bc5a0] rounded-xl p-3 shadow-sm">
-                          <p className="text-[#46825d] text-xs font-bold">
-                            ✅ Suma pozycji ({sum.toFixed(2)}) zgadza się z sumą towarów!
-                          </p>
-                        </div>
-                    );
-                  })()
-                )}
+              </div>
 
-                <div className="space-y-4">
+              {expectedComparison && (
+                expectedComparison.isMismatch ? (
+                  <div className="mx-4 mt-4 rounded-xl border border-[#ffc2af] bg-[#fff2ec] p-3 shadow-sm">
+                    <div className="flex items-start gap-2.5">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#a94d22]" />
+                      <p className="text-[#a94d22] text-xs font-bold leading-relaxed">
+                        Suma pozycji ({expectedComparison.sum.toFixed(2)}) nie zgadza się z sumą towarów ({expectedComparison.expected.toFixed(2)}).
+                        <br />
+                        {expectedComparison.diffValue > 0
+                          ? `Pozycje są wyższe o ${expectedComparison.diff.toFixed(2)} — najczęściej oznacza to brak uwzględnionych rabatów/promocji.`
+                          : `Pozycje są niższe o ${expectedComparison.diff.toFixed(2)} — możliwe, że brakuje jednej lub więcej pozycji.`}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mx-4 mt-4 bg-[#ebf7ef] border border-[#8bc5a0] rounded-xl p-3 shadow-sm">
+                    <div className="flex items-start gap-2.5">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#46825d]" />
+                      <p className="text-[#46825d] text-xs font-bold">
+                        Suma pozycji ({expectedComparison.sum.toFixed(2)}) zgadza się z sumą towarów!
+                      </p>
+                    </div>
+                  </div>
+                )
+              )}
+
+              <div className="py-2">
                   {items.map((item, index) => {
                     const selectedCat = categories?.find((c) => c._id === item.categoryId);
                     const uncertainPrice = isAmountUncertain(item.amount);
@@ -895,47 +1020,89 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                     return (
                       <div
                         key={item.id}
-                        className="bg-white/60 backdrop-blur-md rounded-xl p-2 shadow-sm border border-white/60"
+                        className={`relative overflow-visible border-b border-[#f2dfcb] py-4 last:border-b-0 ${
+                          openBulkMenuId === item.id ? "z-30" : "z-0"
+                        }`}
                       >
                         <div className="flex justify-between items-start mb-3">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[10px] font-bold text-[#b89b87] bg-[#f5e5cf]/50 px-2 py-1 rounded-xl">
+                            <span className="text-[11px] font-bold text-[#b89b87] bg-[#f5e5cf]/50 px-2 py-1 rounded-xl">
                               Pozycja {index + 1}
                             </span>
                             {(receiptSummaries.length > 1 || item.receiptIndex > 0) && (
-                              <span className="text-[10px] font-bold text-[#3856a8] bg-[#eef4ff] border border-[#c8d8ff] px-2 py-1 rounded-xl">
+                              <span className="text-[11px] font-bold text-[#3856a8] bg-[#eef4ff] border border-[#c8d8ff] px-2 py-1 rounded-xl">
                                 {item.receiptLabel || `Paragon ${item.receiptIndex + 1}`}
                               </span>
                             )}
                             {item.fromMapping && (
-                              <span className="text-[10px] font-bold text-[#46825d] bg-[#ebf7ef] border border-[#8bc5a0] px-2 py-1 rounded-xl">
-                                Z historii 🧠
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#46825d] bg-[#ebf7ef] border border-[#8bc5a0] px-2 py-1 rounded-xl">
+                                <Brain className="h-3 w-3" />
+                                Z historii
                               </span>
                             )}
                             {uncertainPrice && (
-                              <span className="text-[10px] font-bold text-[#9a2b00] bg-[#ffe1d6] border border-[#ffc2af] px-2 py-1 rounded-xl">
+                              <span className="text-[11px] font-bold text-[#9a2b00] bg-[#ffe1d6] border border-[#ffc2af] px-2 py-1 rounded-xl">
                                 Niepewna cena
                               </span>
                             )}
                             {isDiscountRow && (
-                              <span className="text-[10px] font-bold text-[#2c7a4b] bg-[#e8f6ed] border border-[#9bd1af] px-2 py-1 rounded-xl">
+                              <span className="text-[11px] font-bold text-[#2c7a4b] bg-[#e8f6ed] border border-[#9bd1af] px-2 py-1 rounded-xl">
                                 Rabat / opust
                               </span>
                             )}
                           </div>
-                          <IconTrashButton
-                            onClick={() => setPendingRemoveItemId(item.id)}
-                            title="Usuń pozycję"
-                            className="h-7 w-7 text-red-400 hover:bg-red-50 hover:text-red-500"
-                          />
+                          <div className="relative z-20 flex flex-wrap ">
+                            {items.length > 1 && (
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() => setOpenBulkMenuId(openBulkMenuId === item.id ? null : item.id)}
+                                  disabled={!item.categoryId || !item.subcategoryId}
+                                  className="inline-flex flex-wrap gap-1.5 rounded-full border border-[#ead8c5] bg-[#fff8f2] px-2.5 py-1 text-[11px] font-bold text-[#8a7262] transition-colors hover:border-[#cf833f] hover:text-[#cf833f] disabled:opacity-40"
+                                >
+                                  <Sparkles className="h-3.5 w-3.5" />
+                                  Akcje
+                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                </button>
+
+                                {openBulkMenuId === item.id && item.categoryId && item.subcategoryId && (
+                                  <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-60 rounded-xl border border-[#efd9c2] bg-[#fffaf4] p-1.5 shadow-[0_10px_24px_rgba(180,120,80,0.18)]">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        applyCategoryToRemainingItems(item.id);
+                                        setOpenBulkMenuId(null);
+                                      }}
+                                      className="flex w-full items-start gap-2 rounded-xl px-3 py-2 text-left transition-colors hover:bg-[#fff1e4]"
+                                    >
+                                      <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[#cf833f]" />
+                                      <span>
+                                        <span className="block text-[11px] font-bold text-[#6d4d38]">
+                                          Przypisz do pozostałych
+                                        </span>
+                                        <span className="block text-[10px] font-medium leading-relaxed text-[#9c806c]">
+                                          Skopiuj kategorię i podkategorię do reszty pozycji z tego skanu.
+                                        </span>
+                                      </span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            <IconTrashButton
+                              onClick={() => setPendingRemoveItemId(item.id)}
+                              title="Usuń pozycję"
+                              className="h-7 w-7 text-red-400 hover:bg-red-50 hover:text-red-500  flex-wrap"
+                            />
+                          </div>
                         </div>
 
-                        <div className="flex gap-2 mb-3">
+                        <div className="mb-3 flex gap-2">
                           <input
                             type="text"
                             value={item.description}
                             onChange={(e) => updateItem(item.id, { description: e.target.value })}
-                            className="flex-1 text-sm bg-white border border-[#f5e5cf] rounded-xl px-3 py-2 outline-none focus:border-[#cf833f] font-bold text-[#3e2815]"
+                            className="flex-1 rounded-xl border border-[#f5e5cf] bg-white/60 px-3 py-2 text-sm font-bold text-[#3e2815] outline-none focus:border-[#cf833f]"
                             placeholder="Opis produktu"
                           />
                           <div className="relative w-[8.5rem]">
@@ -944,7 +1111,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                               inputMode="decimal"
                               value={item.amount}
                               onChange={(e) => updateItem(item.id, { amount: e.target.value })}
-                              className={`w-full text-[15px] bg-white border rounded-xl px-3 py-2.5  outline-none font-bold text-right tabular-nums ${uncertainPrice
+                              className={`w-full rounded-xl border bg-white/60 px-3 py-2.5 text-[15px] font-bold text-right tabular-nums outline-none ${uncertainPrice
                                 ? "border-[#f3a086] text-[#b74210] focus:border-[#d95d27]"
                                 : isDiscountRow
                                   ? "border-[#9bd1af] text-[#2c7a4b] focus:border-[#4f9a6e]"
@@ -952,8 +1119,6 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                                 }`}
                               placeholder="0.00"
                             />
-
-
                           </div>
                         </div>
 
@@ -963,9 +1128,9 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                           </p>
                         )}
 
-                        <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div className="mt-2 grid grid-cols-2 gap-2">
                           <select
-                            className="w-full text-xs bg-white border border-[#f5e5cf] rounded-xl px-2 py-2.5 outline-none font-bold text-[#6d4d38]"
+                            className="w-full text-xs bg-white/60 border border-[#f5e5cf] rounded-xl px-2 py-2.5 outline-none font-bold text-[#6d4d38]"
                             value={item.categoryId || ""}
                             onChange={(e) =>
                               updateItem(item.id, {
@@ -985,7 +1150,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                           </select>
 
                           <select
-                            className="w-full text-xs bg-white border border-[#f5e5cf] rounded-xl px-2 py-2.5 outline-none font-bold text-[#6d4d38]"
+                            className="w-full text-xs bg-white/60 border border-[#f5e5cf] rounded-xl px-2 py-2.5 outline-none font-bold text-[#6d4d38]"
                             value={item.subcategoryId || ""}
                             onChange={(e) =>
                               updateItem(item.id, {
@@ -1005,31 +1170,12 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                           </select>
                         </div>
 
-                        {items.length > 1 && (
-                          <div className="flex gap-2 mt-2">
-                            <button
-                              type="button"
-                              onClick={() => applyCategoryToItems(item.id, "remaining")}
-                              disabled={!item.categoryId || !item.subcategoryId}
-                              className="flex-1 rounded-xl border border-[#ead8c5] bg-[#fff8f2] px-3 py-2 text-[11px] font-bold text-[#8a7262] transition-colors hover:border-[#cf833f] hover:text-[#cf833f] disabled:opacity-40"
-                            >
-                              Przypisz do pozostałych
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => applyCategoryToItems(item.id, "all")}
-                              disabled={!item.categoryId || !item.subcategoryId}
-                              className="flex-1 rounded-xl border border-[#f3d3b6] bg-[#fff3e7] px-3 py-2 text-[11px] font-bold text-[#b86a28] transition-colors hover:border-[#cf833f] hover:text-[#cf833f] disabled:opacity-40"
-                            >
-                              Przypisz do wszystkich
-                            </button>
-                          </div>
-                        )}
                       </div>
                     );
                   })}
-                </div>
+              </div>
 
+              <div className="border-t border-[#f2dfcb] p-4">
                 <button
                   onClick={() =>
                     setItems([
@@ -1044,9 +1190,12 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                       },
                     ])
                   }
-                  className="mt-4 w-full py-3 border-2 border-dashed border-[#d2bcad]/60 text-[#8a7262] bg-white/30 rounded-xl font-bold text-sm hover:border-[#cf833f]/50 hover:bg-white/50 transition-colors"
+                  className="w-full py-3 border-2 border-dashed border-[#d2bcad]/60 text-[#8a7262] bg-white/30 rounded-xl font-bold text-sm hover:border-[#cf833f]/50 hover:bg-white/50 transition-colors"
                 >
-                  + Dodaj kolejną pozycję ręcznie
+                  <span className="flex items-center justify-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    Dodaj kolejną pozycję ręcznie
+                  </span>
                 </button>
               </div>
             </div>
@@ -1057,7 +1206,12 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
             disabled={saving || items.length === 0}
             className="w-full py-4 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-medium text-[16px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none mt-2 disabled:opacity-50"
           >
-            {saving ? "Poczekaj..." : `💾 Zapisz ${items.length} wydatków`}
+            {saving ? "Poczekaj..." : (
+              <span className="flex items-center justify-center gap-2">
+                <Save className="h-4 w-4" />
+                Zapisz {items.length} wydatków
+              </span>
+            )}
           </button>
         </div>
       )}

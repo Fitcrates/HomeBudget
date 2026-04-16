@@ -1,7 +1,8 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { assertMember } from "./households";
+import { assertMember, getEffectiveFinancialRole } from "./households";
+import { assertWithinPersonalBudgetLimit, getBudgetPeriodRange } from "./budgets";
 
 function monthRange(dateMs: number) {
   const date = new Date(dateMs);
@@ -138,6 +139,13 @@ export const create = mutation({
       throw new Error("Uwaga: Znaleziono już identyczny wydatek abonamentowy (ta sama kwota i kategoria) w tym miesiącu.");
     }
 
+    await assertWithinPersonalBudgetLimit(ctx, {
+      householdId: args.householdId,
+      userId,
+      date: args.date,
+      amountDelta: args.amount,
+    });
+
     return await ctx.db.insert("expenses", {
       ...args,
       userId,
@@ -193,6 +201,57 @@ export const createMany = mutation({
     }
 
     const insertedIds: any[] = [];
+    const batchSpendByPeriodKey = new Map<string, number>();
+
+    const membership = await ctx.db
+      .query("memberships")
+      .withIndex("by_household_and_user", (q) =>
+        q.eq("householdId", args.householdId).eq("userId", userId)
+      )
+      .unique();
+    const personalBudget = await ctx.db
+      .query("person_budgets")
+      .withIndex("by_household_and_user", (q) =>
+        q.eq("householdId", args.householdId).eq("userId", userId)
+      )
+      .unique();
+
+    if (membership && getEffectiveFinancialRole(membership as any) === "child" && personalBudget) {
+      for (const item of args.items) {
+        const range = getBudgetPeriodRange(personalBudget.period, item.date);
+        const periodKey = `${range.start}:${range.end}`;
+
+        if (!batchSpendByPeriodKey.has(periodKey)) {
+          const existingExpenses = await ctx.db
+            .query("expenses")
+            .withIndex("by_household_user_date", (q) =>
+              q.eq("householdId", args.householdId)
+                .eq("userId", userId)
+                .gte("date", range.start)
+                .lte("date", range.end)
+            )
+            .collect();
+
+          batchSpendByPeriodKey.set(
+            periodKey,
+            existingExpenses.reduce((sum, expense) => sum + expense.amount, 0)
+          );
+        }
+
+        const currentSpent = batchSpendByPeriodKey.get(periodKey) ?? 0;
+        const nextSpent = currentSpent + item.amount;
+        if (nextSpent > personalBudget.limitAmount) {
+          const remaining = Math.max(personalBudget.limitAmount - currentSpent, 0);
+          throw new Error(
+            `Przekroczysz osobisty limit wydatków. Pozostało ${(remaining / 100).toFixed(2)} w tym ${
+              personalBudget.period === "month" ? "miesiącu" : "tygodniu"
+            }.`
+          );
+        }
+
+        batchSpendByPeriodKey.set(periodKey, nextSpent);
+      }
+    }
 
     for (const item of args.items) {
       const date = new Date(item.date);
@@ -254,6 +313,17 @@ export const update = mutation({
     const expense = await ctx.db.get(args.expenseId);
     if (!expense) throw new Error("Expense not found");
     await assertMember(ctx, expense.householdId, userId);
+
+    const nextAmount = args.amount ?? expense.amount;
+    const nextDate = args.date ?? expense.date;
+
+    await assertWithinPersonalBudgetLimit(ctx, {
+      householdId: expense.householdId,
+      userId: expense.userId,
+      date: nextDate,
+      amountDelta: nextAmount,
+      excludeExpenseId: expense._id,
+    });
 
     const { expenseId, ...updates } = args;
     await ctx.db.patch(args.expenseId, updates);

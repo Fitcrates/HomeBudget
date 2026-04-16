@@ -76,7 +76,7 @@ export function BadgesScreen({ householdId }: Props) {
               onClick={() => setTab(t)}
               className={`flex-1 py-2.5 text-[13px] font-medium rounded-xl transition-all ${
                 tab === t
-                  ? "bg-white text-[#cf833f] shadow-sm ring-1 ring-[#ede0d4]/60"
+                  ? "bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white shadow-sm ring-1 ring-[#ede0d4]/60"
                   : "text-[#aa9382] hover:text-[#cf833f] hover:bg-[#f6eedf]"
               }`}
             >

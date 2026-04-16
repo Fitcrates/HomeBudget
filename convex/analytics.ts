@@ -1,7 +1,47 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { assertMember } from "./households";
+import { assertMember, getEffectiveFinancialRole } from "./households";
+import { getBudgetPeriodRange } from "./budgets";
+
+function getMonthRange(dateMs: number) {
+  const date = new Date(dateMs);
+  return {
+    start: new Date(date.getFullYear(), date.getMonth(), 1).getTime(),
+    end: new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999).getTime(),
+  };
+}
+
+function getExpenseTransactionKey(expense: {
+  _id: string;
+  userId: string;
+  date: number;
+  receiptImageId?: string | null;
+  ocrRawText?: string | null;
+}) {
+  if (expense.receiptImageId) {
+    return `receipt:${expense.receiptImageId}`;
+  }
+
+  if (expense.ocrRawText) {
+    const dayKey = new Date(expense.date).toISOString().split("T")[0];
+    return `ocr:${expense.userId}:${dayKey}:${expense.ocrRawText}`;
+  }
+
+  return `manual:${expense._id}`;
+}
+
+function countTransactions(
+  expenses: Array<{
+    _id: string;
+    userId: string;
+    date: number;
+    receiptImageId?: string | null;
+    ocrRawText?: string | null;
+  }>
+) {
+  return new Set(expenses.map(getExpenseTransactionKey)).size;
+}
 
 export const summary = query({
   args: {
@@ -23,7 +63,7 @@ export const summary = query({
       (e) => e.date >= args.dateFrom && e.date <= args.dateTo
     );
     const total = filtered.reduce((sum, e) => sum + e.amount, 0);
-    return { total, count: filtered.length };
+    return { total, count: countTransactions(filtered as any) };
   },
 });
 
@@ -205,6 +245,7 @@ export const householdMemberStats = query({
         return {
           userId: m.userId,
           role: m.role,
+          financialRole: getEffectiveFinancialRole(m as any),
           displayName:
             profile?.displayName || user?.name || user?.email?.split("@")[0] || "Nieznany",
           email: user?.email || "",
@@ -217,5 +258,106 @@ export const householdMemberStats = query({
         };
       })
     );
+  },
+});
+
+export const memberBudgetOverview = query({
+  args: { householdId: v.id("households") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    await assertMember(ctx, args.householdId, userId);
+
+    const memberships = await ctx.db
+      .query("memberships")
+      .withIndex("by_household", (q) => q.eq("householdId", args.householdId))
+      .collect();
+    const personBudgets = await ctx.db
+      .query("person_budgets")
+      .withIndex("by_household", (q) => q.eq("householdId", args.householdId))
+      .collect();
+
+    const now = Date.now();
+    const monthRange = getMonthRange(now);
+    const earliestBudgetStart = personBudgets.reduce((earliest, budget) => {
+      const start = getBudgetPeriodRange(budget.period, now).start;
+      return Math.min(earliest, start);
+    }, monthRange.start);
+
+    const recentExpenses = await ctx.db
+      .query("expenses")
+      .withIndex("by_household_and_date", (q) =>
+        q.eq("householdId", args.householdId)
+          .gte("date", earliestBudgetStart)
+          .lte("date", now)
+      )
+      .collect();
+
+    return Promise.all(
+      memberships.map(async (membership) => {
+        const user = await ctx.db.get(membership.userId);
+        const profile = await ctx.db
+          .query("user_profiles")
+          .withIndex("by_user", (q) => q.eq("userId", membership.userId))
+          .unique();
+        const avatarUrl = profile?.avatarImageId
+          ? await ctx.storage.getUrl(profile.avatarImageId)
+          : null;
+
+        const monthlySpent = recentExpenses
+          .filter((expense) =>
+            expense.userId === membership.userId &&
+            expense.date >= monthRange.start &&
+            expense.date <= monthRange.end
+          )
+          .reduce((sum, expense) => sum + expense.amount, 0);
+
+        const personalBudget = personBudgets.find((budget) => budget.userId === membership.userId) ?? null;
+        const budgetRange = personalBudget ? getBudgetPeriodRange(personalBudget.period, now) : null;
+        const personalBudgetSpent = personalBudget && budgetRange
+          ? recentExpenses
+              .filter((expense) =>
+                expense.userId === membership.userId &&
+                expense.date >= budgetRange.start &&
+                expense.date <= budgetRange.end
+              )
+              .reduce((sum, expense) => sum + expense.amount, 0)
+          : null;
+        const personalBudgetRemaining =
+          personalBudget && personalBudgetSpent !== null
+            ? personalBudget.limitAmount - personalBudgetSpent
+            : null;
+        const personalBudgetPct =
+          personalBudget && personalBudgetSpent !== null && personalBudget.limitAmount > 0
+            ? (personalBudgetSpent / personalBudget.limitAmount) * 100
+            : null;
+
+        return {
+          userId: membership.userId,
+          accessRole: membership.role,
+          financialRole: getEffectiveFinancialRole(membership as any),
+          displayName:
+            profile?.displayName || user?.name || user?.email?.split("@")[0] || "Nieznany",
+          email: user?.email || "",
+          avatarUrl,
+          monthlySpent,
+          personalBudget: personalBudget
+            ? {
+                limitAmount: personalBudget.limitAmount,
+                period: personalBudget.period,
+                updatedAt: personalBudget.updatedAt,
+              }
+            : null,
+          personalBudgetSpent,
+          personalBudgetRemaining,
+          personalBudgetPct,
+          isOverBudget: Boolean(
+            personalBudget &&
+              personalBudgetSpent !== null &&
+              personalBudgetSpent > personalBudget.limitAmount
+          ),
+        };
+      })
+    ).then((items) => items.sort((a, b) => b.monthlySpent - a.monthlySpent));
   },
 });

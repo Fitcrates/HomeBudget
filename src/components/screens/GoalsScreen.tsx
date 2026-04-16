@@ -1,4 +1,8 @@
 ﻿import { useState } from "react";
+export { GoalsScreen } from "./GoalsScreenV2";
+
+// Legacy implementation kept below for reference during rollout.
+
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -14,12 +18,11 @@ interface Props {
   currency: string;
 }
 
-export function GoalsScreen({ householdId, currency }: Props) {
+function LegacyGoalsScreen({ householdId, currency }: Props) {
   const goals = useQuery(api.goals.listForHousehold, { householdId });
   const [showAdd, setShowAdd] = useState(false);
 
-  const cardClass =
-    "bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
+  const cardClass = "app-card";
 
   return (
     <div className="space-y-6 pb-6">

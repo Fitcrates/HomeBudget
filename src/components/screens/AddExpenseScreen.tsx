@@ -148,7 +148,7 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
     }
   }
 
-  const cardStyle = "bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)] space-y-3";
+  const cardStyle = "app-card space-y-3";
   const labelStyle = "block text-[11px] font-bold text-[#b89b87] uppercase tracking-wider mb-2 ml-1 drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]";
   const inputStyle = "w-full text-base bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white transition-all text-[#2b180a] font-bold shadow-inner placeholder-[#e0c9b7]";
 
@@ -164,7 +164,7 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Receipt / Uploads (Moved to top) */}
-        <div className="bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)] space-y-4">
+        <div className="app-card space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <div className="bg-gradient-to-br from-[#de9241] to-[#ca782a] p-2 rounded-xl text-white shadow-sm">
               <CloudUpload className="w-5 h-5" />
@@ -302,7 +302,7 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
                 return (
                   <div
                     key={cat._id}
-                    className={`transition-all rounded-[1.2rem] border overflow-hidden ${
+                    className={`transition-all rounded-xl border overflow-hidden ${
                       isOpen
                         ? "bg-white/80 border-[#de9241]/30 shadow-sm"
                         : "bg-white/40 border-white/60 hover:bg-white/60"

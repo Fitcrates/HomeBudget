@@ -21,6 +21,7 @@ interface Household {
   currency: string;
   inviteCode: string;
   role: "owner" | "member";
+  financialRole?: "parent" | "partner" | "child";
 }
 
 interface Props {
@@ -34,6 +35,8 @@ type Tab = "household" | "budget" | "badges" | "profile";
 export function HouseholdScreen({ household, households, onSwitchHousehold }: Props) {
   const [tab, setTab] = useState<Tab>("household");
   const members = useQuery(api.households.getMembers, { householdId: household._id });
+  const memberBudgetOverview = useQuery(api.analytics.memberBudgetOverview, { householdId: household._id });
+  const myMembership = useQuery(api.households.getMyMembership, { householdId: household._id });
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
   const [showCode, setShowCode] = useState(false);
@@ -42,6 +45,12 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
   const inviteByEmail = useMutation(api.households.inviteByEmail);
   const removeMember = useMutation(api.households.removeMember);
   const regenerateCode = useMutation(api.households.regenerateInviteCode);
+  const updateFinancialRole = useMutation(api.households.updateFinancialRole);
+  const canManageFinancialRoles =
+    myMembership?.role === "owner" || myMembership?.financialRole === "parent";
+  const memberBudgetMap = new Map(
+    (memberBudgetOverview ?? []).map((member) => [String(member.userId), member])
+  );
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -107,6 +116,44 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
     return <AvatarMaleIcon className="w-14 h-14" />;
   }
 
+  function financialRoleLabel(role?: "parent" | "partner" | "child") {
+    switch (role) {
+      case "parent":
+        return "Rodzic";
+      case "child":
+        return "Dziecko";
+      default:
+        return "Partner";
+    }
+  }
+
+  function financialRoleBadge(role?: "parent" | "partner" | "child") {
+    switch (role) {
+      case "parent":
+        return "bg-[#fff1df] text-[#b86a28] border-[#f3d3b6]";
+      case "child":
+        return "bg-[#eef4ff] text-[#3856a8] border-[#c8d8ff]";
+      default:
+        return "bg-[#ebf7ef] text-[#46825d] border-[#8bc5a0]";
+    }
+  }
+
+  async function handleFinancialRoleChange(
+    targetUserId: Id<"users">,
+    financialRole: "parent" | "partner" | "child"
+  ) {
+    try {
+      await updateFinancialRole({
+        householdId: household._id,
+        targetUserId,
+        financialRole,
+      });
+      toast.success("Rola finansowa została zaktualizowana.");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  }
+
   return (
     <div className="space-y-0 pb-6">
       <div className="pt-2 pb-4">
@@ -140,7 +187,7 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
         </div>
       </div>
 
-      {tab === "profile" && <ProfileSettingsScreen />}
+      {tab === "profile" && <ProfileSettingsScreen householdId={household._id} />}
       {tab === "badges" && <BadgesScreen householdId={household._id} />}
       {tab === "budget" && (
         <BudgetSettingsScreen householdId={household._id} currency={household.currency} onBack={() => setTab("household")} />
@@ -159,22 +206,44 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
               ) : (
                 <div className="grid grid-cols-3 gap-x-4 gap-y-6 place-items-center">
                   {members.map((m) => {
-                    const name = getFirstName(m.user?.name ?? m.user?.email);
+                    const fullName = m.displayName || m.user?.name || m.user?.email;
+                    const name = getFirstName(fullName);
+                    const stats = memberBudgetMap.get(String(m.userId));
                     return (
                       <div key={m._id} className="w-[90px] flex flex-col items-center gap-2 group relative">
-                        <div
-                          className={`w-[72px] h-[72px] rounded-full flex items-center justify-center shadow-sm border-[3px] border-[#fdf9f1] ring-1 ring-[#eabdb1] ${getAvatarColor(
-                            name
-                          )}`}
-                        >
-                          {renderAvatarContent(name)}
-                        </div>
+                        {m.avatarUrl ? (
+                          <img
+                            src={m.avatarUrl}
+                            alt={name}
+                            className="w-[72px] h-[72px] rounded-full object-cover shadow-sm border-[3px] border-[#fdf9f1] ring-1 ring-[#eabdb1]"
+                          />
+                        ) : (
+                          <div
+                            className={`w-[72px] h-[72px] rounded-full flex items-center justify-center shadow-sm border-[3px] border-[#fdf9f1] ring-1 ring-[#eabdb1] ${getAvatarColor(
+                              name
+                            )}`}
+                          >
+                            {renderAvatarContent(name)}
+                          </div>
+                        )}
                         <span
                           className="w-[86px] text-center truncate text-sm font-bold text-[#3e2815]"
                           title={name}
                         >
                           {name}
                         </span>
+                        <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${financialRoleBadge(m.financialRole)}`}>
+                          {financialRoleLabel(m.financialRole)}
+                        </span>
+                        {stats && (
+                          <span className="text-[10px] font-bold text-[#8a7262] text-center">
+                            {new Intl.NumberFormat("pl-PL", {
+                              style: "currency",
+                              currency: household.currency,
+                              maximumFractionDigits: 0,
+                            }).format(stats.monthlySpent / 100)}
+                          </span>
+                        )}
 
                         {household.role === "owner" && m.role !== "owner" && (
                           <IconTrashButton
@@ -254,6 +323,162 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
               )}
             </div>
           </div>
+
+          {members && memberBudgetOverview && (
+            <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-5 shadow-[0_8px_32px_rgba(180,120,80,0.15)] space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-[16px] font-medium text-[#2b180a]">Budżety per osoba</h3>
+                  <p className="text-xs font-bold text-[#8a7262]">Kto ile wydaje i kto przekracza limit</p>
+                </div>
+                <span className="rounded-full bg-[#fff3e7] px-3 py-1 text-[11px] font-bold text-[#b86a28]">
+                  Ten miesiąc
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {memberBudgetOverview.map((member) => (
+                  <div
+                    key={member.userId}
+                    className="rounded-xl border border-white/60 bg-white/60 p-3 shadow-sm"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-bold text-[#2b180a] truncate">{member.displayName}</p>
+                          <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${financialRoleBadge(member.financialRole)}`}>
+                            {financialRoleLabel(member.financialRole)}
+                          </span>
+                          {member.isOverBudget && (
+                            <span className="px-2 py-0.5 rounded-full border border-[#ffc2af] bg-[#fff2ec] text-[10px] font-bold text-[#a94d22]">
+                              Przekroczony limit
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] font-bold text-[#8a7262]">
+                          Wydatki: {new Intl.NumberFormat("pl-PL", {
+                            style: "currency",
+                            currency: household.currency,
+                          }).format(member.monthlySpent / 100)}
+                        </p>
+                      </div>
+
+                      {member.personalBudget && member.personalBudgetSpent !== null ? (
+                        <div className="text-right">
+                          <p className="text-[11px] font-bold text-[#b89b87]">
+                            Limit {member.personalBudget.period === "month" ? "miesięczny" : "tygodniowy"}
+                          </p>
+                          <p className="text-sm font-bold text-[#cf833f]">
+                            {new Intl.NumberFormat("pl-PL", {
+                              style: "currency",
+                              currency: household.currency,
+                            }).format(member.personalBudget.limitAmount / 100)}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] font-bold text-[#b89b87]">Brak limitu</p>
+                      )}
+                    </div>
+
+                    {member.personalBudget && member.personalBudgetSpent !== null && (
+                      <div className="mt-3 space-y-1.5">
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-[#f5e5cf]">
+                          <div
+                            className={`h-full rounded-full ${
+                              member.isOverBudget
+                                ? "bg-red-400"
+                                : (member.personalBudgetPct ?? 0) >= 80
+                                  ? "bg-yellow-400"
+                                  : "bg-[#67c48a]"
+                            }`}
+                            style={{ width: `${Math.min(member.personalBudgetPct ?? 0, 100)}%` }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] font-bold text-[#8a7262]">
+                          <span>
+                            Wydano {new Intl.NumberFormat("pl-PL", {
+                              style: "currency",
+                              currency: household.currency,
+                            }).format((member.personalBudgetSpent ?? 0) / 100)}
+                          </span>
+                          <span>
+                            {member.personalBudgetRemaining !== null && member.personalBudgetRemaining >= 0
+                              ? `Zostało ${new Intl.NumberFormat("pl-PL", {
+                                  style: "currency",
+                                  currency: household.currency,
+                                }).format(member.personalBudgetRemaining / 100)}`
+                              : `Ponad limit o ${new Intl.NumberFormat("pl-PL", {
+                                  style: "currency",
+                                  currency: household.currency,
+                                }).format(Math.abs(member.personalBudgetRemaining ?? 0) / 100)}`}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {members && (
+            <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-5 shadow-[0_8px_32px_rgba(180,120,80,0.15)] space-y-4">
+              <div>
+                <h3 className="text-[16px] font-medium text-[#2b180a]">Role finansowe</h3>
+                <p className="text-xs font-bold text-[#8a7262]">
+                  Rodzic kontroluje, dziecko działa na limicie, partner współdzieli finanse.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {members.map((member) => (
+                  <div
+                    key={member._id}
+                    className="rounded-xl border border-white/60 bg-white/60 p-3 shadow-sm"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-[#2b180a] truncate">{member.displayName}</p>
+                        <p className="text-[11px] font-bold text-[#8a7262]">
+                          {member.role === "owner" ? "Właściciel gospodarstwa" : "Członek gospodarstwa"}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full border text-[11px] font-bold ${financialRoleBadge(member.financialRole)}`}>
+                        {financialRoleLabel(member.financialRole)}
+                      </span>
+                    </div>
+
+                    {member.role === "owner" ? (
+                      <p className="mt-3 text-[11px] font-bold text-[#b89b87]">
+                        Właściciel zawsze ma rolę finansową rodzica.
+                      </p>
+                    ) : canManageFinancialRoles ? (
+                      <div className="mt-3 flex gap-2">
+                        {(["parent", "partner", "child"] as const).map((role) => (
+                          <button
+                            key={role}
+                            type="button"
+                            onClick={() => handleFinancialRoleChange(member.userId, role)}
+                            className={`flex-1 rounded-xl border px-3 py-2 text-[11px] font-bold transition-all ${
+                              member.financialRole === role
+                                ? `${financialRoleBadge(role)} shadow-sm`
+                                : "border-[#ead8c5] bg-[#fff8f2] text-[#8a7262] hover:border-[#cf833f] hover:text-[#cf833f]"
+                            }`}
+                          >
+                            {financialRoleLabel(role)}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-[11px] font-bold text-[#b89b87]">
+                        Tylko właściciel lub rodzic może zmieniać role finansowe.
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="pt-2">
             <h3 className="text-sm font-bold text-[#3e2815] mb-4 ml-1">Wybierz gospodarstwo</h3>

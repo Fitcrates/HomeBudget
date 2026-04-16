@@ -17,8 +17,16 @@ const inputStyle =
 const btnPrimary =
   "w-full py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-medium text-[14px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none disabled:opacity-50";
 
-export function ProfileSettingsScreen() {
+interface Props {
+  householdId?: Id<"households">;
+}
+
+export function ProfileSettingsScreen({ householdId }: Props) {
   const myProfile = useQuery(api.profile.getMyProfile);
+  const myMembership = useQuery(
+    api.households.getMyMembership,
+    householdId ? { householdId } : "skip"
+  );
   const updateMyProfile = useMutation(api.profile.updateMyProfile);
   const removeAvatar = useMutation(api.profile.removeAvatar);
   const generateAvatarUploadUrl = useMutation(api.profile.generateAvatarUploadUrl);
@@ -158,6 +166,17 @@ export function ProfileSettingsScreen() {
   }
   const strength = passwordStrength(newPassword);
 
+  function financialRoleLabel(role?: "parent" | "partner" | "child") {
+    switch (role) {
+      case "parent":
+        return "Rodzic";
+      case "child":
+        return "Dziecko";
+      default:
+        return "Partner";
+    }
+  }
+
   return (
     <div className="space-y-6 pb-6">
       {/* Header */}
@@ -170,6 +189,27 @@ export function ProfileSettingsScreen() {
           <p className="text-sm text-[#6d4d38] font-bold ml-1 mt-1 drop-shadow-sm">{myProfile.email}</p>
         )}
       </div>
+
+      {myMembership && (
+        <div className={`${cardStyle} space-y-2`}>
+          <p className={labelStyle}>Rola finansowa</p>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-[#2b180a]">{financialRoleLabel(myMembership.financialRole)}</p>
+              <p className="text-xs font-medium text-[#8a7262]">
+                {myMembership.financialRole === "parent"
+                  ? "Możesz kontrolować finanse domowe i limity dzieci."
+                  : myMembership.financialRole === "child"
+                    ? "Twoje wydatki mogą być ograniczone osobistym limitem."
+                    : "Współdzielisz domowe finanse z pozostałymi."}
+              </p>
+            </div>
+            <span className="rounded-full border border-[#f3d3b6] bg-[#fff3e7] px-3 py-1 text-[11px] font-bold text-[#b86a28]">
+              {myMembership.role === "owner" ? "Właściciel" : "Członek"}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Avatar + Display Name */}
       <form onSubmit={handleSaveProfile} className={`${cardStyle} space-y-5`}>

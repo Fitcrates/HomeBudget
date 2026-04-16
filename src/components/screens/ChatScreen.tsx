@@ -224,7 +224,7 @@ function ActiveChatSession({ householdId, sessionId }: { householdId: Id<"househ
             <div key={msg._id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
               <div className="flex flex-col gap-1.5 items-start">
                 <div
-                  className={`max-w-[85%] rounded-[1.2rem] px-4 py-3 shadow-sm ${
+                  className={`max-w-[85%] rounded-xl px-4 py-3 shadow-sm ${
                     isMe
                       ? "bg-[#cf833f] text-white rounded-br-sm self-end"
                       : "bg-white text-[#2b180a] border border-[#f5e5cf] rounded-bl-sm"
@@ -314,7 +314,7 @@ function ActiveChatSession({ householdId, sessionId }: { householdId: Id<"househ
         })}
         {isTyping && (
            <div className="flex justify-start">
-             <div className="bg-white text-[#8a7262] border border-[#f5e5cf] rounded-[1.2rem] rounded-bl-sm px-4 py-3 shadow-sm flex items-center gap-1">
+             <div className="bg-white text-[#8a7262] border border-[#f5e5cf] rounded-xl rounded-bl-sm px-4 py-3 shadow-sm flex items-center gap-1">
                <div className="w-1.5 h-1.5 bg-[#cf833f] rounded-full animate-bounce"></div>
                <div className="w-1.5 h-1.5 bg-[#cf833f] rounded-full animate-bounce delay-100"></div>
                <div className="w-1.5 h-1.5 bg-[#cf833f] rounded-full animate-bounce delay-200"></div>

@@ -3,8 +3,45 @@ import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
 
-function generateInviteCode(): string {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
+export type FinancialRole = "parent" | "partner" | "child";
+
+const HOUSEHOLD_INVITE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const HOUSEHOLD_INVITE_CODE_LENGTH = 8;
+const HOUSEHOLD_INVITE_MAX_ATTEMPTS = 10;
+
+function generateInviteCode(length = HOUSEHOLD_INVITE_CODE_LENGTH): string {
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+
+  let code = "";
+  for (const byte of bytes) {
+    code += HOUSEHOLD_INVITE_ALPHABET[byte % HOUSEHOLD_INVITE_ALPHABET.length];
+  }
+  return code;
+}
+
+async function generateUniqueHouseholdInviteCode(ctx: any): Promise<string> {
+  for (let attempt = 0; attempt < HOUSEHOLD_INVITE_MAX_ATTEMPTS; attempt++) {
+    const inviteCode = generateInviteCode();
+    const existing = await ctx.db
+      .query("households")
+      .withIndex("by_invite_code", (q: any) => q.eq("inviteCode", inviteCode))
+      .first();
+
+    if (!existing) {
+      return inviteCode;
+    }
+  }
+
+  throw new Error("Nie udało się wygenerować unikalnego kodu zaproszenia.");
+}
+
+export function getEffectiveFinancialRole(membership: {
+  role: "owner" | "member";
+  financialRole?: FinancialRole;
+}): FinancialRole {
+  if (membership.role === "owner") return "parent";
+  return membership.financialRole ?? "partner";
 }
 
 export const create = mutation({
@@ -13,7 +50,7 @@ export const create = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    const inviteCode = generateInviteCode();
+    const inviteCode = await generateUniqueHouseholdInviteCode(ctx);
     const householdId = await ctx.db.insert("households", {
       name: args.name,
       ownerId: userId,
@@ -25,6 +62,7 @@ export const create = mutation({
       householdId,
       userId,
       role: "owner",
+      financialRole: "parent",
     });
 
     // Seed default categories for this household
@@ -50,7 +88,7 @@ export const listMine = query({
     const households = await Promise.all(
       memberships.map(async (m) => {
         const h = await ctx.db.get(m.householdId);
-        return h ? { ...h, role: m.role } : null;
+        return h ? { ...h, role: m.role, financialRole: getEffectiveFinancialRole(m as any) } : null;
       })
     );
 
@@ -83,9 +121,43 @@ export const getMembers = query({
     return Promise.all(
       memberships.map(async (m) => {
         const user = await ctx.db.get(m.userId);
-        return { ...m, user };
+        const profile = await ctx.db
+          .query("user_profiles")
+          .withIndex("by_user", (q) => q.eq("userId", m.userId))
+          .unique();
+        const avatarUrl = profile?.avatarImageId
+          ? await ctx.storage.getUrl(profile.avatarImageId)
+          : null;
+        const displayName =
+          profile?.displayName ||
+          user?.name ||
+          (typeof user?.email === "string" ? user.email.split("@")[0] : "") ||
+          "Nieznany";
+
+        return {
+          ...m,
+          financialRole: getEffectiveFinancialRole(m as any),
+          user,
+          profile,
+          avatarUrl,
+          displayName,
+        };
       })
     );
+  },
+});
+
+export const getMyMembership = query({
+  args: { householdId: v.id("households") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const membership = await assertMember(ctx, args.householdId, userId);
+    return {
+      ...membership,
+      financialRole: getEffectiveFinancialRole(membership as any),
+    };
   },
 });
 
@@ -95,7 +167,7 @@ export const regenerateInviteCode = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
     await assertOwner(ctx, args.householdId, userId);
-    const newCode = generateInviteCode();
+    const newCode = await generateUniqueHouseholdInviteCode(ctx);
     await ctx.db.patch(args.householdId, { inviteCode: newCode });
     return newCode;
   },
@@ -107,10 +179,12 @@ export const joinByCode = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
+    const normalizedCode = args.code.trim().toUpperCase();
+
     const household = await ctx.db
       .query("households")
-      .withIndex("by_invite_code", (q) => q.eq("inviteCode", args.code.toUpperCase()))
-      .unique();
+      .withIndex("by_invite_code", (q) => q.eq("inviteCode", normalizedCode))
+      .first();
 
     if (!household) throw new Error("Invalid invite code");
 
@@ -127,6 +201,7 @@ export const joinByCode = mutation({
       householdId: household._id,
       userId,
       role: "member",
+      financialRole: "partner",
     });
 
     return household._id;
@@ -149,6 +224,17 @@ export const removeMember = mutation({
 
     if (!membership) throw new Error("Member not found");
     if (membership.role === "owner") throw new Error("Cannot remove owner");
+
+    const personBudget = await ctx.db
+      .query("person_budgets")
+      .withIndex("by_household_and_user", (q) =>
+        q.eq("householdId", args.householdId).eq("userId", args.targetUserId)
+      )
+      .unique();
+    if (personBudget) {
+      await ctx.db.delete(personBudget._id);
+    }
+
     await ctx.db.delete(membership._id);
   },
 });
@@ -206,11 +292,42 @@ export const acceptInvitation = mutation({
         householdId: invitation.householdId,
         userId,
         role: "member",
+        financialRole: "partner",
       });
     }
 
     await ctx.db.patch(invitation._id, { status: "accepted" });
     return invitation.householdId;
+  },
+});
+
+export const updateFinancialRole = mutation({
+  args: {
+    householdId: v.id("households"),
+    targetUserId: v.id("users"),
+    financialRole: v.union(v.literal("parent"), v.literal("partner"), v.literal("child")),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    await assertCanManageFinancialRoles(ctx, args.householdId, userId);
+
+    const membership = await ctx.db
+      .query("memberships")
+      .withIndex("by_household_and_user", (q) =>
+        q.eq("householdId", args.householdId).eq("userId", args.targetUserId)
+      )
+      .unique();
+
+    if (!membership) throw new Error("Member not found");
+    if (membership.role === "owner") {
+      throw new Error("Owner zawsze ma rolę finansową rodzica.");
+    }
+
+    await ctx.db.patch(membership._id, {
+      financialRole: args.financialRole,
+    });
   },
 });
 
@@ -238,4 +355,38 @@ export async function assertOwner(
   const m = await assertMember(ctx, householdId, userId);
   if (m.role !== "owner") throw new Error("Only owner can perform this action");
   return m;
+}
+
+export async function assertCanManageFinancialRoles(
+  ctx: any,
+  householdId: any,
+  userId: any
+) {
+  const membership = await assertMember(ctx, householdId, userId);
+  const effectiveFinancialRole = getEffectiveFinancialRole(membership);
+
+  if (membership.role === "owner" || effectiveFinancialRole === "parent") {
+    return membership;
+  }
+
+  throw new Error("Brak uprawnień do zarządzania rolami finansowymi.");
+}
+
+export async function assertCanManageSharedBudgets(
+  ctx: any,
+  householdId: any,
+  userId: any
+) {
+  const membership = await assertMember(ctx, householdId, userId);
+  const effectiveFinancialRole = getEffectiveFinancialRole(membership);
+
+  if (
+    membership.role === "owner" ||
+    effectiveFinancialRole === "parent" ||
+    effectiveFinancialRole === "partner"
+  ) {
+    return membership;
+  }
+
+  throw new Error("Brak uprawnień do zarządzania budżetami gospodarstwa.");
 }

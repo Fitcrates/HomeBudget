@@ -16,6 +16,9 @@ const applicationTables = {
     householdId: v.id("households"),
     userId: v.id("users"),
     role: v.union(v.literal("owner"), v.literal("member")),
+    financialRole: v.optional(
+      v.union(v.literal("parent"), v.literal("partner"), v.literal("child"))
+    ),
   })
     .index("by_household", ["householdId"])
     .index("by_user", ["userId"])
@@ -81,6 +84,7 @@ const applicationTables = {
   })
     .index("by_household", ["householdId"])
     .index("by_household_and_date", ["householdId", "date"])
+    .index("by_household_user_date", ["householdId", "userId", "date"])
     .index("by_household_and_category", ["householdId", "categoryId"])
     .index("by_household_and_subcategory", ["householdId", "subcategoryId"])
     .index("by_user", ["userId"]),
@@ -94,6 +98,18 @@ const applicationTables = {
   })
     .index("by_household", ["householdId"])
     .index("by_household_and_category", ["householdId", "categoryId"]),
+
+  person_budgets: defineTable({
+    householdId: v.id("households"),
+    userId: v.id("users"),
+    limitAmount: v.number(), // in cents
+    period: v.union(v.literal("month"), v.literal("week")),
+    updatedByUserId: v.id("users"),
+    updatedAt: v.number(),
+  })
+    .index("by_household", ["householdId"])
+    .index("by_household_and_user", ["householdId", "userId"])
+    .index("by_user", ["userId"]),
 
   // Household income settings
   household_income: defineTable({
@@ -172,6 +188,18 @@ const applicationTables = {
     icon: v.string(), // icon name or emoji
     createdAt: v.number(),
   }).index("by_household", ["householdId"]),
+
+  goal_contributions: defineTable({
+    householdId: v.id("households"),
+    goalId: v.id("goals"),
+    userId: v.id("users"),
+    amount: v.number(), // in cents
+    createdAt: v.number(),
+  })
+    .index("by_household", ["householdId"])
+    .index("by_household_and_createdAt", ["householdId", "createdAt"])
+    .index("by_goal", ["goalId"])
+    .index("by_goal_and_createdAt", ["goalId", "createdAt"]),
 
   // Shopping list
   shopping_items: defineTable({

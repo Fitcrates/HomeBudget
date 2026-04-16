@@ -15,6 +15,27 @@ type BudgetRow = {
   period: string;
 };
 
+type ScenarioContext = {
+  currentMonthSpent: number;
+  projectedMonthSpent: number;
+  previousMonthSpent: number;
+  subscriptionProjectedMonthly: number;
+  categories: Array<{
+    categoryName: string;
+    currentMonthSpent: number;
+    projectedMonthSpent: number;
+    isSubscriptionCategory: boolean;
+  }>;
+  suggestedScenarios: Array<{
+    label: string;
+    type: string;
+    categoryName: string;
+    reductionPct: number;
+    monthlyImpact: number;
+    projectedMonthSpent: number;
+  }>;
+};
+
 type Insight = {
   type: string;
   title: string;
@@ -69,7 +90,7 @@ function makePredictionInsight(
       type: "prediction",
       title: "Brak biezacych wydatkow",
       body: "W tym miesiacu nie ma jeszcze wydatkow do analizy. Gdy pojawia sie pierwsze paragony, prognoza miesieczna bedzie liczona na realnych danych zamiast zgadywania.",
-      emoji: "🧭",
+      emoji: "CalendarSearch",
       severity: "info",
     };
   }
@@ -81,13 +102,13 @@ function makePredictionInsight(
 
   const body = previousTotal > 0
     ? `Do dzis wydaliscie ${formatPln(currentTotal)}. Przy obecnym tempie miesiac domknie sie w okolicach ${formatPln(projected)}, czyli o ${clampPercent(Math.abs(deltaVsPrevious || 0))}% ${projected >= previousTotal ? "wiecej" : "mniej"} niz poprzedni miesiac (${formatPln(previousTotal)}).`
-    : `Do dzis wydaliscie ${formatPln(currentTotal)}. Przy obecnym tempie miesiac domknie sie w okolicach ${formatPln(projected)} - to prognoza oparta tylko na dotychczasowym tempie wydatkow z tego miesiaca.`;
+    : `Do dzis wydaliscie ${formatPln(currentTotal)}. Przy obecnym tempie miesiac domknie sie w okolicach ${formatPln(projected)} - to prognoza oparta tylko na dotychczasowym tempie wydatkow z tego miesiąca.`;
 
   return {
     type: "prediction",
-    title: "Tempo miesiaca",
+    title: "Tempo miesiąca",
     body,
-    emoji: projected > previousTotal * 1.15 && previousTotal > 0 ? "📈" : "📊",
+    emoji: projected > previousTotal * 1.15 && previousTotal > 0 ? "TrendingUp" : "BarChart3",
     severity: projected > previousTotal * 1.15 && previousTotal > 0 ? "warning" : "info",
   };
 }
@@ -115,9 +136,9 @@ function makeBudgetInsight(
   if (overBudget) {
     return {
       type: "budget_alert",
-      title: "Budzet przekroczony",
+      title: "Budżet przekroczony",
       body: `${overBudget.categoryName} ma juz ${formatPln(overBudget.spent)} przy limicie ${formatPln(overBudget.budget)}. To ${clampPercent((overBudget.ratio - 1) * 100)}% ponad budzet, wiec ta kategoria najbardziej podbija miesieczny wynik.`,
-      emoji: "🚨",
+      emoji: "AlertTriangle",
       severity: "danger",
     };
   }
@@ -129,9 +150,9 @@ function makeBudgetInsight(
   if (nearBudget) {
     return {
       type: "budget_alert",
-      title: "Budzet pod presja",
-      body: `${nearBudget.categoryName} wykorzystalo juz ${clampPercent(nearBudget.ratio * 100)}% miesiecznego limitu (${formatPln(nearBudget.spent)} z ${formatPln(nearBudget.budget)}). Przy obecnym tempie ta kategoria moze dojsc do okolo ${clampPercent(nearBudget.paceRatio * 100)}% budzetu do konca miesiaca.`,
-      emoji: "⚠️",
+      title: "Budżet pod presją",
+      body: `${nearBudget.categoryName} wykorzystalo juz ${clampPercent(nearBudget.ratio * 100)}% miesiecznego limitu (${formatPln(nearBudget.spent)} z ${formatPln(nearBudget.budget)}). Przy obecnym tempie ta kategoria moze dojsc do okolo ${clampPercent(nearBudget.paceRatio * 100)}% budzetu do konca miesiąca.`,
+      emoji: "ShieldAlert",
       severity: nearBudget.ratio >= 0.9 ? "warning" : "info",
     };
   }
@@ -142,16 +163,16 @@ function makeBudgetInsight(
       type: "budget_alert",
       title: "Ustaw kolejny limit",
       body: `Najwieksza kategoria bez wyraznego alertu budzetowego to ${topWithoutBudget[0]} z wynikiem ${formatPln(topWithoutBudget[1])}. Jesli chcecie szybciej lapac odchylenia, to najlepszy kandydat do stalego limitu na kolejny miesiac.`,
-      emoji: "🎯",
+      emoji: "Target",
       severity: "info",
     };
   }
 
   return {
     type: "budget_alert",
-    title: "Budzety sa spokojne",
-    body: "Nie widac teraz kategorii, ktora mocno wychodzila poza zalozone limity. To dobry moment, zeby pilnowac regularnosci zamiast gasic przekroczenia na koniec miesiaca.",
-    emoji: "🛡️",
+    title: "Budżety sa spokojne",
+    body: "Nie widac teraz kategorii, ktora mocno wychodzila poza zalozone limity. To dobry moment, zeby pilnowac regularnosci zamiast gasic przekroczenia na koniec miesiąca.",
+    emoji: "ShieldCheck",
     severity: "info",
   };
 }
@@ -184,7 +205,7 @@ function makeTrendInsight(
       type: "anomaly",
       title: "Najwieksze odchylenie",
       body: `${strongestIncrease.categoryName} ma teraz ${formatPln(strongestIncrease.currentSpent)}, a srednia z poprzednich miesiecy to ${formatPln(strongestIncrease.avg)}. To wzrost o ${clampPercent(strongestIncrease.deltaPct)}%, wiec tutaj najbardziej widac zmiane nawyku lub jednorazowy skok.`,
-      emoji: "🔎",
+      emoji: "Search",
       severity: strongestIncrease.deltaPct >= 60 ? "warning" : "info",
     };
   }
@@ -194,9 +215,9 @@ function makeTrendInsight(
     const share = (topCategory[1] / currentTotal) * 100;
     return {
       type: "saving",
-      title: "Najwiekszy dzwignik",
-      body: `${topCategory[0]} odpowiada teraz za ${clampPercent(share)}% wydatkow miesiaca (${formatPln(topCategory[1])} z ${formatPln(currentTotal)}). Nawet niewielkie ciecie w tej jednej kategorii da wiekszy efekt niz rozpraszanie oszczednosci po drobnych zakupach.`,
-      emoji: "💡",
+      title: "Najwieksza dźwignia",
+      body: `${topCategory[0]} odpowiada teraz za ${clampPercent(share)}% wydatkow miesiąca (${formatPln(topCategory[1])} z ${formatPln(currentTotal)}). Nawet niewielkie ciecie w tej jednej kategorii da wiekszy efekt niz rozpraszanie oszczednosci po drobnych zakupach.`,
+      emoji: "Lightbulb",
       severity: share >= 35 ? "warning" : "info",
     };
   }
@@ -204,8 +225,40 @@ function makeTrendInsight(
   return {
     type: "saving",
     title: "Za malo danych trendu",
-    body: "Historia jest jeszcze zbyt plytka, zeby lapac mocne odchylenia miesiac do miesiaca. Na razie najwiecej wartosci da dalsze zbieranie paragonow i porownanie pelnych miesiecy.",
-    emoji: "🧠",
+    body: "Historia jest jeszcze zbyt plytka, zeby lapac mocne odchylenia miesiac do miesiąca. Na razie najwiecej wartosci da dalsze zbieranie paragonow i porownanie pelnych miesiecy.",
+    emoji: "Brain",
+    severity: "info",
+  };
+}
+
+function makeWhatIfInsight(scenarioContext: ScenarioContext): Insight {
+  const strongestScenario = scenarioContext.suggestedScenarios[0];
+
+  if (strongestScenario) {
+    return {
+      type: "what_if",
+      title: "Najmocniejsze co jeśli",
+      body: `Jeśli ograniczysz ${strongestScenario.categoryName} o ${strongestScenario.reductionPct}%, miesięczny wynik może spaść o około ${formatPln(strongestScenario.monthlyImpact)}. To prosty wariant, który obniża prognozę miesiąca do okolic ${formatPln(strongestScenario.projectedMonthSpent)}.`,
+      emoji: "FlaskConical",
+      severity: strongestScenario.monthlyImpact >= 150 ? "warning" : "info",
+    };
+  }
+
+  if (scenarioContext.subscriptionProjectedMonthly > 0) {
+    return {
+      type: "what_if",
+      title: "Sprawdź stałe opłaty",
+      body: `Subskrypcje kosztują teraz około ${formatPln(scenarioContext.subscriptionProjectedMonthly)} miesięcznie. Jedna zamiana lub pauza potrafi dać trwały efekt bez dotykania codziennych wydatków.`,
+      emoji: "Repeat2",
+      severity: scenarioContext.subscriptionProjectedMonthly >= 100 ? "warning" : "info",
+    };
+  }
+
+  return {
+    type: "what_if",
+    title: "Uruchom scenariusze",
+    body: "Największą wartość daje teraz sprawdzenie kilku wariantów: mniejsze jedzenie na mieście, cięcie jednej kategorii albo nowa subskrypcja. Wtedy zobaczysz wpływ na prognozę zanim wydatki naprawdę się wydarzą.",
+    emoji: "WandSparkles",
     severity: "info",
   };
 }
@@ -220,24 +273,24 @@ function ensureThreeInsights(insights: Insight[]): Insight[] {
       type: "saving",
       title: "Pilnuj powtarzalnosci",
       body: "Najbardziej uzyteczne wnioski pojawiaja sie wtedy, gdy paragony sa dodawane regularnie przez caly miesiac. Stabilnosc danych jest wazniejsza niz jednorazowo duza liczba wpisow.",
-      emoji: "🗂️",
+      emoji: "CalendarDays",
       severity: "info",
     },
     {
       type: "prediction",
       title: "Patrz na tempo tygodnia",
       body: "Jesli chcecie szybciej wykrywac odchylenia, porownujcie nie tylko miesiace, ale tez tygodniowe tempo wydatkow. To zwykle szybciej pokazuje, czy jedna kategoria zaczyna uciekac.",
-      emoji: "📅",
+      emoji: "Gauge",
       severity: "info",
     },
   ];
 
   for (const fallback of fallbacks) {
-    if (unique.length >= 3) break;
+    if (unique.length >= 4) break;
     unique.push(fallback);
   }
 
-  return unique.slice(0, 3);
+  return unique.slice(0, 4);
 }
 
 export const callAI = internalAction({
@@ -248,6 +301,30 @@ export const callAI = internalAction({
     budgets: v.array(
       v.object({ categoryName: v.string(), limitAmount: v.number(), period: v.string() })
     ),
+    scenarioContext: v.object({
+      currentMonthSpent: v.number(),
+      projectedMonthSpent: v.number(),
+      previousMonthSpent: v.number(),
+      subscriptionProjectedMonthly: v.number(),
+      categories: v.array(
+        v.object({
+          categoryName: v.string(),
+          currentMonthSpent: v.number(),
+          projectedMonthSpent: v.number(),
+          isSubscriptionCategory: v.boolean(),
+        })
+      ),
+      suggestedScenarios: v.array(
+        v.object({
+          label: v.string(),
+          type: v.string(),
+          categoryName: v.string(),
+          reductionPct: v.number(),
+          monthlyImpact: v.number(),
+          projectedMonthSpent: v.number(),
+        })
+      ),
+    }),
   },
   handler: async (_ctx, args) => {
     const now = new Date();
@@ -273,6 +350,7 @@ export const callAI = internalAction({
       makePredictionInsight(currentTotal, previousTotal, dayOfMonth, daysInMonth),
       makeBudgetInsight(currentMonthMap, budgetMap, dayOfMonth, daysInMonth),
       makeTrendInsight(currentMonthMap, previousMonths, byMonth, currentTotal),
+      makeWhatIfInsight(args.scenarioContext as ScenarioContext),
     ]);
 
     return insights;

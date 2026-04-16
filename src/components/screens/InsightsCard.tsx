@@ -1,3 +1,7 @@
+export { InsightsCard } from "./InsightsCardV2";
+
+// Legacy implementation kept below for reference during rollout.
+
 import { useState } from "react";
 import { useQuery, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -39,7 +43,7 @@ const TYPE_LABELS: Record<string, string> = {
   budget_alert: "Budżet",
 };
 
-export function InsightsCard({ householdId }: Props) {
+function LegacyInsightsCard({ householdId }: Props) {
   const latest = useQuery(api.insights.getLatest, { householdId });
   const generate = useAction(api.insights.generate);
   const [loading, setLoading] = useState(false);

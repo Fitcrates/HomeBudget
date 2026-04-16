@@ -1,3 +1,6 @@
+export { BudgetAlertsCard } from "./BudgetAlertsCardV2";
+// Legacy implementation kept temporarily below; the active card is exported from BudgetAlertsCardV2.
+
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -12,7 +15,7 @@ interface Props {
   dateTo: number;
 }
 
-export function BudgetAlertsCard({
+function LegacyBudgetAlertsCard({
   householdId,
   currency,
   dateFrom,
@@ -28,7 +31,7 @@ export function BudgetAlertsCard({
   if (budgets === undefined || byCategory === undefined) return null;
   if (budgets.length === 0) {
     return (
-      <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]">
+      <div className="app-card">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2 drop-shadow-sm">
             <Target className="w-6 h-6 text-[#c76823]" />
@@ -57,7 +60,7 @@ export function BudgetAlertsCard({
   alerts.sort((a, b) => b.pct - a.pct);
 
   return (
-    <div className="bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]">
+    <div className="app-card">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2 drop-shadow-sm">
           <Target className="w-6 h-6 text-[#c76823]" />

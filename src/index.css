@@ -22,16 +22,31 @@ body,
   min-height: 100%;
 }
 
+html {
+  min-height: 100dvh;
+  background: var(--color-light);
+}
+
 .accent-text {
   @apply text-[#b87841];
 }
 
+.app-card {
+  @apply w-full rounded-xl border border-white/50 bg-white/40 p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)] backdrop-blur-xl;
+}
+
 body {
   margin: 0;
+  min-height: 100dvh;
   font-family: var(--font-body);
   color: var(--color-dark);
   background: var(--color-light);
   overflow-x: hidden;
+}
+
+#root {
+  min-height: 100dvh;
+  background: var(--color-light);
 }
 
 h1,
