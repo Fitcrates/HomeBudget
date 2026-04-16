@@ -6,6 +6,7 @@
 
 :root {
   --color-light: #fcf4e4;
+  --color-app-top: #ebae69;
   --color-dark: #2e1e0f;
   --font-body: 'Nunito', sans-serif;
   --font-heading: 'Poppins', sans-serif;
@@ -24,7 +25,7 @@ body,
 
 html {
   min-height: 100dvh;
-  background: var(--color-light);
+  background: var(--color-app-top);
 }
 
 .accent-text {
@@ -40,13 +41,13 @@ body {
   min-height: 100dvh;
   font-family: var(--font-body);
   color: var(--color-dark);
-  background: var(--color-light);
+  background: linear-gradient(to bottom, var(--color-app-top), var(--color-light) 18rem);
   overflow-x: hidden;
 }
 
 #root {
   min-height: 100dvh;
-  background: var(--color-light);
+  background: linear-gradient(to bottom, var(--color-app-top), var(--color-light) 18rem);
 }
 
 h1,
