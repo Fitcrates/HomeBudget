@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { assertMember } from "./households";
 import { internal } from "./_generated/api";
@@ -29,6 +29,35 @@ export const listForHousehold = query({
 
     // Attach subcategories
     return Promise.all(
+      allCats.map(async (cat) => {
+        const subs = await ctx.db
+          .query("subcategories")
+          .withIndex("by_category", (q) => q.eq("categoryId", cat._id))
+          .collect();
+        return { ...cat, subcategories: subs.sort((a, b) => a.sortOrder - b.sortOrder) };
+      })
+    );
+  },
+});
+
+export const listForHouseholdInternal = internalQuery({
+  args: { householdId: v.id("households") },
+  handler: async (ctx, args) => {
+    const systemCats = await ctx.db
+      .query("categories")
+      .withIndex("by_system", (q) => q.eq("isSystem", true))
+      .collect();
+
+    const householdCats = await ctx.db
+      .query("categories")
+      .withIndex("by_household", (q) => q.eq("householdId", args.householdId))
+      .collect();
+
+    const allCats = [...systemCats, ...householdCats].sort(
+      (a, b) => a.sortOrder - b.sortOrder
+    );
+
+    return await Promise.all(
       allCats.map(async (cat) => {
         const subs = await ctx.db
           .query("subcategories")

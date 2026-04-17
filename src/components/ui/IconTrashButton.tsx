@@ -27,7 +27,7 @@ export function IconTrashButton({
       onClick={handleClick}
       title={title}
       aria-label={title}
-      className={`inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-[#d07c59] transition-colors hover:bg-[#fff0e8] hover:text-[#d44f43] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#de9241]/60 ${className}`}
+      className={`inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl align-middle text-[#d07c59] transition-colors hover:bg-[#fff0e8] hover:text-[#d44f43] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#de9241]/60 ${className}`}
     >
       <Trash2 className="h-4 w-4" />
     </button>

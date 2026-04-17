@@ -575,6 +575,9 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
   const shellCard =
     "rounded-xl border border-white/60 bg-white/45 p-4 shadow-[0_10px_36px_rgba(180,120,80,0.14)] backdrop-blur-xl sm:p-5";
   const sectionTitle = "text-[10px] font-bold uppercase tracking-[0.18em] text-[#b89b87]";
+  const compactTableShell = "overflow-hidden rounded-xl border border-white/60 bg-white/55";
+  const compactHeaderCell = "bg-[#fff8f2] px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.16em] text-[#b89b87]";
+  const compactBodyCell = "px-3 py-2.5 text-sm font-semibold text-[#2b180a]";
   const itemCount = items?.length ?? 0;
   const uncertainItemsCount = items?.filter((item) => isAmountUncertain(item.amount)).length ?? 0;
   const mappedItemsCount = items?.filter((item) => item.fromMapping).length ?? 0;
@@ -623,21 +626,29 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
               Jeden prosty flow: dodaj plik, uruchom OCR i popraw wynik przed zapisem.
             </p>
           </div>
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-xl border border-white/60 bg-white/55 px-3 py-3">
-              <p className={sectionTitle}>Pliki</p>
-              <p className="mt-2 text-lg font-semibold text-[#2b180a]">{currentStorageIds.length}/3</p>
-            </div>
-            <div className="rounded-xl border border-white/60 bg-white/55 px-3 py-3">
-              <p className={sectionTitle}>Pozycje</p>
-              <p className="mt-2 text-lg font-semibold text-[#2b180a]">{itemCount}</p>
-            </div>
-            <div className="rounded-xl border border-white/60 bg-white/55 px-3 py-3">
-              <p className={sectionTitle}>Status</p>
-              <p className="mt-2 text-sm font-semibold text-[#2b180a]">
-                {items ? "Do zapisu" : processing ? "Analiza" : "Gotowe"}
-              </p>
-            </div>
+          <div className={compactTableShell}>
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr>
+                  <th className={compactHeaderCell}>Metryka</th>
+                  <th className={compactHeaderCell}>Wartość</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-t border-[#f2dfcb]">
+                  <td className={compactBodyCell}>Pliki</td>
+                  <td className={compactBodyCell}>{currentStorageIds.length}/3</td>
+                </tr>
+                <tr className="border-t border-[#f2dfcb]">
+                  <td className={compactBodyCell}>Pozycje</td>
+                  <td className={compactBodyCell}>{itemCount}</td>
+                </tr>
+                <tr className="border-t border-[#f2dfcb]">
+                  <td className={compactBodyCell}>Status</td>
+                  <td className={compactBodyCell}>{items ? "Do zapisu" : processing ? "Analiza" : "Gotowe"}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -847,50 +858,313 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
               <div>
                 <p className={sectionTitle}>Krok 3</p>
                 <h3 className="mt-2 text-lg font-semibold text-[#2b180a]">Sprawdź wynik i popraw szczegóły</h3>
-                <p className="mt-1 max-w-2xl text-sm font-medium leading-relaxed text-[#8a7262]">
-                  Najpierw podsumowanie, niżej lista pozycji do szybkiej korekty.
+                <p className="mt-1 text-sm font-medium leading-relaxed text-[#8a7262]">
+                  Kompaktowe podsumowanie u góry, a niżej szybka lista pozycji do edycji na telefonie.
                 </p>
               </div>
-              <div className="w-full">
-                <label className={labelStyle}>Data paragonu</label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className={inputStyle}
-                />
+
+              <div className={compactTableShell}>
+                <table className="w-full border-collapse text-left">
+                  <thead>
+                    <tr>
+                      <th className={compactHeaderCell}>Metryka</th>
+                      <th className={compactHeaderCell}>Wartość</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t border-[#f2dfcb]">
+                      <td className={compactBodyCell}>Pozycje</td>
+                      <td className={compactBodyCell}>{items.length}</td>
+                    </tr>
+                    <tr className="border-t border-[#f2dfcb]">
+                      <td className={compactBodyCell}>Niepewne kwoty</td>
+                      <td className={compactBodyCell}>{uncertainItemsCount}</td>
+                    </tr>
+                    <tr className="border-t border-[#f2dfcb]">
+                      <td className={compactBodyCell}>Z historii</td>
+                      <td className={compactBodyCell}>{mappedItemsCount}</td>
+                    </tr>
+                    <tr className="border-t border-[#f2dfcb]">
+                      <td className={compactBodyCell}>Paragony</td>
+                      <td className={compactBodyCell}>
+                        {receiptSummaries.length > 0 ? receiptSummaries.length : multiReceiptDetected ? "wiele" : 1}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="space-y-3">
+                <div className="w-full">
+                  <label className={labelStyle}>Data paragonu</label>
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className={inputStyle}
+                  />
+                </div>
+                <button
+                  onClick={() => { setItems(null); setReceiptSummaries([]); setOpenBulkMenuId(null); }}
+                  className="w-full py-2.5 border-2 border-dashed border-[#d2bcad] text-[#8a7262] rounded-xl font-bold text-sm hover:border-[#cf833f] hover:text-[#cf833f] transition-colors"
+                >
+                  <span className="flex items-center justify-center gap-2">
+                    <RefreshCcw className="h-4 w-4" />
+                    Skanuj ponownie
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className={shellCard}>
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className={sectionTitle}>Wynik OCR</p>
+                <h3 className="mt-1 text-lg font-semibold text-[#2b180a]">
+                  Lista pozycji do korekty ({items.length})
+                </h3>
+              </div>
+              <div className="rounded-full bg-[#fff1e1] px-3 py-1.5 text-xs font-bold text-[#b55b1d]">
+                Tabela edytowalna
               </div>
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-white/60 bg-white/60 p-4">
-                <p className={sectionTitle}>Pozycje</p>
-                <p className="mt-2 text-lg font-semibold text-[#2b180a]">{items.length}</p>
-              </div>
-              <div className="rounded-xl border border-white/60 bg-white/60 p-4">
-                <p className={sectionTitle}>Niepewne kwoty</p>
-                <p className="mt-2 text-lg font-semibold text-[#2b180a]">{uncertainItemsCount}</p>
-              </div>
-              <div className="rounded-xl border border-white/60 bg-white/60 p-4">
-                <p className={sectionTitle}>Z historii</p>
-                <p className="mt-2 text-lg font-semibold text-[#2b180a]">{mappedItemsCount}</p>
-              </div>
-              <div className="rounded-xl border border-white/60 bg-white/60 p-4">
-                <p className={sectionTitle}>Paragony</p>
-                <p className="mt-2 text-lg font-semibold text-[#2b180a]">
-                  {receiptSummaries.length > 0 ? receiptSummaries.length : multiReceiptDetected ? "wiele" : 1}
-                </p>
-              </div>
+            {expectedComparison && (
+              expectedComparison.isMismatch ? (
+                <div className="mb-4 rounded-xl border border-[#ffc2af] bg-[#fff2ec] p-3 shadow-sm">
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#a94d22]" />
+                    <p className="text-[#a94d22] text-xs font-bold leading-relaxed">
+                      Suma pozycji ({expectedComparison.sum.toFixed(2)}) nie zgadza się z sumą towarów ({expectedComparison.expected.toFixed(2)}).
+                      <br />
+                      {expectedComparison.diffValue > 0
+                        ? `Pozycje są wyższe o ${expectedComparison.diff.toFixed(2)} — najczęściej oznacza to brak uwzględnionych rabatów/promocji.`
+                        : `Pozycje są niższe o ${expectedComparison.diff.toFixed(2)} — możliwe, że brakuje jednej lub więcej pozycji.`}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-4 bg-[#ebf7ef] border border-[#8bc5a0] rounded-xl p-3 shadow-sm">
+                  <div className="flex items-start gap-2.5">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#46825d]" />
+                    <p className="text-[#46825d] text-xs font-bold">
+                      Suma pozycji ({expectedComparison.sum.toFixed(2)}) zgadza się z sumą towarów.
+                    </p>
+                  </div>
+                </div>
+              )
+            )}
+
+            <div className="space-y-3 rounded-xl border border-[#f2dfcb] bg-white/45 p-3">
+              {items.map((item, index) => {
+                const selectedCat = categories?.find((c) => c._id === item.categoryId);
+                const uncertainPrice = isAmountUncertain(item.amount);
+                const amountNum = parseFloat((item.amount || "").replace(",", "."));
+                const isDiscountRow = !isNaN(amountNum) && amountNum < 0;
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`relative rounded-xl border border-[#f2dfcb] bg-white/60 p-3 ${
+                      openBulkMenuId === item.id ? "z-30" : "z-0"
+                    }`}
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <span className="inline-flex h-8 items-center justify-center rounded-lg bg-[#f5e5cf]/60 px-2.5 text-xs font-bold text-[#8a7262]">
+                          #{index + 1}
+                        </span>
+                        {(receiptSummaries.length > 1 || item.receiptIndex > 0) && (
+                          <span className="inline-flex max-w-full items-center rounded-lg border border-[#c8d8ff] bg-[#eef4ff] px-2 py-1 text-[10px] font-bold text-[#3856a8]">
+                            {item.receiptLabel || `Paragon ${item.receiptIndex + 1}`}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="relative z-20 flex shrink-0 items-center gap-2">
+                        {items.length > 1 && (
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setOpenBulkMenuId(openBulkMenuId === item.id ? null : item.id)}
+                              disabled={!item.categoryId || !item.subcategoryId}
+                              className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-[#ead8c5] bg-[#fff8f2] px-2 text-[11px] font-bold text-[#8a7262] transition-colors hover:border-[#cf833f] hover:text-[#cf833f] disabled:opacity-40"
+                            >
+                              <Sparkles className="h-3.5 w-3.5" />
+                              <span className="hidden min-[360px]:inline">Akcje</span>
+                              <MoreHorizontal className="h-3.5 w-3.5" />
+                            </button>
+
+                            {openBulkMenuId === item.id && item.categoryId && item.subcategoryId && (
+                              <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-56 rounded-xl border border-[#efd9c2] bg-[#fffaf4] p-1.5 shadow-[0_10px_24px_rgba(180,120,80,0.18)]">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    applyCategoryToRemainingItems(item.id);
+                                    setOpenBulkMenuId(null);
+                                  }}
+                                  className="flex w-full items-start gap-2 rounded-xl px-3 py-2 text-left transition-colors hover:bg-[#fff1e4]"
+                                >
+                                  <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[#cf833f]" />
+                                  <span>
+                                    <span className="block text-[11px] font-bold text-[#6d4d38]">
+                                      Przypisz do pozostałych
+                                    </span>
+                                    <span className="block text-[10px] font-medium leading-relaxed text-[#9c806c]">
+                                      Skopiuj kategorię i podkategorię do reszty pozycji z tego skanu.
+                                    </span>
+                                  </span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <IconTrashButton
+                          onClick={() => setPendingRemoveItemId(item.id)}
+                          title="Usuń pozycję"
+                          className="h-8 w-8 shrink-0 self-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-[minmax(0,1fr)_6.8rem] gap-2">
+                      <div>
+                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#b89b87]">
+                          Opis
+                        </label>
+                        <input
+                          type="text"
+                          value={item.description}
+                          onChange={(e) => updateItem(item.id, { description: e.target.value })}
+                          className="w-full rounded-xl border border-[#f5e5cf] bg-white/60 px-3 py-2 text-sm font-bold text-[#3e2815] outline-none focus:border-[#cf833f]"
+                          placeholder="Opis produktu"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#b89b87]">
+                          Kwota
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={item.amount}
+                          onChange={(e) => updateItem(item.id, { amount: e.target.value })}
+                          className={`w-full rounded-xl border bg-white/60 px-3 py-2 text-sm font-bold text-right tabular-nums outline-none ${
+                            uncertainPrice
+                              ? "border-[#f3a086] text-[#b74210] focus:border-[#d95d27]"
+                              : isDiscountRow
+                                ? "border-[#9bd1af] text-[#2c7a4b] focus:border-[#4f9a6e]"
+                                : "border-[#f5e5cf] text-[#cf833f] focus:border-[#cf833f]"
+                          }`}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {item.fromMapping && (
+                        <span className="inline-flex items-center gap-1 rounded-lg border border-[#8bc5a0] bg-[#ebf7ef] px-2 py-1 text-[10px] font-bold text-[#46825d]">
+                          <Brain className="h-3 w-3" />
+                          Z historii
+                        </span>
+                      )}
+                      {uncertainPrice && (
+                        <span className="rounded-lg border border-[#ffc2af] bg-[#ffe1d6] px-2 py-1 text-[10px] font-bold text-[#9a2b00]">
+                          Niepewna cena
+                        </span>
+                      )}
+                      {isDiscountRow && (
+                        <span className="rounded-lg border border-[#9bd1af] bg-[#e8f6ed] px-2 py-1 text-[10px] font-bold text-[#2c7a4b]">
+                          Rabat / opust
+                        </span>
+                      )}
+                    </div>
+
+                    {uncertainPrice && (
+                      <p className="mt-2 rounded-xl border border-[#ffd4c4] bg-[#fff2ec] px-2 py-1 text-[10px] font-medium text-[#a94d22]">
+                        OCR nie był pewny kwoty.
+                      </p>
+                    )}
+
+                    <div className="mt-3 grid grid-cols-1 gap-2">
+                      <div>
+                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#b89b87]">
+                          Kategoria
+                        </label>
+                        <select
+                          className="w-full rounded-xl border border-[#f5e5cf] bg-white/60 px-2.5 py-2.5 text-xs font-bold text-[#6d4d38] outline-none"
+                          value={item.categoryId || ""}
+                          onChange={(e) =>
+                            updateItem(item.id, {
+                              categoryId: e.target.value as Id<"categories">,
+                              subcategoryId: null,
+                            })
+                          }
+                        >
+                          <option value="" disabled>
+                            Wybierz kategorię
+                          </option>
+                          {categories?.map((c) => (
+                            <option key={c._id} value={c._id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#b89b87]">
+                          Podkategoria
+                        </label>
+                        <select
+                          className="w-full rounded-xl border border-[#f5e5cf] bg-white/60 px-2.5 py-2.5 text-xs font-bold text-[#6d4d38] outline-none"
+                          value={item.subcategoryId || ""}
+                          onChange={(e) =>
+                            updateItem(item.id, {
+                              subcategoryId: e.target.value as Id<"subcategories">,
+                            })
+                          }
+                          disabled={!item.categoryId}
+                        >
+                          <option value="" disabled>
+                            Wybierz podkategorię
+                          </option>
+                          {selectedCat?.subcategories.map((s: any) => (
+                            <option key={s._id} value={s._id}>
+                              {s.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            <div className="border-t border-[#f2dfcb] p-4">
               <button
-                onClick={() => { setItems(null); setReceiptSummaries([]); setOpenBulkMenuId(null); }}
-                className="w-full py-2.5 border-2 border-dashed border-[#d2bcad] text-[#8a7262] rounded-xl font-bold text-sm hover:border-[#cf833f] hover:text-[#cf833f] transition-colors"
+                onClick={() =>
+                  setItems([
+                    ...items,
+                    {
+                      id: crypto.randomUUID(),
+                      description: "",
+                      amount: "",
+                      categoryId: null,
+                      subcategoryId: null,
+                      receiptIndex: 0,
+                    },
+                  ])
+                }
+                className="w-full py-3 border-2 border-dashed border-[#d2bcad]/60 text-[#8a7262] bg-white/30 rounded-xl font-bold text-sm hover:border-[#cf833f]/50 hover:bg-white/50 transition-colors"
               >
                 <span className="flex items-center justify-center gap-2">
-                  <RefreshCcw className="h-4 w-4" />
-                  Skanuj ponownie
+                  <Plus className="h-4 w-4" />
+                  Dodaj kolejną pozycję ręcznie
                 </span>
               </button>
             </div>
@@ -965,241 +1239,6 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
               })}
             </div>
           )}
-
-          <div className={shellCard}>
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <p className={sectionTitle}>Wynik OCR</p>
-                <h3 className="mt-1 text-lg font-semibold text-[#2b180a]">
-                  Rozpoznane pozycje ({items.length})
-                </h3>
-              </div>
-              <div className="rounded-full bg-[#fff1e1] px-3 py-1.5 text-xs font-bold text-[#b55b1d]">
-                Edytowalne
-              </div>
-            </div>
-            <div className="overflow-visible rounded-xl ">
-              <div className="border-b border-[#f2dfcb] px-4 py-4">
-                <h3 className="text-[14px] font-medium text-[#3e2815]">
-                  OCR: Tekst wyodrębniony! ({items.length})
-                </h3>
-              </div>
-
-              {expectedComparison && (
-                expectedComparison.isMismatch ? (
-                  <div className="mx-4 mt-4 rounded-xl border border-[#ffc2af] bg-[#fff2ec] p-3 shadow-sm">
-                    <div className="flex items-start gap-2.5">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#a94d22]" />
-                      <p className="text-[#a94d22] text-xs font-bold leading-relaxed">
-                        Suma pozycji ({expectedComparison.sum.toFixed(2)}) nie zgadza się z sumą towarów ({expectedComparison.expected.toFixed(2)}).
-                        <br />
-                        {expectedComparison.diffValue > 0
-                          ? `Pozycje są wyższe o ${expectedComparison.diff.toFixed(2)} — najczęściej oznacza to brak uwzględnionych rabatów/promocji.`
-                          : `Pozycje są niższe o ${expectedComparison.diff.toFixed(2)} — możliwe, że brakuje jednej lub więcej pozycji.`}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mx-4 mt-4 bg-[#ebf7ef] border border-[#8bc5a0] rounded-xl p-3 shadow-sm">
-                    <div className="flex items-start gap-2.5">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#46825d]" />
-                      <p className="text-[#46825d] text-xs font-bold">
-                        Suma pozycji ({expectedComparison.sum.toFixed(2)}) zgadza się z sumą towarów!
-                      </p>
-                    </div>
-                  </div>
-                )
-              )}
-
-              <div className="py-2">
-                  {items.map((item, index) => {
-                    const selectedCat = categories?.find((c) => c._id === item.categoryId);
-                    const uncertainPrice = isAmountUncertain(item.amount);
-                    const amountNum = parseFloat((item.amount || "").replace(",", "."));
-                    const isDiscountRow = !isNaN(amountNum) && amountNum < 0;
-                    return (
-                      <div
-                        key={item.id}
-                        className={`relative overflow-visible border-b border-[#f2dfcb] py-4 last:border-b-0 ${
-                          openBulkMenuId === item.id ? "z-30" : "z-0"
-                        }`}
-                      >
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[11px] font-bold text-[#b89b87] bg-[#f5e5cf]/50 px-2 py-1 rounded-xl">
-                              Pozycja {index + 1}
-                            </span>
-                            {(receiptSummaries.length > 1 || item.receiptIndex > 0) && (
-                              <span className="text-[11px] font-bold text-[#3856a8] bg-[#eef4ff] border border-[#c8d8ff] px-2 py-1 rounded-xl">
-                                {item.receiptLabel || `Paragon ${item.receiptIndex + 1}`}
-                              </span>
-                            )}
-                            {item.fromMapping && (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#46825d] bg-[#ebf7ef] border border-[#8bc5a0] px-2 py-1 rounded-xl">
-                                <Brain className="h-3 w-3" />
-                                Z historii
-                              </span>
-                            )}
-                            {uncertainPrice && (
-                              <span className="text-[11px] font-bold text-[#9a2b00] bg-[#ffe1d6] border border-[#ffc2af] px-2 py-1 rounded-xl">
-                                Niepewna cena
-                              </span>
-                            )}
-                            {isDiscountRow && (
-                              <span className="text-[11px] font-bold text-[#2c7a4b] bg-[#e8f6ed] border border-[#9bd1af] px-2 py-1 rounded-xl">
-                                Rabat / opust
-                              </span>
-                            )}
-                          </div>
-                          <div className="relative z-20 flex flex-wrap ">
-                            {items.length > 1 && (
-                              <div className="relative">
-                                <button
-                                  type="button"
-                                  onClick={() => setOpenBulkMenuId(openBulkMenuId === item.id ? null : item.id)}
-                                  disabled={!item.categoryId || !item.subcategoryId}
-                                  className="inline-flex flex-wrap gap-1.5 rounded-full border border-[#ead8c5] bg-[#fff8f2] px-2.5 py-1 text-[11px] font-bold text-[#8a7262] transition-colors hover:border-[#cf833f] hover:text-[#cf833f] disabled:opacity-40"
-                                >
-                                  <Sparkles className="h-3.5 w-3.5" />
-                                  Akcje
-                                  <MoreHorizontal className="h-3.5 w-3.5" />
-                                </button>
-
-                                {openBulkMenuId === item.id && item.categoryId && item.subcategoryId && (
-                                  <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-60 rounded-xl border border-[#efd9c2] bg-[#fffaf4] p-1.5 shadow-[0_10px_24px_rgba(180,120,80,0.18)]">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        applyCategoryToRemainingItems(item.id);
-                                        setOpenBulkMenuId(null);
-                                      }}
-                                      className="flex w-full items-start gap-2 rounded-xl px-3 py-2 text-left transition-colors hover:bg-[#fff1e4]"
-                                    >
-                                      <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[#cf833f]" />
-                                      <span>
-                                        <span className="block text-[11px] font-bold text-[#6d4d38]">
-                                          Przypisz do pozostałych
-                                        </span>
-                                        <span className="block text-[10px] font-medium leading-relaxed text-[#9c806c]">
-                                          Skopiuj kategorię i podkategorię do reszty pozycji z tego skanu.
-                                        </span>
-                                      </span>
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                            <IconTrashButton
-                              onClick={() => setPendingRemoveItemId(item.id)}
-                              title="Usuń pozycję"
-                              className="h-7 w-7 text-red-400 hover:bg-red-50 hover:text-red-500  flex-wrap"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="mb-3 flex gap-2">
-                          <input
-                            type="text"
-                            value={item.description}
-                            onChange={(e) => updateItem(item.id, { description: e.target.value })}
-                            className="flex-1 rounded-xl border border-[#f5e5cf] bg-white/60 px-3 py-2 text-sm font-bold text-[#3e2815] outline-none focus:border-[#cf833f]"
-                            placeholder="Opis produktu"
-                          />
-                          <div className="relative w-[8.5rem]">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={item.amount}
-                              onChange={(e) => updateItem(item.id, { amount: e.target.value })}
-                              className={`w-full rounded-xl border bg-white/60 px-3 py-2.5 text-[15px] font-bold text-right tabular-nums outline-none ${uncertainPrice
-                                ? "border-[#f3a086] text-[#b74210] focus:border-[#d95d27]"
-                                : isDiscountRow
-                                  ? "border-[#9bd1af] text-[#2c7a4b] focus:border-[#4f9a6e]"
-                                  : "border-[#f5e5cf] text-[#cf833f] focus:border-[#cf833f]"
-                                }`}
-                              placeholder="0.00"
-                            />
-                          </div>
-                        </div>
-
-                        {uncertainPrice && (
-                          <p className="text-[11px] font-medium text-[#a94d22] bg-[#fff2ec] border border-[#ffd4c4] rounded-xl px-2 py-1 mb-2">
-                            OCR nie był pewny kwoty. Uzupełnij ręcznie przed zapisem.
-                          </p>
-                        )}
-
-                        <div className="mt-2 grid grid-cols-2 gap-2">
-                          <select
-                            className="w-full text-xs bg-white/60 border border-[#f5e5cf] rounded-xl px-2 py-2.5 outline-none font-bold text-[#6d4d38]"
-                            value={item.categoryId || ""}
-                            onChange={(e) =>
-                              updateItem(item.id, {
-                                categoryId: e.target.value as Id<"categories">,
-                                subcategoryId: null,
-                              })
-                            }
-                          >
-                            <option value="" disabled>
-                              Wybierz kateg...
-                            </option>
-                            {categories?.map((c) => (
-                              <option key={c._id} value={c._id}>
-                                {c.name}
-                              </option>
-                            ))}
-                          </select>
-
-                          <select
-                            className="w-full text-xs bg-white/60 border border-[#f5e5cf] rounded-xl px-2 py-2.5 outline-none font-bold text-[#6d4d38]"
-                            value={item.subcategoryId || ""}
-                            onChange={(e) =>
-                              updateItem(item.id, {
-                                subcategoryId: e.target.value as Id<"subcategories">,
-                              })
-                            }
-                            disabled={!item.categoryId}
-                          >
-                            <option value="" disabled>
-                              Podkategoria...
-                            </option>
-                            {selectedCat?.subcategories.map((s: any) => (
-                              <option key={s._id} value={s._id}>
-                                {s.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                      </div>
-                    );
-                  })}
-              </div>
-
-              <div className="border-t border-[#f2dfcb] p-4">
-                <button
-                  onClick={() =>
-                    setItems([
-                      ...items,
-                      {
-                        id: crypto.randomUUID(),
-                        description: "",
-                        amount: "",
-                        categoryId: null,
-                        subcategoryId: null,
-                        receiptIndex: 0,
-                      },
-                    ])
-                  }
-                  className="w-full py-3 border-2 border-dashed border-[#d2bcad]/60 text-[#8a7262] bg-white/30 rounded-xl font-bold text-sm hover:border-[#cf833f]/50 hover:bg-white/50 transition-colors"
-                >
-                  <span className="flex items-center justify-center gap-2">
-                    <Plus className="h-4 w-4" />
-                    Dodaj kolejną pozycję ręcznie
-                  </span>
-                </button>
-              </div>
-            </div>
-          </div>
 
           <button
             onClick={handleSaveAll}
