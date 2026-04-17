@@ -7,6 +7,7 @@ import { ProfileSettingsScreen } from "./ProfileSettingsScreen";
 import { BadgesScreen } from "./BadgesScreen";
 import { BudgetSettingsScreen } from "./BudgetSettingsScreen";
 import { EmailSetupCard } from "./EmailSetupCard";
+import { EmailInboxScreen } from "./EmailInboxScreen";
 import { FireIcon } from "../ui/icons/FireIcon";
 import { AvatarMaleIcon } from "../ui/icons/AvatarMaleIcon";
 import { AvatarFemaleIcon } from "../ui/icons/AvatarFemaleIcon";
@@ -34,6 +35,7 @@ type Tab = "household" | "budget" | "badges" | "profile";
 
 export function HouseholdScreen({ household, households, onSwitchHousehold }: Props) {
   const [tab, setTab] = useState<Tab>("household");
+  const [householdSubscreen, setHouseholdSubscreen] = useState<"overview" | "emailInbox">("overview");
   const members = useQuery(api.households.getMembers, { householdId: household._id });
   const memberBudgetOverview = useQuery(api.analytics.memberBudgetOverview, { householdId: household._id });
   const myMembership = useQuery(api.households.getMyMembership, { householdId: household._id });
@@ -193,7 +195,15 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
         <BudgetSettingsScreen householdId={household._id} currency={household.currency} onBack={() => setTab("household")} />
       )}
 
-      {tab === "household" && (
+      {tab === "household" && householdSubscreen === "emailInbox" && (
+        <EmailInboxScreen
+          householdId={household._id}
+          currency={household.currency}
+          onBack={() => setHouseholdSubscreen("overview")}
+        />
+      )}
+
+      {tab === "household" && householdSubscreen === "overview" && (
         <div className="space-y-6">
           <div className="bg-[#fdf9f1] rounded-xl p-6 pb-8 shadow-[0_8px_24px_rgba(180,120,80,0.15)] flex flex-col items-center relative overflow-hidden w-full">
             <h3 className="text-[1.1rem] font-bold text-[#3e2815] mb-6 relative z-10">Nasze gniazdo</h3>
@@ -499,7 +509,10 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
             </div>
           </div>
 
-          <EmailSetupCard householdId={household._id} deploymentUrl={import.meta.env.VITE_CONVEX_URL || ""} />
+          <EmailSetupCard
+            householdId={household._id}
+            onOpenInbox={() => setHouseholdSubscreen("emailInbox")}
+          />
         </div>
       )}
 

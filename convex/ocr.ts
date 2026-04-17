@@ -1,7 +1,7 @@
 "use node";
 
 import { v } from "convex/values";
-import { action } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import OpenAI from "openai";
 
@@ -1623,6 +1623,232 @@ async function processTextWithAI(
 // ══════════════════════════════════════════════════════════════════
 // ██ PUBLIC ACTIONS
 // ══════════════════════════════════════════════════════════════════
+
+async function listCategoriesForHouseholdInternal(ctx: any, householdId: string) {
+  const systemCats = await ctx.db
+    .query("categories")
+    .withIndex("by_system", (q: any) => q.eq("isSystem", true))
+    .collect();
+
+  const householdCats = await ctx.db
+    .query("categories")
+    .withIndex("by_household", (q: any) => q.eq("householdId", householdId))
+    .collect();
+
+  const allCats = [...systemCats, ...householdCats].sort((a, b) => a.sortOrder - b.sortOrder);
+
+  return await Promise.all(
+    allCats.map(async (cat) => {
+      const subs = await ctx.db
+        .query("subcategories")
+        .withIndex("by_category", (q: any) => q.eq("categoryId", cat._id))
+        .collect();
+
+      return {
+        ...cat,
+        subcategories: subs.sort((a: any, b: any) => a.sortOrder - b.sortOrder),
+      };
+    })
+  );
+}
+
+async function extractTextFromPdfBlob(blob: Blob) {
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const document = await pdfjs.getDocument({
+    data: bytes,
+    useSystemFonts: true,
+    isEvalSupported: false,
+  }).promise;
+
+  const pages: string[] = [];
+  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
+    const page = await document.getPage(pageNumber);
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items
+      .map((item: any) => ("str" in item ? item.str : ""))
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (pageText) {
+      pages.push(pageText);
+    }
+  }
+
+  return pages.join("\n").trim();
+}
+
+function remapProcessResult(
+  result: ProcessReceiptResult,
+  receiptOffset: number,
+  sourceImageIndex: number | null
+): ProcessReceiptResult {
+  const fallbackSummary = {
+    receiptIndex: 0,
+    receiptLabel: sourceImageIndex ? `Załącznik ${sourceImageIndex}` : "Mail",
+    totalAmount: result.totalAmount || "",
+    payableAmount: result.payableAmount || "",
+    depositTotal: result.depositTotal || "",
+    sourceImageIndex,
+  };
+
+  const summaries = (result.receiptSummaries.length > 0 ? result.receiptSummaries : [fallbackSummary]).map((summary) => ({
+    ...summary,
+    receiptIndex: summary.receiptIndex + receiptOffset,
+    receiptLabel: summary.receiptLabel || (sourceImageIndex ? `Załącznik ${sourceImageIndex}` : "Mail"),
+    sourceImageIndex,
+  }));
+
+  const items = result.items.map((item) => ({
+    ...item,
+    receiptIndex: item.receiptIndex + receiptOffset,
+    receiptLabel: item.receiptLabel || summaries[0]?.receiptLabel || (sourceImageIndex ? `Załącznik ${sourceImageIndex}` : "Mail"),
+    sourceImageIndex,
+  }));
+
+  return {
+    ...result,
+    items,
+    receiptSummaries: summaries,
+    receiptCount: summaries.length,
+  };
+}
+
+function mergeProcessResults(results: ProcessReceiptResult[]): ProcessReceiptResult {
+  const mergedItems: ProcessedReceiptItem[] = [];
+  const mergedSummaries: ReceiptSummary[] = [];
+  const rawLabels: string[] = [];
+  let total = 0;
+  let payable = 0;
+  let deposit = 0;
+
+  for (const result of results) {
+    if (result.rawText) {
+      rawLabels.push(result.rawText);
+    }
+    mergedItems.push(...result.items);
+    mergedSummaries.push(...result.receiptSummaries);
+    total += parseFloat(result.totalAmount || "0") || 0;
+    payable += parseFloat(result.payableAmount || "0") || 0;
+    deposit += parseFloat(result.depositTotal || "0") || 0;
+  }
+
+  return {
+    items: mergedItems,
+    rawText: rawLabels.join(" | "),
+    totalAmount: total > 0 ? total.toFixed(2) : "",
+    payableAmount: payable > 0 ? payable.toFixed(2) : "",
+    depositTotal: deposit > 0 ? deposit.toFixed(2) : "",
+    modelUsed: results.some((result) => result.modelUsed && result.modelUsed !== VISION_MODEL) ? "mixed" : VISION_MODEL,
+    receiptCount: mergedSummaries.length || 1,
+    receiptSummaries: enrichReceiptSummariesWithValidation(mergedSummaries, mergedItems),
+  };
+}
+
+export const processEmailAttachments = internalAction({
+  args: {
+    storageIds: v.array(v.id("_storage")),
+    mimeTypes: v.array(v.string()),
+    householdId: v.id("households"),
+    fallbackText: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<ProcessReceiptResult> => {
+    const categoriesArray = await listCategoriesForHouseholdInternal(ctx, args.householdId);
+    if (categoriesArray.length === 0) {
+      throw new Error("Brak kategorii dla gospodarstwa.");
+    }
+
+    const compactCategories = buildCompactCategoryList(categoriesArray);
+    const partialResults: ProcessReceiptResult[] = [];
+    let receiptOffset = 0;
+
+    for (let index = 0; index < args.storageIds.length; index++) {
+      const storageId = args.storageIds[index];
+      const mimeType = args.mimeTypes[index] || "application/octet-stream";
+      const blob = await ctx.storage.get(storageId);
+      if (!blob) continue;
+
+      let result: ProcessReceiptResult | null = null;
+
+      if (mimeType.startsWith("image/")) {
+        const buffer = Buffer.from(await blob.arrayBuffer());
+        result = await processImagesWithAI(
+          ctx,
+          args.householdId,
+          [{ base64: buffer.toString("base64"), mimeType }],
+          compactCategories,
+          categoriesArray
+        );
+      } else if (mimeType === "application/pdf") {
+        const extractedText = await extractTextFromPdfBlob(blob);
+        if (extractedText) {
+          result = await processTextWithAI(
+            ctx,
+            args.householdId,
+            extractedText,
+            compactCategories,
+            categoriesArray
+          );
+        }
+      }
+
+      if (!result) continue;
+
+      const remapped = remapProcessResult(result, receiptOffset, index + 1);
+      partialResults.push(remapped);
+      receiptOffset += Math.max(1, remapped.receiptSummaries.length || remapped.receiptCount || 1);
+    }
+
+    if (partialResults.length === 0 && args.fallbackText?.trim()) {
+      return await processTextWithAI(
+        ctx,
+        args.householdId,
+        args.fallbackText,
+        compactCategories,
+        categoriesArray
+      );
+    }
+
+    if (partialResults.length === 0) {
+      return {
+        items: [],
+        rawText: "",
+        totalAmount: "",
+        payableAmount: "",
+        depositTotal: "",
+        modelUsed: VISION_MODEL,
+        receiptCount: 1,
+        receiptSummaries: [{
+          receiptIndex: 0,
+          receiptLabel: "Mail",
+          totalAmount: "",
+          payableAmount: "",
+          depositTotal: "",
+          sourceImageIndex: null,
+        }],
+      };
+    }
+
+    return mergeProcessResults(partialResults);
+  },
+});
+
+export const processEmailBodyText = internalAction({
+  args: {
+    householdId: v.id("households"),
+    text: v.string(),
+  },
+  handler: async (ctx, args): Promise<ProcessReceiptResult> => {
+    const categoriesArray = await listCategoriesForHouseholdInternal(ctx, args.householdId);
+    if (categoriesArray.length === 0) {
+      throw new Error("Brak kategorii dla gospodarstwa.");
+    }
+
+    const compactCategories = buildCompactCategoryList(categoriesArray);
+    return await processTextWithAI(ctx, args.householdId, args.text, compactCategories, categoriesArray);
+  },
+});
 
 export const getFileUrl = action({
   args: { storageId: v.id("_storage") },

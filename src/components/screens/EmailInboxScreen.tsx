@@ -1,10 +1,19 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { formatAmount } from "../../lib/format";
 import { toast } from "sonner";
-import { Mail, FileText, CheckCircle, XCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle,
+  FileImage,
+  FileText,
+  Inbox,
+  Mail,
+  RefreshCw,
+  XCircle,
+} from "lucide-react";
 
 interface Props {
   householdId: Id<"households">;
@@ -17,6 +26,7 @@ interface ReviewItem {
   amount: number;
   categoryId: Id<"categories"> | null;
   subcategoryId: Id<"subcategories"> | null;
+  sourceStorageId?: Id<"_storage">;
 }
 
 export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
@@ -32,15 +42,18 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
 
   function initReview(pendingId: string, items: any[]) {
     if (reviewItems[pendingId]) return;
+
     setReviewItems((prev) => ({
       ...prev,
-      [pendingId]: items.map((i: any) => ({
-        description: i.description,
-        amount: i.amount,
-        categoryId: (i.categoryId as Id<"categories">) || null,
-        subcategoryId: (i.subcategoryId as Id<"subcategories">) || null,
+      [pendingId]: items.map((item: any) => ({
+        description: item.description,
+        amount: item.amount,
+        categoryId: item.categoryId || null,
+        subcategoryId: item.subcategoryId || null,
+        sourceStorageId: item.sourceStorageId,
       })),
     }));
+
     setReviewDates((prev) => ({
       ...prev,
       [pendingId]: new Date().toISOString().split("T")[0],
@@ -50,8 +63,8 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
   function updateReviewItem(pendingId: string, idx: number, updates: Partial<ReviewItem>) {
     setReviewItems((prev) => ({
       ...prev,
-      [pendingId]: prev[pendingId].map((item, i) =>
-        i === idx ? { ...item, ...updates } : item
+      [pendingId]: prev[pendingId].map((item, itemIndex) =>
+        itemIndex === idx ? { ...item, ...updates } : item
       ),
     }));
   }
@@ -60,9 +73,9 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
     const items = reviewItems[pendingId];
     if (!items) return;
 
-    const invalid = items.find((i) => !i.categoryId || !i.subcategoryId || i.amount <= 0);
+    const invalid = items.find((item) => !item.categoryId || !item.subcategoryId || item.amount <= 0);
     if (invalid) {
-      toast.error("Uzupełnij kategorie i kwoty dla wszystkich pozycji.");
+      toast.error("Uzupełnij kategorie i dodatnie kwoty dla wszystkich pozycji.");
       return;
     }
 
@@ -70,170 +83,216 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
     try {
       await approve({
         pendingId,
-        items: items.map((i) => ({
-          description: i.description,
-          amount: i.amount,
-          categoryId: i.categoryId!,
-          subcategoryId: i.subcategoryId!,
+        items: items.map((item) => ({
+          description: item.description,
+          amount: item.amount,
+          categoryId: item.categoryId!,
+          subcategoryId: item.subcategoryId!,
+          sourceStorageId: item.sourceStorageId,
         })),
         date: new Date(reviewDates[pendingId] || new Date().toISOString().split("T")[0]).getTime(),
       });
-      toast.success("Wydatki zatwierdzone i zapisane!");
+
+      toast.success("Wydatki zostały zapisane.");
       setExpandedId(null);
-    } catch (err: any) {
-      toast.error(err.message);
+    } catch (error: any) {
+      toast.error(error.message || "Nie udało się zatwierdzić maila.");
     } finally {
       setSaving(null);
     }
   }
 
   async function handleReject(pendingId: Id<"pending_email_expenses">) {
-    if (!confirm("Odrzucić ten email?")) return;
+    if (!confirm("Odrzucić ten mail i usunąć jego załączniki z kolejki?")) return;
+
     try {
       await reject({ pendingId });
-      toast.success("Email odrzucony.");
-    } catch (err: any) {
-      toast.error(err.message);
+      toast.success("Mail został odrzucony.");
+      setExpandedId(null);
+    } catch (error: any) {
+      toast.error(error.message || "Nie udało się odrzucić maila.");
     }
   }
 
-  const cardClass = "bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
+  const shellCard = "bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-5 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
 
   return (
-    <div className="space-y-6 pb-6">
-      <div className="pt-2 pb-1">
-        <div className="flex items-center gap-2 mb-1">
-          <button
-            onClick={onBack}
-            className="text-2xl text-[#6d4d38] font-bold hover:text-[#2b180a] leading-none drop-shadow-sm"
-          >
-            ←
-          </button>
-          <Mail className="w-8 h-8 text-[#c76823] drop-shadow-sm" />
-          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a] drop-shadow-sm">
-            Skrzynka e-mail
-          </h2>
+    <div className="space-y-5 pb-6">
+      <div className="flex items-center gap-3 pt-2">
+        <button
+          type="button"
+          onClick={onBack}
+          className="rounded-full bg-white/70 p-2 text-[#6d4d38] transition-colors hover:bg-white"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </button>
+
+        <div>
+          <div className="flex items-center gap-2">
+            <Inbox className="h-7 w-7 text-[#c76823]" />
+            <h2 className="text-[24px] font-medium tracking-tight text-[#2b180a]">Kolejka maili</h2>
+          </div>
+          <p className="mt-1 text-xs font-medium text-[#8a7262]">
+            Rachunki wykryte z forwardowanych maili czekają tu na ostateczne zatwierdzenie.
+          </p>
         </div>
-        <p className="text-xs text-[#8a7262] font-medium ml-10 mt-1">
-          Wydatki wykryte z przesłanych maili — zatwierdź lub odrzuć
-        </p>
       </div>
 
       {pending === undefined ? (
         <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#d87635]" />
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#d87635]" />
         </div>
       ) : pending.length === 0 ? (
-        <div className={`${cardClass} text-center py-10`}>
-          <Mail className="w-16 h-16 text-[#b89b87] mx-auto mb-4" />
-          <p className="text-[#3e2815] font-bold mb-1">Brak oczekujących maili</p>
-          <p className="text-xs text-[#b89b87] font-medium">
-            Prześlij maila z potwierdzeniem zakupu na swój adres, a pojawi się tutaj.
+        <div className={`${shellCard} text-center py-10`}>
+          <Mail className="mx-auto mb-4 h-14 w-14 text-[#b89b87]" />
+          <p className="text-[#3e2815] font-bold mb-1">Nic tu jeszcze nie czeka</p>
+          <p className="text-xs font-medium text-[#8a7262]">
+            Zrób forward rachunku na adres gospodarstwa, a po chwili pojawi się tutaj do akceptacji.
           </p>
         </div>
       ) : (
         <div className="space-y-4">
-          {pending.map((p) => {
-            const isExpanded = expandedId === p._id;
-            const items = reviewItems[p._id];
-            const totalAmount = p.items.reduce((s, i) => s + i.amount, 0);
+          {pending.map((item) => {
+            const isExpanded = expandedId === item._id;
+            const review = reviewItems[item._id];
+            const totalAmount = item.items.reduce((sum, row) => sum + row.amount, 0);
 
             return (
               <div
-                key={p._id}
-                className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl shadow-sm overflow-hidden"
+                key={item._id}
+                className="overflow-hidden rounded-xl border border-white/50 bg-white/40 shadow-[0_8px_24px_rgba(180,120,80,0.12)]"
               >
-                {/* Header row */}
                 <button
+                  type="button"
                   className="w-full p-5 text-left"
                   onClick={() => {
                     if (!isExpanded) {
-                      initReview(p._id, p.items);
-                      setExpandedId(p._id);
+                      initReview(item._id, item.items);
+                      setExpandedId(item._id);
                     } else {
                       setExpandedId(null);
                     }
                   }}
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 drop-shadow-sm">
-                        <Mail className="w-6 h-6 text-[#c76823]" />
-                        <p className="text-[15px] font-medium text-[#2b180a] truncate">
-                          {p.emailSubject || "(brak tematu)"}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-5 w-5 shrink-0 text-[#c76823]" />
+                        <p className="truncate text-[15px] font-medium text-[#2b180a]">
+                          {item.emailSubject || "(bez tematu)"}
                         </p>
                       </div>
-                      <p className="text-[11px] text-[#8a7262] font-medium truncate">
-                        {p.emailFrom}
-                      </p>
-                      <p className="text-[10px] text-[#b89b87] font-medium mt-0.5">
-                        {new Date(p.emailReceivedAt).toLocaleString("pl-PL")}
-                      </p>
+
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold text-[#8a7262]">
+                        <span>{item.emailFrom}</span>
+                        <span>→</span>
+                        <span>{item.emailTo}</span>
+                      </div>
+
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <span className="rounded-full bg-[#fff2e2] px-2.5 py-1 text-[10px] font-bold text-[#b86a28]">
+                          {item.detectedBy === "ocr" ? "OCR / załączniki" : item.detectedBy === "text" ? "Parser tekstu" : "Do sprawdzenia"}
+                        </span>
+                        <span className="rounded-full bg-[#eef4ff] px-2.5 py-1 text-[10px] font-bold text-[#3856a8]">
+                          {item.attachmentNames.length} załącznik(i)
+                        </span>
+                        <span className="rounded-full bg-[#f7f1ff] px-2.5 py-1 text-[10px] font-bold text-[#7b4bb3]">
+                          {new Date(item.emailReceivedAt).toLocaleString("pl-PL")}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-right shrink-0">
+
+                    <div className="shrink-0 text-right">
                       <p className="text-base font-medium text-[#cf833f]">
                         {formatAmount(totalAmount, currency)}
                       </p>
-                      <p className="text-[10px] text-[#b89b87] font-medium">
-                        {p.items.length} pozycji
-                      </p>
+                      <p className="text-[10px] font-bold text-[#b89b87]">{item.items.length} pozycji</p>
                     </div>
                   </div>
                 </button>
 
-                {/* Expanded review */}
-                {isExpanded && items && (
-                  <div className="px-5 pb-5 border-t border-[#ebd8c8]/50 pt-4 space-y-4">
-                    {/* Date */}
+                {isExpanded && review && (
+                  <div className="space-y-4 border-t border-[#ebd8c8]/50 px-5 pb-5 pt-4">
+                    {item.sourceSummary && (
+                      <div className="rounded-xl border border-[#dfead2] bg-[#f6fff1] p-3 text-[12px] font-medium text-[#4d6b3c]">
+                        {item.sourceSummary}
+                      </div>
+                    )}
+
                     <div>
-                      <label className="block text-[11px] font-bold text-[#b89b87] uppercase tracking-wider mb-1.5 ml-1">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#b89b87]">
                         Data zakupu
                       </label>
                       <input
                         type="date"
-                        value={reviewDates[p._id] || ""}
-                        onChange={(e) =>
-                          setReviewDates((prev) => ({ ...prev, [p._id]: e.target.value }))
+                        value={reviewDates[item._id] || ""}
+                        onChange={(event) =>
+                          setReviewDates((prev) => ({ ...prev, [item._id]: event.target.value }))
                         }
-                        className="w-full text-base bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-4 py-2.5 outline-none focus:border-[#cf833f] focus:bg-white text-[#2b180a] font-bold shadow-inner transition-all"
+                        className="mt-1 w-full rounded-xl border border-white/60 bg-white/70 px-4 py-2.5 text-base font-bold text-[#2b180a] outline-none shadow-inner focus:border-[#cf833f]"
                       />
                     </div>
 
-                    {/* Items */}
+                    {item.storageUrls.length > 0 && (
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-wider text-[#b89b87]">Załączniki</p>
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          {item.storageUrls.map((url, index) => (
+                            <a
+                              key={`${item._id}-${index}`}
+                              href={url || undefined}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-2 rounded-xl border border-[#ead8c5] bg-[#fffaf4] px-3 py-3 text-sm font-bold text-[#6d4d38] transition-colors hover:border-[#cf833f] hover:text-[#cf833f]"
+                            >
+                              {item.attachmentNames[index]?.toLowerCase().endsWith(".pdf") ? (
+                                <FileText className="h-4 w-4 shrink-0" />
+                              ) : (
+                                <FileImage className="h-4 w-4 shrink-0" />
+                              )}
+                              <span className="truncate">{item.attachmentNames[index] || `Załącznik ${index + 1}`}</span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="space-y-3">
-                      {items.map((item, idx) => {
-                        const selectedCat = categories?.find((c) => c._id === item.categoryId);
+                      {review.map((reviewItem, index) => {
+                        const selectedCategory = categories?.find((category) => category._id === reviewItem.categoryId);
+
                         return (
                           <div
-                            key={idx}
-                            className="bg-white rounded-xl p-3.5 border border-[#f5e5cf] space-y-2"
+                            key={`${item._id}-${index}`}
+                            className="space-y-2 rounded-xl border border-[#f5e5cf] bg-white p-3.5"
                           >
                             <div className="flex gap-2">
                               <input
                                 type="text"
-                                value={item.description}
-                                onChange={(e) =>
-                                  updateReviewItem(p._id, idx, { description: e.target.value })
+                                value={reviewItem.description}
+                                onChange={(event) =>
+                                  updateReviewItem(item._id, index, { description: event.target.value })
                                 }
-                                className="flex-1 text-sm bg-white/50 backdrop-blur-sm border border-white/60 rounded-xl px-3 py-2 outline-none focus:border-[#cf833f] focus:bg-white font-bold text-[#3e2815] shadow-inner transition-all"
+                                className="flex-1 rounded-xl border border-white/60 bg-white/60 px-3 py-2 text-sm font-bold text-[#3e2815] outline-none shadow-inner focus:border-[#cf833f]"
                                 placeholder="Opis"
                               />
+
                               <div className="relative w-28">
                                 <input
                                   type="number"
-                                  value={item.amount > 0 ? (item.amount / 100).toFixed(2) : ""}
-                                  onChange={(e) => {
-                                    const v = parseFloat(e.target.value);
-                                    updateReviewItem(p._id, idx, {
-                                      amount: isNaN(v) ? 0 : Math.round(v * 100),
+                                  value={reviewItem.amount > 0 ? (reviewItem.amount / 100).toFixed(2) : ""}
+                                  onChange={(event) => {
+                                    const value = parseFloat(event.target.value);
+                                    updateReviewItem(item._id, index, {
+                                      amount: Number.isFinite(value) ? Math.round(value * 100) : 0,
                                     });
                                   }}
-                                  className="w-full text-sm bg-white/50 backdrop-blur-sm border border-white/60 rounded-xl px-3 py-2 outline-none focus:border-[#cf833f] focus:bg-white font-bold text-[#cf833f] text-right shadow-inner transition-all"
+                                  className="w-full rounded-xl border border-white/60 bg-white/60 px-3 py-2 text-right text-sm font-bold text-[#cf833f] outline-none shadow-inner focus:border-[#cf833f]"
                                   placeholder="0.00"
-                                  step="0.01"
                                   min="0"
+                                  step="0.01"
                                 />
-                                <span className="absolute right-3 top-2 text-xs font-bold text-[#b89b87] pointer-events-none">
+                                <span className="pointer-events-none absolute right-3 top-2 text-xs font-bold text-[#b89b87]">
                                   zł
                                 </span>
                               </div>
@@ -241,41 +300,41 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
 
                             <div className="grid grid-cols-2 gap-2">
                               <select
-                                className="w-full text-xs bg-white/50 backdrop-blur-sm border border-white/60 rounded-xl px-2 py-2.5 outline-none font-bold text-[#6d4d38] shadow-inner focus:bg-white transition-all"
-                                value={item.categoryId || ""}
-                                onChange={(e) =>
-                                  updateReviewItem(p._id, idx, {
-                                    categoryId: e.target.value as Id<"categories">,
+                                className="w-full rounded-xl border border-white/60 bg-white/60 px-2 py-2.5 text-xs font-bold text-[#6d4d38] outline-none shadow-inner focus:border-[#cf833f]"
+                                value={reviewItem.categoryId || ""}
+                                onChange={(event) =>
+                                  updateReviewItem(item._id, index, {
+                                    categoryId: event.target.value as Id<"categories">,
                                     subcategoryId: null,
                                   })
                                 }
                               >
-                                  <option value="" disabled>
-                                    Kategoria...
+                                <option value="" disabled>
+                                  Kategoria...
+                                </option>
+                                {categories?.map((category) => (
+                                  <option key={category._id} value={category._id}>
+                                    {category.name}
                                   </option>
-                                  {categories?.map((c) => (
-                                    <option key={c._id} value={c._id}>
-                                      {c.name}
-                                    </option>
-                                  ))}
+                                ))}
                               </select>
 
                               <select
-                                className="w-full text-xs bg-white/50 backdrop-blur-sm border border-white/60 rounded-xl px-2 py-2.5 outline-none font-bold text-[#6d4d38] shadow-inner focus:bg-white transition-all"
-                                value={item.subcategoryId || ""}
-                                onChange={(e) =>
-                                  updateReviewItem(p._id, idx, {
-                                    subcategoryId: e.target.value as Id<"subcategories">,
+                                className="w-full rounded-xl border border-white/60 bg-white/60 px-2 py-2.5 text-xs font-bold text-[#6d4d38] outline-none shadow-inner focus:border-[#cf833f]"
+                                value={reviewItem.subcategoryId || ""}
+                                onChange={(event) =>
+                                  updateReviewItem(item._id, index, {
+                                    subcategoryId: event.target.value as Id<"subcategories">,
                                   })
                                 }
-                                disabled={!item.categoryId}
+                                disabled={!reviewItem.categoryId}
                               >
                                 <option value="" disabled>
                                   Podkategoria...
                                 </option>
-                                {selectedCat?.subcategories.map((s: any) => (
-                                  <option key={s._id} value={s._id}>
-                                    {s.name}
+                                {selectedCategory?.subcategories.map((subcategory: any) => (
+                                  <option key={subcategory._id} value={subcategory._id}>
+                                    {subcategory.name}
                                   </option>
                                 ))}
                               </select>
@@ -285,43 +344,42 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                       })}
                     </div>
 
-                    {/* Raw email preview */}
-                    {p.rawEmailText && (
+                    {item.rawEmailText && (
                       <details className="group">
-                        <summary className="text-[11px] font-bold text-[#b89b87] cursor-pointer hover:text-[#8a7262] select-none flex items-center gap-1">
-                          <FileText className="w-3 h-3" />
-                          <span>Pokaż treść maila</span>
+                        <summary className="flex cursor-pointer items-center gap-1 text-[11px] font-bold text-[#b89b87] hover:text-[#8a7262]">
+                          <FileText className="h-3 w-3" />
+                          Pokaż treść maila
                         </summary>
-                        <div className="mt-2 bg-[#fffdf9] rounded-xl p-3 border border-[#ebd8c8]">
-                          <p className="text-[10px] text-[#6d4d38] font-mono whitespace-pre-wrap leading-relaxed max-h-32 overflow-y-auto">
-                            {p.rawEmailText}
+                        <div className="mt-2 rounded-xl border border-[#ebd8c8] bg-[#fffdf9] p-3">
+                          <p className="max-h-40 overflow-y-auto whitespace-pre-wrap font-mono text-[10px] leading-relaxed text-[#6d4d38]">
+                            {item.rawEmailText}
                           </p>
                         </div>
                       </details>
                     )}
 
-                    {/* Actions */}
                     <div className="flex gap-3 pt-1">
                       <button
-                        onClick={() => handleReject(p._id)}
-                        className="flex-1 py-3 text-sm text-[#e65a5a] font-bold bg-[#fffdf9] hover:bg-[#ffeaea] rounded-xl transition-colors border border-[#ffd2d2] flex items-center justify-center gap-1.5"
+                        type="button"
+                        onClick={() => handleReject(item._id)}
+                        className="flex-1 rounded-xl border border-[#ffd2d2] bg-[#fffdf9] py-3 text-sm font-bold text-[#e65a5a] transition-colors hover:bg-[#ffeaea]"
                       >
-                        <XCircle className="w-4 h-4" />
-                        <span>Odrzuć</span>
+                        <span className="flex items-center justify-center gap-1.5">
+                          <XCircle className="h-4 w-4" />
+                          Odrzuć
+                        </span>
                       </button>
+
                       <button
-                        onClick={() => handleApprove(p._id)}
-                        disabled={saving === p._id}
-                        className="flex-[2] py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-xl font-medium text-sm shadow-sm hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                        type="button"
+                        onClick={() => handleApprove(item._id)}
+                        disabled={saving === item._id}
+                        className="flex-[2] rounded-xl bg-gradient-to-r from-[#de9241] to-[#ca782a] py-3 text-sm font-medium text-white shadow-sm transition-all hover:scale-[1.01] disabled:opacity-60"
                       >
-                        {saving === p._id ? (
-                          "Zapisywanie..."
-                        ) : (
-                          <>
-                            <CheckCircle className="w-4 h-4" />
-                            <span>Zatwierdź i zapisz</span>
-                          </>
-                        )}
+                        <span className="flex items-center justify-center gap-1.5">
+                          {saving === item._id ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                          {saving === item._id ? "Zapisywanie..." : "Zatwierdź i zapisz"}
+                        </span>
                       </button>
                     </div>
                   </div>
@@ -331,6 +389,11 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
           })}
         </div>
       )}
+
+      <div className="rounded-xl border border-white/50 bg-white/30 p-4 text-[12px] font-medium leading-relaxed text-[#8a7262]">
+        Najlepiej działają forwardowane PDF-y z tekstem oraz zdjęcia/skany rachunków. Jeśli parser czegoś nie odczyta
+        idealnie, poprawiasz to tutaj przed zapisaniem do kosztów.
+      </div>
     </div>
   );
 }

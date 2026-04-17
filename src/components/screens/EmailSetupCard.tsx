@@ -1,146 +1,167 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { toast } from "sonner";
-import { Mail, Camera, FileText, Edit, Clipboard, Lightbulb } from "lucide-react";
+import { ArrowRight, Clipboard, Mail, RefreshCw } from "lucide-react";
 
 interface Props {
   householdId: Id<"households">;
-  deploymentUrl: string;
+  onOpenInbox: () => void;
 }
 
-export function EmailSetupCard({ householdId, deploymentUrl }: Props) {
-  const token = useQuery(api.emailTokens.get, { householdId });
-  const getOrCreate = useMutation(api.emailTokens.getOrCreate);
-  const regenerate = useMutation(api.emailTokens.regenerate);
-  const [creating, setCreating] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
+function copyText(value: string, successMessage: string) {
+  navigator.clipboard.writeText(value).then(() => toast.success(successMessage));
+}
 
-  const webhookUrl = token
-    ? `${deploymentUrl}/api/email-ingest?token=${token}`
-    : null;
+export function EmailSetupCard({ householdId, onOpenInbox }: Props) {
+  const setup = useQuery(api.emailTokens.getSetup, { householdId });
+  const createInbox = useMutation(api.emailTokens.getOrCreate);
+  const rotateInbox = useMutation(api.emailTokens.regenerate);
+  const [busy, setBusy] = useState<"create" | "rotate" | null>(null);
+
+  const inbox = setup?.inbox ?? null;
 
   async function handleCreate() {
-    setCreating(true);
+    setBusy("create");
     try {
-      await getOrCreate({ householdId });
-      toast.success("Adres email gotowy!");
-    } catch (err: any) {
-      toast.error(err.message);
+      const address = await createInbox({ householdId });
+      toast.success(`Adres gotowy: ${address}`);
+    } catch (error: any) {
+      toast.error(error.message || "Nie udało się utworzyć adresu.");
     } finally {
-      setCreating(false);
+      setBusy(null);
     }
   }
 
-  async function handleRegenerate() {
-    if (!confirm("Wygenerować nowy token? Stary adres przestanie działać.")) return;
+  async function handleRotate() {
+    if (!confirm("Wygenerować nowy adres? Stary przestanie działać.")) return;
+
+    setBusy("rotate");
     try {
-      await regenerate({ householdId });
-      toast.success("Nowy token wygenerowany.");
-    } catch (err: any) {
-      toast.error(err.message);
+      const address = await rotateInbox({ householdId });
+      toast.success(`Nowy adres gotowy: ${address}`);
+    } catch (error: any) {
+      toast.error(error.message || "Nie udało się odświeżyć adresu.");
+    } finally {
+      setBusy(null);
     }
   }
-
-  function copyWebhook() {
-    if (!webhookUrl) return;
-    navigator.clipboard.writeText(webhookUrl).then(() => toast.success("Skopiowano URL!"));
-  }
-
-  // Generate Zapier quick setup URL
-  const zapierUrl = webhookUrl 
-    ? `https://zapier.com/webintent/create-zap?template=email-to-webhook&webhook_url=${encodeURIComponent(webhookUrl)}`
-    : null;
 
   return (
-    <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)] space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 drop-shadow-sm">
-          <Mail className="w-6 h-6 text-[#c76823]" />
-          <h3 className="text-[15px] font-medium text-[#2b180a]">Automatyzacja emaili (zaawansowane)</h3>
+    <div className="rounded-2xl border border-white/50 bg-white/40 p-5 shadow-[0_8px_32px_rgba(180,120,80,0.15)] backdrop-blur-xl">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Mail className="h-5 w-5 text-[#c76823]" />
+            <h3 className="text-[16px] font-medium text-[#2b180a]">Forwardowanie rachunków</h3>
+          </div>
+          <p className="mt-1 text-xs font-medium leading-relaxed text-[#8a7262]">
+            Każde domostwo może mieć własny adres do przesyłania dalej rachunków i faktur z maila.
+          </p>
         </div>
+
+        {inbox && (
+          <button
+            type="button"
+            onClick={onOpenInbox}
+            className="rounded-full bg-[#fff2e2] px-3 py-1.5 text-[11px] font-bold text-[#b86a28] transition-colors hover:bg-[#ffe7c7]"
+          >
+            {setup?.pendingCount ?? 0} do sprawdzenia
+          </button>
+        )}
       </div>
 
-      <p className="text-xs text-[#8a7262] font-medium leading-relaxed">
-        Funkcja automatycznego przetwarzania emaili wymaga zaawansowanej konfiguracji technicznej. Zamiast tego, użyj prostszych metod dodawania wydatków:
-      </p>
-
-      <div className="space-y-2 mt-4">
-        <div className="bg-gradient-to-r from-[#10b981] to-[#059669] text-white rounded-xl p-3 flex items-center gap-3">
-          <Camera className="w-6 h-6" />
-          <div className="flex-1">
-            <p className="text-xs font-bold">Zrób zdjęcie paragonu</p>
-            <p className="text-[10px] opacity-90">AI automatycznie odczyta produkty i ceny</p>
-          </div>
+      {!setup ? (
+        <div className="flex justify-center py-8">
+          <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-[#d87635]" />
         </div>
-
-        <div className="bg-gradient-to-r from-[#8b5cf6] to-[#7c3aed] text-white rounded-xl p-3 flex items-center gap-3">
-          <FileText className="w-6 h-6" />
-          <div className="flex-1">
-            <p className="text-xs font-bold">Prześlij PDF faktury</p>
-            <p className="text-[10px] opacity-90">Obsługujemy faktury elektroniczne</p>
-          </div>
+      ) : !setup.isResendConfigured ? (
+        <div className="mt-4 rounded-2xl border border-[#ffc9b6] bg-[#fff4ef] p-4">
+          <p className="text-sm font-bold text-[#9a3e16]">Skrzynka jeszcze nie jest aktywna</p>
+          <p className="mt-1 text-xs font-medium leading-relaxed text-[#9a5b3d]">
+            Backend nie ma jeszcze ustawionej domeny odbiorczej dla maili. Gdy konfiguracja będzie gotowa, pojawi się
+            tu adres dla tego domostwa.
+          </p>
         </div>
-
-        <div className="bg-gradient-to-r from-[#f59e0b] to-[#d97706] text-white rounded-xl p-3 flex items-center gap-3">
-          <Edit className="w-6 h-6" />
-          <div className="flex-1">
-            <p className="text-xs font-bold">Wpisz ręcznie</p>
-            <p className="text-[10px] opacity-90">Szybkie dodawanie pojedynczych wydatków</p>
+      ) : !inbox ? (
+        <div className="mt-4 space-y-4">
+          <div className="rounded-2xl border border-white/60 bg-gradient-to-br from-[#fff7ef] to-[#fffdf8] p-4">
+            <p className="text-sm font-bold text-[#2b180a]">Jeden adres dla całego domostwa</p>
+            <p className="mt-1 text-[12px] font-medium leading-relaxed text-[#8a7262]">
+              Wystarczy zrobić forward maila z rachunkiem, a aplikacja przygotuje wydatki do zatwierdzenia.
+            </p>
           </div>
-        </div>
-      </div>
 
-      {token === undefined ? (
-        <div className="flex justify-center py-3">
-          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#d87635]" />
+          <button
+            type="button"
+            onClick={handleCreate}
+            disabled={busy !== null}
+            className="w-full rounded-xl bg-gradient-to-r from-[#de9241] to-[#ca782a] px-4 py-3 text-sm font-medium text-white shadow-sm transition-all hover:scale-[1.01] disabled:opacity-60"
+          >
+            {busy === "create" ? "Tworzenie adresu..." : "Utwórz adres dla tego domostwa"}
+          </button>
         </div>
       ) : (
-        <div className="space-y-3">
-          {/* Technical Info - Collapsed by default */}
-          <details className="bg-white/60 backdrop-blur-md border border-white/60 rounded-xl p-4 shadow-sm">
-            <summary className="text-[11px] font-medium text-[#6d4d38] cursor-pointer hover:text-[#2b180a]">
-              🔧 Dla programistów: Webhook URL (wymaga konfiguracji zewnętrznej)
-            </summary>
-            <div className="mt-3 space-y-3">
+        <div className="mt-4 space-y-4">
+          <div className="rounded-2xl border border-[#f1d8c5] bg-gradient-to-br from-[#fff7ef] to-[#fffdf8] p-4">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <label className="block text-[10px] font-bold text-[#b89b87] uppercase tracking-wider mb-1.5 ml-1">
-                  URL webhooka
-                </label>
-                <div className="flex gap-2">
-                  <div className="flex-1 bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-3 py-2.5 overflow-hidden shadow-inner hidden scrollbar-hide">
-                    <p className="text-[10px] font-mono text-[#6d4d38] truncate">{webhookUrl}</p>
-                  </div>
-                  <button
-                    onClick={copyWebhook}
-                    className="px-3 py-2 bg-white/70 backdrop-blur-sm rounded-xl text-sm font-bold text-[#cf833f] border border-white/60 hover:bg-white transition-all shadow-sm"
-                  >
-                    <Clipboard className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-[#fff3cd] border border-[#ffc107] rounded-xl p-3">
-                <p className="text-[10px] font-bold text-[#856404] mb-1">
-                  ⚠️ Wymaga zaawansowanej konfiguracji
-                </p>
-                <p className="text-[10px] text-[#856404] font-medium">
-                  Musisz skonfigurować usługę email-to-webhook (Mailgun, SendGrid, własny serwer). To rozwiązanie dla programistów i firm, nie dla zwykłych użytkowników.
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#b89b87]">Adres do forwardowania</p>
+                <p className="mt-1 text-[12px] font-medium leading-relaxed text-[#8a7262]">
+                  Forwarduj tu rachunki i faktury z maila. Gotowe pozycje pojawią się później w kolejce.
                 </p>
               </div>
-            </div>
-          </details>
 
-          {/* Recommendation */}
-          <div className="bg-gradient-to-r from-[#3b82f6] to-[#2563eb] text-white rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Lightbulb className="w-5 h-5" />
-              <p className="text-xs font-medium">Nasza rekomendacja</p>
+              <button
+                type="button"
+                onClick={() => copyText(inbox.address, "Skopiowano adres skrzynki.")}
+                className="rounded-xl border border-[#ead8c5] bg-white px-3 py-3 text-[#cf833f] transition-colors hover:bg-[#fff7ef]"
+                aria-label="Kopiuj adres"
+              >
+                <Clipboard className="h-4 w-4" />
+              </button>
             </div>
-            <p className="text-[11px] font-medium opacity-90">
-              Zamiast konfigurować emaile, po prostu rób zdjęcia paragonów aparatem w aplikacji. To szybsze, prostsze i działa od razu!
-            </p>
+
+            <div className="mt-3 rounded-2xl border border-[#ead8c5] bg-white px-4 py-3">
+              <p className="break-all font-mono text-[13px] font-bold text-[#6d4d38]">{inbox.address}</p>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleRotate}
+                disabled={busy !== null}
+                className="inline-flex items-center gap-2 rounded-full border border-[#ead8c5] bg-white px-3 py-2 text-[11px] font-bold text-[#8a7262] transition-colors hover:border-[#cf833f] hover:text-[#cf833f] disabled:opacity-60"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Zmień adres
+              </button>
+              <button
+                type="button"
+                onClick={onOpenInbox}
+                className="inline-flex items-center gap-2 rounded-full bg-[#fff1df] px-3 py-2 text-[11px] font-bold text-[#b86a28] transition-colors hover:bg-[#ffe7c7]"
+              >
+                <ArrowRight className="h-3.5 w-3.5" />
+                Otwórz kolejkę maili
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-white/60 bg-white/60 p-4">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#b89b87]">Co wysyłać</p>
+              <p className="mt-2 text-[12px] font-medium leading-relaxed text-[#6d4d38]">
+                Najlepiej PDF-y z fakturami, potwierdzenia zakupów i zdjęcia rachunków jako załączniki.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/60 bg-white/60 p-4">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#b89b87]">Co dalej</p>
+              <p className="mt-2 text-[12px] font-medium leading-relaxed text-[#6d4d38]">
+                Aplikacja wyciągnie pozycje i pokaże je w kolejce, gdzie można je poprawić i zapisać.
+              </p>
+            </div>
           </div>
         </div>
       )}

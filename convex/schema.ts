@@ -146,29 +146,45 @@ const applicationTables = {
   })
     .index("by_household", ["householdId"]),
 
-  // Unique email token per household for email forwarding
-  email_tokens: defineTable({
+  // Forwarding inbox assigned to a household.
+  email_inboxes: defineTable({
     householdId: v.id("households"),
-    token: v.string(), // unique slug, e.g. "abc123xyz"
+    provider: v.union(v.literal("resend")),
+    alias: v.string(),
+    address: v.string(),
+    status: v.union(v.literal("active"), v.literal("disabled")),
     createdAt: v.number(),
+    updatedAt: v.number(),
+    lastReceivedAt: v.optional(v.number()),
   })
     .index("by_household", ["householdId"])
-    .index("by_token", ["token"]),
+    .index("by_alias", ["alias"])
+    .index("by_address", ["address"]),
 
   // Pending expenses parsed from forwarded emails, awaiting user review
   pending_email_expenses: defineTable({
     householdId: v.id("households"),
+    providerMessageId: v.string(),
     emailFrom: v.string(),
+    emailTo: v.string(),
     emailSubject: v.string(),
     emailReceivedAt: v.number(),
     rawEmailText: v.string(),
+    rawEmailHtml: v.optional(v.string()),
+    ocrRawText: v.optional(v.string()),
+    matchedInboxAddress: v.string(),
+    detectedBy: v.union(v.literal("ocr"), v.literal("text"), v.literal("fallback")),
+    sourceSummary: v.optional(v.string()),
+    attachmentNames: v.array(v.string()),
+    storageIds: v.array(v.id("_storage")),
     items: v.array(
       v.object({
         description: v.string(),
         amount: v.number(), // in cents
-        categoryId: v.optional(v.string()),
-        subcategoryId: v.optional(v.string()),
+        categoryId: v.optional(v.id("categories")),
+        subcategoryId: v.optional(v.id("subcategories")),
         confidence: v.optional(v.string()), // "high" | "low"
+        sourceStorageId: v.optional(v.id("_storage")),
       })
     ),
     status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
@@ -176,7 +192,8 @@ const applicationTables = {
     reviewedByUserId: v.optional(v.id("users")),
   })
     .index("by_household", ["householdId"])
-    .index("by_household_and_status", ["householdId", "status"]),
+    .index("by_household_and_status", ["householdId", "status"])
+    .index("by_provider_message_id", ["providerMessageId"]),
 
   // Savings goals
   goals: defineTable({
