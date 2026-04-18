@@ -11,10 +11,15 @@ import {
   TrendingUp,
   WandSparkles,
 } from "lucide-react";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import catLottie from "../../assets/Cat playing animation.lottie?url";
 import { formatAmount } from "../../lib/format";
 import { DynamicIcon } from "../ui/DynamicIcon";
+import { AppCard } from "../ui/AppCard";
+import { CatLoader } from "../ui/CatLoader";
+import { Spinner } from "../ui/Spinner";
+import { CompactTable } from "../ui/CompactTable";
+import { FormLabel } from "../ui/FormLabel";
+import { FormInput } from "../ui/FormInput";
+import { FilterChip } from "../ui/FilterChip";
 
 interface Props {
   householdId: Id<"households">;
@@ -106,8 +111,6 @@ function getTypeLabel(type: string) {
   return TYPE_LABELS[type] ?? type;
 }
 
-const shellClass =
-  "rounded-xl border border-white/50 bg-white/40 p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)] backdrop-blur-xl";
 
 export function InsightsOverviewCard({ householdId }: Pick<Props, "householdId">) {
   const latest = useQuery(api.insights.getLatest, { householdId }) as LatestInsights | undefined;
@@ -134,7 +137,7 @@ export function InsightsOverviewCard({ householdId }: Pick<Props, "householdId">
   }
 
   return (
-    <div className={shellClass}>
+    <AppCard>
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 drop-shadow-sm">
           <Bot className="h-6 w-6 text-[#c76823]" />
@@ -170,31 +173,9 @@ export function InsightsOverviewCard({ householdId }: Pick<Props, "householdId">
         </button>
       </div>
 
-      {loading && (
-        <div className="flex flex-col items-center justify-center gap-4 py-6">
-          <div className="relative flex h-28 w-28 items-center justify-center rounded-full border border-[#f2d6bf] bg-[#fff8f2] shadow-inner">
-            <div className="absolute inset-0 animate-spin rounded-full border-[4px] border-[#de9241] border-t-transparent" />
-            <div className="direction-reverse absolute inset-2 animate-spin rounded-full border-[4px] border-[#ca782a] border-b-transparent" />
-            <div className="absolute h-20 w-20 overflow-hidden rounded-full">
-              <DotLottieReact src={catLottie} loop autoplay />
-            </div>
-          </div>
-          <p className="animate-pulse text-sm font-bold text-[#8a7262]">Analiza przelicza Twoje dane...</p>
-        </div>
-      )}
+      {loading && <CatLoader message="Analiza przelicza Twoje dane..." />}
 
-      {!loading && latest === undefined && (
-        <div className="flex flex-col items-center justify-center gap-3 py-6">
-          <div className="relative flex h-24 w-24 items-center justify-center rounded-full border border-[#f2d6bf] bg-[#fff8f2] shadow-inner">
-            <div className="absolute inset-0 animate-spin rounded-full border-[3px] border-[#de9241] border-t-transparent" />
-            <div className="direction-reverse absolute inset-1.5 animate-spin rounded-full border-[3px] border-[#ca782a] border-b-transparent" />
-            <div className="absolute h-18 w-18 overflow-hidden rounded-full">
-              <DotLottieReact src={catLottie} loop autoplay />
-            </div>
-          </div>
-          <p className="animate-pulse text-xs font-bold text-[#8a7262]">Ładowanie analizy...</p>
-        </div>
-      )}
+      {!loading && latest === undefined && <CatLoader message="Ładowanie analizy..." size="sm" />}
 
       {!loading && latest === null && (
         <div className="py-6 text-center">
@@ -238,7 +219,7 @@ export function InsightsOverviewCard({ householdId }: Pick<Props, "householdId">
           })}
         </div>
       )}
-    </div>
+    </AppCard>
   );
 }
 
@@ -282,57 +263,36 @@ export function InsightsScenariosCard({ householdId, currency }: Props) {
   }, [extraSubscriptionAmount, reductionPct, selectedCategory, whatIf]);
 
   return (
-    <div className={shellClass}>
+    <AppCard>
       <div className="mb-4 flex items-center gap-2 drop-shadow-sm">
         <WandSparkles className="h-6 w-6 text-[#c76823]" />
         <h3 className="text-[15px] font-medium text-[#2b180a]">Symulacje budżetu</h3>
       </div>
 
       {whatIf === undefined ? (
-        <div className="flex justify-center py-8">
-          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#d87635]" />
-        </div>
+        <Spinner className="py-8" />
       ) : (
         <>
-          <div className="overflow-hidden rounded-xl border border-[#f2dfcb] bg-[#fff8f2]">
-            <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b89b87]">Prognoza miesiąca</p>
-              <p className="text-right text-sm font-semibold tabular-nums text-[#2b180a]">
-                {formatAmount(whatIf.projectedMonthSpent, currency)}
-              </p>
-            </div>
-            <div className="flex items-center justify-between gap-3 border-t border-[#f2dfcb] px-3 py-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b89b87]">Ten miesiąc do dziś</p>
-              <p className="text-right text-sm font-semibold tabular-nums text-[#2b180a]">
-                {formatAmount(whatIf.currentMonthSpent, currency)}
-              </p>
-            </div>
-            <div className="flex items-center justify-between gap-3 border-t border-[#f2dfcb] px-3 py-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b89b87]">Subskrypcje</p>
-              <p className="text-right text-sm font-semibold tabular-nums text-[#2b180a]">
-                {formatAmount(whatIf.subscriptionProjectedMonthly, currency)}
-              </p>
-            </div>
-          </div>
+          <CompactTable
+            rows={[
+              { label: "Prognoza miesiąca", value: formatAmount(whatIf.projectedMonthSpent, currency) },
+              { label: "Ten miesiąc do dziś", value: formatAmount(whatIf.currentMonthSpent, currency) },
+              { label: "Subskrypcje", value: formatAmount(whatIf.subscriptionProjectedMonthly, currency) },
+            ]}
+          />
 
           {whatIf.suggestedScenarios.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2">
               {whatIf.suggestedScenarios.map((scenario) => (
-                <button
+             <FilterChip
                   key={scenario.id}
-                  type="button"
+                  label={scenario.label}
+                  active={selectedCategoryId === scenario.categoryId && reductionPct === scenario.reductionPct}
                   onClick={() => {
                     setSelectedCategoryId(scenario.categoryId);
                     setReductionPct(scenario.reductionPct);
                   }}
-                  className={`rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${
-                    selectedCategoryId === scenario.categoryId && reductionPct === scenario.reductionPct
-                      ? "border-[#cf833f] bg-[#fff1e1] text-[#b55b1d]"
-                      : "border-[#f2dfcb] bg-white/80 text-[#8a7262] hover:bg-white"
-                  }`}
-                >
-                  {scenario.label}
-                </button>
+                />
               ))}
             </div>
           )}
@@ -340,23 +300,15 @@ export function InsightsScenariosCard({ householdId, currency }: Props) {
           {whatIf.categories.length > 0 && (
             <div className="mt-4 space-y-4">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#b89b87]">
-                  Kategoria do symulacji
-                </p>
+                <FormLabel>Kategoria do symulacji</FormLabel>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {whatIf.categories.map((category) => (
-                    <button
+                    <FilterChip
                       key={category.categoryId}
-                      type="button"
+                      label={category.categoryName}
+                      active={selectedCategoryId === category.categoryId}
                       onClick={() => setSelectedCategoryId(category.categoryId)}
-                      className={`rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${
-                        selectedCategoryId === category.categoryId
-                          ? "border-[#cf833f] bg-[#fff1e1] text-[#b55b1d]"
-                          : "border-[#f2dfcb] bg-white/80 text-[#8a7262] hover:bg-white"
-                      }`}
-                    >
-                      {category.categoryName}
-                    </button>
+                    />
                   ))}
                 </div>
               </div>
@@ -388,17 +340,17 @@ export function InsightsScenariosCard({ householdId, currency }: Props) {
                 />
 
                 <div className="mt-4">
-                  <label className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#b89b87]">
+                  <FormLabel>
                     Dodaj nową subskrypcję ({currency} / miesiąc)
-                  </label>
-                  <input
+                  </FormLabel>
+                  <FormInput
                     type="number"
                     min="0"
                     step="0.01"
                     value={extraSubscriptionAmount}
                     onChange={(event) => setExtraSubscriptionAmount(event.target.value)}
                     placeholder="np. 29.99"
-                    className="mt-2 w-full rounded-xl border border-[#f2dfcb] bg-white px-3 py-2 text-sm font-bold text-[#2b180a] outline-none focus:border-[#cf833f]"
+                    inputSize="sm"
                   />
                 </div>
               </div>
@@ -409,9 +361,7 @@ export function InsightsScenariosCard({ householdId, currency }: Props) {
             <div className="mt-4 p-1.5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#b89b87]">
-                    Wynik scenariusza
-                  </p>
+                  <FormLabel>Wynik scenariusza</FormLabel>
                   <p className="mt-2 text-lg font-semibold tabular-nums text-[#2b180a]">
                     {formatAmount(scenarioPreview.nextProjection, currency)}
                   </p>
@@ -436,30 +386,17 @@ export function InsightsScenariosCard({ householdId, currency }: Props) {
                 </div>
               </div>
 
-              <div className="mt-4 overflow-hidden rounded-xl border border-[#f2dfcb] bg-white/75">
-                <div className="px-3 py-2.5">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b89b87]">
-                    Cięcie kategorii
-                  </p>
-                  <p className="text-sm font-semibold tabular-nums text-[#2b180a]">
-                    {formatAmount(scenarioPreview.categorySavings, currency)}
-                  </p>
-                  <p className="mt-1 text-xs font-medium text-[#8a7262]">potencjalnie mniej w miesiącu</p>
-                </div>
-                <div className="border-t border-[#f2dfcb] px-3 py-2.5">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b89b87]">
-                    Nowa subskrypcja
-                  </p>
-                  <p className="text-sm font-semibold tabular-nums text-[#2b180a]">
-                    {formatAmount(scenarioPreview.extraMonthlyCost, currency)}
-                  </p>
-                  <p className="mt-1 text-xs font-medium text-[#8a7262]">dodatkowy koszt miesięczny</p>
-                </div>
-              </div>
+              <CompactTable
+                rows={[
+                  { label: "Cięcie kategorii", value: <><span className="block text-sm font-semibold tabular-nums text-[#2b180a]">{formatAmount(scenarioPreview.categorySavings, currency)}</span><span className="block mt-1 text-xs font-medium text-[#8a7262]">potencjalnie mniej w miesiącu</span></> },
+                  { label: "Nowa subskrypcja", value: <><span className="block text-sm font-semibold tabular-nums text-[#2b180a]">{formatAmount(scenarioPreview.extraMonthlyCost, currency)}</span><span className="block mt-1 text-xs font-medium text-[#8a7262]">dodatkowy koszt miesięczny</span></> },
+                ]}
+                className="bg-white/75"
+              />
             </div>
           )}
         </>
       )}
-    </div>
+    </AppCard>
   );
 }

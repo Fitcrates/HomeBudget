@@ -1,4 +1,4 @@
-﻿import { useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { ScannerIcon } from "../ui/icons/ScannerIcon";
 import {
   AlertTriangle,
-  ArrowLeft,
   Bot,
   Brain,
   CheckCircle2,
@@ -21,9 +20,19 @@ import {
   X,
 } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { IconTrashButton } from "../ui/IconTrashButton";
+import { ScreenHeader } from "../ui/ScreenHeader";
+import { AppCard } from "../ui/AppCard";
+import { FormLabel } from "../ui/FormLabel";
+import { FormInput } from "../ui/FormInput";
+import { FormSelect } from "../ui/FormSelect";
+import { ButtonPrimary } from "../ui/ButtonPrimary";
+import { ButtonSecondary } from "../ui/ButtonSecondary";
+import { CatLoader } from "../ui/CatLoader";
+import { CompactTable } from "../ui/CompactTable";
+import { AlertBanner } from "../ui/AlertBanner";
+import { Spinner } from "../ui/Spinner";
 
 import catLottie from "../../assets/Cat playing animation.lottie?url";
 
@@ -500,13 +509,13 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
       for (const item of sortedItems) {
         // Loop: Save user corrections for future auto-mapping
         if (item.originalRawDescription) {
-           await upsertMapping({
-             householdId,
-             rawDescription: item.originalRawDescription,
-             correctedDescription: item.description,
-             categoryId: item.categoryId!,
-             subcategoryId: item.subcategoryId!
-           });
+          await upsertMapping({
+            householdId,
+            rawDescription: item.originalRawDescription,
+            correctedDescription: item.description,
+            categoryId: item.categoryId!,
+            subcategoryId: item.subcategoryId!
+          });
         }
       }
 
@@ -568,95 +577,42 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
     setItems(items ? items.filter((i) => i.id !== id) : null);
   }
 
-  const labelStyle =
-    "block text-[11px] font-bold text-[#b89b87] uppercase tracking-wider mb-2 ml-1";
-  const inputStyle =
-    "w-full text-sm bg-white/60 border border-[#f5e5cf] rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] transition-colors text-[#2b180a] font-bold";
-  const shellCard =
-    "rounded-xl border border-white/60 bg-white/45 p-4 shadow-[0_10px_36px_rgba(180,120,80,0.14)] backdrop-blur-xl sm:p-5";
-  const sectionTitle = "text-[10px] font-bold uppercase tracking-[0.18em] text-[#b89b87]";
-  const compactTableShell = "overflow-hidden rounded-xl border border-white/60 bg-white/55";
-  const compactHeaderCell = "bg-[#fff8f2] px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.16em] text-[#b89b87]";
-  const compactBodyCell = "px-3 py-2.5 text-sm font-semibold text-[#2b180a]";
   const itemCount = items?.length ?? 0;
   const uncertainItemsCount = items?.filter((item) => isAmountUncertain(item.amount)).length ?? 0;
   const mappedItemsCount = items?.filter((item) => item.fromMapping).length ?? 0;
   const multiReceiptDetected = Boolean(items && (receiptSummaries.length > 1 || items.some((i) => i.receiptIndex > 0)));
   const expectedComparison = items && expectedTotal && receiptSummaries.length === 0
     ? (() => {
-        const sum = items.reduce((acc, curr) => {
-          const val = parseFloat((curr.amount || "").replace(",", "."));
-          return acc + (isNaN(val) ? 0 : val);
-        }, 0);
-        const expected = parseFloat(expectedTotal.replace(",", "."));
-        const diffValue = sum - expected;
-        const diff = Math.abs(diffValue);
-        return {
-          sum,
-          expected,
-          diffValue,
-          diff,
-          isMismatch: diff > 0.05,
-        };
-      })()
+      const sum = items.reduce((acc, curr) => {
+        const val = parseFloat((curr.amount || "").replace(",", "."));
+        return acc + (isNaN(val) ? 0 : val);
+      }, 0);
+      const expected = parseFloat(expectedTotal.replace(",", "."));
+      const diffValue = sum - expected;
+      const diff = Math.abs(diffValue);
+      return {
+        sum,
+        expected,
+        diffValue,
+        diff,
+        isMismatch: diff > 0.05,
+      };
+    })()
     : null;
 
   return (
     <div className="space-y-6 pb-4">
-      <div className="pt-2 pb-1">
-        <div className="mb-2 flex items-center gap-2">
-          <button
-            onClick={onDone}
-            aria-label="Wróć"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#6d4d38] transition-colors hover:bg-white/60 hover:text-[#2b180a]"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <ScannerIcon className="w-8 h-8 text-[#c76823]" />
-          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a]">
-            Skaner Paragonów
-          </h2>
-        </div>
-        <div className="space-y-4">
-          <div>
-            <h3 className="ml-1 text-[1.1rem] font-bold text-[#3e2815] drop-shadow-sm sm:text-[1.2rem]">
-              Zeskanuj, sprawdź i zapisz wydatki
-            </h3>
-            <p className="ml-1 mt-1 text-sm font-medium leading-relaxed text-[#8a7262]">
-              Jeden prosty flow: dodaj plik, uruchom OCR i popraw wynik przed zapisem.
-            </p>
-          </div>
-          <div className={compactTableShell}>
-            <table className="w-full border-collapse text-left">
-              <thead>
-                <tr>
-                  <th className={compactHeaderCell}>Metryka</th>
-                  <th className={compactHeaderCell}>Wartość</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-t border-[#f2dfcb]">
-                  <td className={compactBodyCell}>Pliki</td>
-                  <td className={compactBodyCell}>{currentStorageIds.length}/3</td>
-                </tr>
-                <tr className="border-t border-[#f2dfcb]">
-                  <td className={compactBodyCell}>Pozycje</td>
-                  <td className={compactBodyCell}>{itemCount}</td>
-                </tr>
-                <tr className="border-t border-[#f2dfcb]">
-                  <td className={compactBodyCell}>Status</td>
-                  <td className={compactBodyCell}>{items ? "Do zapisu" : processing ? "Analiza" : "Gotowe"}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      <ScreenHeader
+        icon={<ScannerIcon className="w-8 h-8 text-[#c76823]" />}
+        title="Skaner Paragonów"
+        subtitle="Jeden prosty flow: dodaj plik, uruchom OCR i popraw wynik przed zapisem."
+        onBack={onDone}
+      />
 
-      <div className={shellCard}>
+      <AppCard padding="md">
         <div className="mb-4 space-y-3">
           <div>
-            <p className={sectionTitle}>Krok 1</p>
+            <FormLabel>Krok 1</FormLabel>
             <h3 className="mt-2 text-lg font-semibold text-[#2b180a]">Dodaj źródła do analizy</h3>
             <p className="mt-1 max-w-2xl text-sm font-medium leading-relaxed text-[#8a7262]">
               Wgraj zdjęcia albo PDF. Jeśli paragon jest długi, dodaj kolejne ujęcie dopiero po pierwszym.
@@ -712,17 +668,14 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
 
         {currentStorageIds.length > 0 && currentStorageIds.length < 3 && (
           <div className="mb-4 space-y-2">
-            <button
-              type="button"
+            <ButtonSecondary
+              variant="dashed"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="w-full py-3 border-2 border-dashed border-[#d2bcad]/70 text-[#8a7262] bg-white/40 rounded-xl font-bold text-sm hover:border-[#cf833f]/50 hover:bg-white/60 transition-colors disabled:opacity-50"
+              icon={<Plus className="h-4 w-4" />}
             >
-              <span className="flex items-center justify-center gap-2">
-                <Plus className="h-4 w-4" />
-                Dodaj kolejny kadr / plik
-              </span>
-            </button>
+              Dodaj kolejny kadr / plik
+            </ButtonSecondary>
             <p className="text-[11px] font-bold text-[#8a7262] leading-relaxed">
               Dodaj kolejny kadr dopiero po pierwszym zdjęciu, jeśli paragon nie mieści się na jednym ujęciu.
             </p>
@@ -798,165 +751,90 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           </div>
         )}
 
-        {uploading && (
-          <div className="flex items-center justify-center gap-2 py-3 text-sm font-medium text-orange-600">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600" />
-            Przesyłanie...
-          </div>
-        )}
+        {uploading && <Spinner className="py-3" size="sm" />}
 
         {!items && (
           <div className="mt-5 rounded-xl border border-[#f2dfcb] bg-white/55 p-4">
             <div className="mb-4 space-y-2">
               <div>
-                <p className={sectionTitle}>Krok 2</p>
+                <FormLabel>Krok 2</FormLabel>
                 <h4 className="mt-1 text-base font-semibold text-[#2b180a]">Uruchom analizę OCR</h4>
               </div>
               <div className="text-xs font-bold text-[#8a7262]">
                 AI spróbuje rozpoznać pozycje, kwoty i podpowiedzieć kategorie
               </div>
             </div>
-            <button
-              onClick={handleExtract}
-              disabled={processing || !categories || currentStorageIds.length === 0}
-              className="w-full py-3.5 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-medium text-[15px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none disabled:opacity-50 mt-1"
-            >
-              {processing ? (
-                <span className="flex items-center justify-center gap-2">
-                  <Bot className="h-4 w-4" />
-                  Przetwarzanie AI...
-                </span>
-              ) : (
-                <span className="flex items-center justify-center gap-2">
-                  <Search className="h-4 w-4" />
-                  Analizuj paragony/faktury
-                </span>
-              )}
-            </button>
             {processing && (
-              <div className="mt-4 flex flex-col items-center justify-center gap-4">
-                <div className="w-32 h-32 relative flex items-center justify-center bg-[#fff8f2] rounded-full shadow-inner border border-[#f2d6bf]">
-                  <div className="absolute inset-0 border-[4px] border-t-transparent border-[#de9241] rounded-full animate-spin" />
-                  <div className="absolute inset-2 border-[4px] border-b-transparent border-[#ca782a] rounded-full animate-spin direction-reverse" />
-                  <div className="w-24 h-24 rounded-full overflow-hidden absolute">
-                    <DotLottieReact src={catLottie} loop autoplay />
-                  </div>
-                </div>
-                <p className="text-[#8a7262] font-bold text-sm animate-pulse">
-                  Czytanie dokumentu z Groq Llama 4 Scout...
-                </p>
+              <div className="mb-4">
+                <CatLoader message="Czytanie dokumentu z Groq Llama 4 Scout..." />
               </div>
             )}
+            <ButtonPrimary
+              onClick={handleExtract}
+              disabled={processing || !categories || currentStorageIds.length === 0}
+              loading={processing}
+              icon={processing ? <Bot className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+            >
+              {processing ? "Przetwarzanie AI..." : "Analizuj paragony/faktury"}
+            </ButtonPrimary>
+
           </div>
         )}
-      </div>
+      </AppCard>
 
       {items && (
         <div className="space-y-6">
-          <div className={shellCard}>
-            <div className="space-y-4">
-              <div>
-                <p className={sectionTitle}>Krok 3</p>
-                <h3 className="mt-2 text-lg font-semibold text-[#2b180a]">Sprawdź wynik i popraw szczegóły</h3>
-                <p className="mt-1 text-sm font-medium leading-relaxed text-[#8a7262]">
-                  Kompaktowe podsumowanie u góry, a niżej szybka lista pozycji do edycji na telefonie.
-                </p>
+          <AppCard padding="md">
+            <div className="mb-6 flex flex-col gap-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <FormLabel>Krok 2</FormLabel>
+                  <h3 className="mt-1 text-lg font-semibold text-[#2b180a]">
+                    Sprawdź wynik OCR ({items.length} pozycji)
+                  </h3>
+                </div>
+
               </div>
 
-              <div className={compactTableShell}>
-                <table className="w-full border-collapse text-left">
-                  <thead>
-                    <tr>
-                      <th className={compactHeaderCell}>Metryka</th>
-                      <th className={compactHeaderCell}>Wartość</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-t border-[#f2dfcb]">
-                      <td className={compactBodyCell}>Pozycje</td>
-                      <td className={compactBodyCell}>{items.length}</td>
-                    </tr>
-                    <tr className="border-t border-[#f2dfcb]">
-                      <td className={compactBodyCell}>Niepewne kwoty</td>
-                      <td className={compactBodyCell}>{uncertainItemsCount}</td>
-                    </tr>
-                    <tr className="border-t border-[#f2dfcb]">
-                      <td className={compactBodyCell}>Z historii</td>
-                      <td className={compactBodyCell}>{mappedItemsCount}</td>
-                    </tr>
-                    <tr className="border-t border-[#f2dfcb]">
-                      <td className={compactBodyCell}>Paragony</td>
-                      <td className={compactBodyCell}>
-                        {receiptSummaries.length > 0 ? receiptSummaries.length : multiReceiptDetected ? "wiele" : 1}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="space-y-3">
-                <div className="w-full">
-                  <label className={labelStyle}>Data paragonu</label>
-                  <input
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <FormLabel>Data paragonu</FormLabel>
+                  <FormInput
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className={inputStyle}
+                    inputSize="sm"
                   />
                 </div>
-                <button
-                  onClick={() => { setItems(null); setReceiptSummaries([]); setOpenBulkMenuId(null); }}
-                  className="w-full py-2.5 border-2 border-dashed border-[#d2bcad] text-[#8a7262] rounded-xl font-bold text-sm hover:border-[#cf833f] hover:text-[#cf833f] transition-colors"
-                >
-                  <span className="flex items-center justify-center gap-2">
-                    <RefreshCcw className="h-4 w-4" />
+                <div className="flex items-end">
+                  <ButtonSecondary
+                    variant="dashed"
+                    onClick={() => { setItems(null); setReceiptSummaries([]); setOpenBulkMenuId(null); }}
+                    icon={<RefreshCcw className="h-4 w-4" />}
+                    className="h-[38px]"
+                  >
                     Skanuj ponownie
-                  </span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className={shellCard}>
-            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className={sectionTitle}>Wynik OCR</p>
-                <h3 className="mt-1 text-lg font-semibold text-[#2b180a]">
-                  Lista pozycji do korekty ({items.length})
-                </h3>
-              </div>
-              <div className="rounded-full bg-[#fff1e1] px-3 py-1.5 text-xs font-bold text-[#b55b1d]">
-                Tabela edytowalna
+                  </ButtonSecondary>
+                </div>
               </div>
             </div>
 
             {expectedComparison && (
               expectedComparison.isMismatch ? (
-                <div className="mb-4 rounded-xl border border-[#ffc2af] bg-[#fff2ec] p-3 shadow-sm">
-                  <div className="flex items-start gap-2.5">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#a94d22]" />
-                    <p className="text-[#a94d22] text-xs font-bold leading-relaxed">
-                      Suma pozycji ({expectedComparison.sum.toFixed(2)}) nie zgadza się z sumą towarów ({expectedComparison.expected.toFixed(2)}).
-                      <br />
-                      {expectedComparison.diffValue > 0
-                        ? `Pozycje są wyższe o ${expectedComparison.diff.toFixed(2)} — najczęściej oznacza to brak uwzględnionych rabatów/promocji.`
-                        : `Pozycje są niższe o ${expectedComparison.diff.toFixed(2)} — możliwe, że brakuje jednej lub więcej pozycji.`}
-                    </p>
-                  </div>
-                </div>
+                <AlertBanner variant="error" icon={<AlertTriangle />}>
+                  Suma pozycji ({expectedComparison.sum.toFixed(2)}) nie zgadza się z sumą towarów ({expectedComparison.expected.toFixed(2)}).
+                  {expectedComparison.diffValue > 0
+                    ? ` Pozycje są wyższe o ${expectedComparison.diff.toFixed(2)} — najczęściej oznacza to brak uwzględnionych rabatów/promocji.`
+                    : ` Pozycje są niższe o ${expectedComparison.diff.toFixed(2)} — możliwe, że brakuje jednej lub więcej pozycji.`}
+                </AlertBanner>
               ) : (
-                <div className="mb-4 bg-[#ebf7ef] border border-[#8bc5a0] rounded-xl p-3 shadow-sm">
-                  <div className="flex items-start gap-2.5">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#46825d]" />
-                    <p className="text-[#46825d] text-xs font-bold">
-                      Suma pozycji ({expectedComparison.sum.toFixed(2)}) zgadza się z sumą towarów.
-                    </p>
-                  </div>
-                </div>
+                <AlertBanner variant="success" icon={<CheckCircle2 />}>
+                  Suma pozycji ({expectedComparison.sum.toFixed(2)}) zgadza się z sumą towarów.
+                </AlertBanner>
               )
             )}
 
-            <div className="space-y-3 rounded-xl border border-[#f2dfcb] bg-white/45 p-3">
+            <div className="flex flex-col">
               {items.map((item, index) => {
                 const selectedCat = categories?.find((c) => c._id === item.categoryId);
                 const uncertainPrice = isAmountUncertain(item.amount);
@@ -966,9 +844,8 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                 return (
                   <div
                     key={item.id}
-                    className={`relative rounded-xl border border-[#f2dfcb] bg-white/60 p-3 ${
-                      openBulkMenuId === item.id ? "z-30" : "z-0"
-                    }`}
+                    className={`relative py-4 border-b border-[#ebd8c8]/60 last:border-0 ${openBulkMenuId === item.id ? "z-30" : "z-0"
+                      }`}
                   >
                     <div className="mb-3 flex items-center justify-between gap-2">
                       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -1031,34 +908,29 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
 
                     <div className="grid grid-cols-[minmax(0,1fr)_6.8rem] gap-2">
                       <div>
-                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#b89b87]">
-                          Opis
-                        </label>
-                        <input
+                        <FormLabel className="mb-1">Opis</FormLabel>
+                        <FormInput
                           type="text"
                           value={item.description}
                           onChange={(e) => updateItem(item.id, { description: e.target.value })}
-                          className="w-full rounded-xl border border-[#f5e5cf] bg-white/60 px-3 py-2 text-sm font-bold text-[#3e2815] outline-none focus:border-[#cf833f]"
                           placeholder="Opis produktu"
+                          inputSize="sm"
                         />
                       </div>
 
                       <div>
-                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#b89b87]">
-                          Kwota
-                        </label>
+                        <FormLabel className="mb-1">Kwota</FormLabel>
                         <input
                           type="text"
                           inputMode="decimal"
                           value={item.amount}
                           onChange={(e) => updateItem(item.id, { amount: e.target.value })}
-                          className={`w-full rounded-xl border bg-white/60 px-3 py-2 text-sm font-bold text-right tabular-nums outline-none ${
-                            uncertainPrice
+                          className={`w-full rounded-xl border bg-white/60 px-3 py-2 text-sm font-bold text-right tabular-nums outline-none ${uncertainPrice
                               ? "border-[#f3a086] text-[#b74210] focus:border-[#d95d27]"
                               : isDiscountRow
                                 ? "border-[#9bd1af] text-[#2c7a4b] focus:border-[#4f9a6e]"
                                 : "border-[#f5e5cf] text-[#cf833f] focus:border-[#cf833f]"
-                          }`}
+                            }`}
                           placeholder="0.00"
                         />
                       </div>
@@ -1091,11 +963,9 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
 
                     <div className="mt-3 grid grid-cols-1 gap-2">
                       <div>
-                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#b89b87]">
-                          Kategoria
-                        </label>
-                        <select
-                          className="w-full rounded-xl border border-[#f5e5cf] bg-white/60 px-2.5 py-2.5 text-xs font-bold text-[#6d4d38] outline-none"
+                        <FormLabel className="mb-1">Kategoria</FormLabel>
+                        <FormSelect
+                          selectSize="sm"
                           value={item.categoryId || ""}
                           onChange={(e) =>
                             updateItem(item.id, {
@@ -1112,15 +982,13 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                               {c.name}
                             </option>
                           ))}
-                        </select>
+                        </FormSelect>
                       </div>
 
                       <div>
-                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#b89b87]">
-                          Podkategoria
-                        </label>
-                        <select
-                          className="w-full rounded-xl border border-[#f5e5cf] bg-white/60 px-2.5 py-2.5 text-xs font-bold text-[#6d4d38] outline-none"
+                        <FormLabel className="mb-1">Podkategoria</FormLabel>
+                        <FormSelect
+                          selectSize="sm"
                           value={item.subcategoryId || ""}
                           onChange={(e) =>
                             updateItem(item.id, {
@@ -1137,7 +1005,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                               {s.name}
                             </option>
                           ))}
-                        </select>
+                        </FormSelect>
                       </div>
                     </div>
                   </div>
@@ -1146,7 +1014,8 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
             </div>
 
             <div className="border-t border-[#f2dfcb] p-4">
-              <button
+              <ButtonSecondary
+                variant="dashed"
                 onClick={() =>
                   setItems([
                     ...items,
@@ -1160,20 +1029,17 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                     },
                   ])
                 }
-                className="w-full py-3 border-2 border-dashed border-[#d2bcad]/60 text-[#8a7262] bg-white/30 rounded-xl font-bold text-sm hover:border-[#cf833f]/50 hover:bg-white/50 transition-colors"
+                icon={<Plus className="h-4 w-4" />}
               >
-                <span className="flex items-center justify-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  Dodaj kolejną pozycję ręcznie
-                </span>
-              </button>
+                Dodaj kolejną pozycję ręcznie
+              </ButtonSecondary>
             </div>
-          </div>
+          </AppCard>
 
           {multiReceiptDetected && (
-            <div className="bg-[#eef4ff] border border-[#c8d8ff] rounded-xl p-3 text-xs font-bold text-[#3856a8]">
+            <AlertBanner variant="info">
               Wykryto wiele paragonów. Zapis nastąpi sekwencyjnie, paragon po paragonie.
-            </div>
+            </AlertBanner>
           )}
 
           {receiptSummaries.length > 0 && (
@@ -1240,18 +1106,16 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
             </div>
           )}
 
-          <button
+          <ButtonPrimary
             onClick={handleSaveAll}
             disabled={saving || items.length === 0}
-            className="w-full py-4 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-medium text-[16px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none mt-2 disabled:opacity-50"
+            loading={saving}
+            size="lg"
+            icon={<Save className="h-4 w-4" />}
+            className="mt-2"
           >
-            {saving ? "Poczekaj..." : (
-              <span className="flex items-center justify-center gap-2">
-                <Save className="h-4 w-4" />
-                Zapisz {items.length} wydatków
-              </span>
-            )}
-          </button>
+            {saving ? "Poczekaj..." : `Zapisz ${items.length} wydatków`}
+          </ButtonPrimary>
         </div>
       )}
 

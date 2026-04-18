@@ -1,4 +1,4 @@
-﻿import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { useState, useMemo } from "react";
@@ -10,6 +10,10 @@ import { CalendarIcon } from "../ui/icons/CalendarIcon";
 import { ChevronDown, Search, X } from "lucide-react";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { IconTrashButton } from "../ui/IconTrashButton";
+import { FilterChip } from "../ui/FilterChip";
+import { ScreenHeader } from "../ui/ScreenHeader";
+import { Spinner } from "../ui/Spinner";
+import { AppCard } from "../ui/AppCard";
 
 interface Props {
   householdId: Id<"households">;
@@ -79,13 +83,12 @@ export function ExpensesScreen({ householdId, currency }: Props) {
 
   return (
     <div className="space-y-5 pb-8">
-      <div className="pt-2">
-        <div className="mb-6 flex items-center gap-2">
-          <ExpensesIcon className="h-10 w-10 text-[#c76823]" />
-          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a]">Wszystkie wydatki</h2>
-        </div>
+      <ScreenHeader
+        icon={<ExpensesIcon className="h-9 w-9 text-[#c76823]" />}
+        title="Wszystkie wydatki"
+      />
 
-        <div className="mb-4 rounded-xl border border-[#ebd8c8]/30 bg-white/60 px-4 py-3 shadow-[0_4px_24px_rgba(180,120,80,0.15)]">
+        <div className="app-card space-y-4">
           <PeriodSelector
             value={period}
             onChange={(value) => {
@@ -98,7 +101,7 @@ export function ExpensesScreen({ householdId, currency }: Props) {
             onCustomTo={setCustomTo}
           />
 
-          <div className="mt-2 flex items-center justify-center gap-3 rounded-xl border border-[#ebd8c8]/40 bg-white/60 px-4 py-2.5">
+          <div className="flex items-center justify-center gap-3 rounded-xl border border-[#ebd8c8]/40 bg-white/60 px-4 py-2.5">
             <CalendarIcon className="h-5 w-5 text-[#c76823]" />
             <span className="text-[13px] font-medium text-[#3e2815]">
               {new Date(from).toLocaleDateString("pl-PL")} - {new Date(to).toLocaleDateString("pl-PL")}
@@ -106,14 +109,14 @@ export function ExpensesScreen({ householdId, currency }: Props) {
           </div>
         </div>
 
-        <div className="relative mb-4">
+        <div className="relative">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#b89b87]" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Szukaj po nazwie, kategorii lub podkategorii"
-            className="w-full rounded-xl border border-[#ebd8c8]/50 bg-white/70 py-2.5 pl-10 pr-4 text-sm font-medium text-[#2b180a] shadow-sm outline-none transition-colors focus:border-[#cf833f]"
+            className="app-input w-full py-2.5 pl-10 pr-4"
           />
           {searchTerm.trim().length > 0 && (
             <button
@@ -127,7 +130,6 @@ export function ExpensesScreen({ householdId, currency }: Props) {
             </button>
           )}
         </div>
-      </div>
 
       <div className="scrollbar-hide flex gap-2.5 overflow-x-auto px-1 pb-4 pt-1">
         <FilterChip
@@ -146,16 +148,14 @@ export function ExpensesScreen({ householdId, currency }: Props) {
       </div>
 
       {filteredExpenses === undefined ? (
-        <div className="flex justify-center py-12">
-          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#d87635]" />
-        </div>
+        <Spinner className="py-12" />
       ) : filteredExpenses.length === 0 ? (
-        <div className="rounded-xl bg-[#fdf9f1] p-8 text-center shadow-[0_4px_24px_rgba(180,120,80,0.15)]">
+        <AppCard padding="md" className="text-center">
           <ExpensesIcon className="mx-auto mb-4 h-16 w-16 text-[#d8c5bc]" />
           <p className="font-bold text-[#8a7262]">
             {normalizedSearch ? "Brak wyników dla tej frazy" : "Brak wydatków w tym okresie"}
           </p>
-        </div>
+        </AppCard>
       ) : (
         <div className="space-y-4">
           {filteredExpenses.map((expense) => {
@@ -165,10 +165,10 @@ export function ExpensesScreen({ householdId, currency }: Props) {
               <div
                 key={expense._id}
                 onClick={() => setExpandedId(isExpanded ? null : expense._id)}
-                className={`cursor-pointer overflow-hidden rounded-xl border border-white/70 bg-white/60 backdrop-blur-xl transition-all ${
+                className={`app-card cursor-pointer overflow-hidden p-0 transition-all ${
                   isExpanded
-                    ? "scale-[1.02] border-[#efd1af] shadow-[0_10px_30px_rgba(180,120,80,0.2)]"
-                    : "hover:scale-[1.01] hover:border-[#ead7c6]"
+                    ? "scale-[1.02] border-[#efd1af] shadow-md"
+                    : "hover:scale-[1.01]"
                 }`}
               >
                 <div className="flex flex-col gap-3 p-5">
@@ -246,26 +246,5 @@ export function ExpensesScreen({ householdId, currency }: Props) {
         }}
       />
     </div>
-  );
-}
-
-function FilterChip({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`whitespace-nowrap rounded-full px-4 py-2 text-[12px] font-medium shadow-sm transition-all focus:outline-none ${
-        active ? "bg-[#cf833f] text-white" : "bg-[#fdf9f1] text-[#6d4d38] hover:bg-white"
-      }`}
-    >
-      {label}
-    </button>
   );
 }

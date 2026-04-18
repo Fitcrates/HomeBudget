@@ -14,6 +14,13 @@ import {
   RefreshCw,
   XCircle,
 } from "lucide-react";
+import { ScreenHeader } from "../ui/ScreenHeader";
+import { Spinner } from "../ui/Spinner";
+import { AppCard } from "../ui/AppCard";
+import { FormLabel } from "../ui/FormLabel";
+import { FormInput } from "../ui/FormInput";
+import { FormSelect } from "../ui/FormSelect";
+import { ButtonPrimary } from "../ui/ButtonPrimary";
 
 interface Props {
   householdId: Id<"households">;
@@ -114,53 +121,38 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
     }
   }
 
-  const shellCard = "bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-5 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
 
   return (
     <div className="space-y-5 pb-6">
-      <div className="flex items-center gap-3 pt-2">
-        <button
-          type="button"
-          onClick={onBack}
-          className="rounded-full bg-white/70 p-2 text-[#6d4d38] transition-colors hover:bg-white"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-
-        <div>
-          <div className="flex items-center gap-2">
-            <Inbox className="h-7 w-7 text-[#c76823]" />
-            <h2 className="text-[24px] font-medium tracking-tight text-[#2b180a]">Kolejka maili</h2>
-          </div>
-          <p className="mt-1 text-xs font-medium text-[#8a7262]">
-            Rachunki wykryte z forwardowanych maili czekają tu na ostateczne zatwierdzenie.
-          </p>
-        </div>
-      </div>
+      <ScreenHeader
+        icon={<Inbox />}
+        title="Kolejka maili"
+        subtitle="Rachunki wykryte z forwardowanych maili czekają tu na ostateczne zatwierdzenie."
+        onBack={onBack}
+      />
 
       {pending === undefined ? (
-        <div className="flex justify-center py-12">
-          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#d87635]" />
-        </div>
+        <Spinner className="py-12" />
       ) : pending.length === 0 ? (
-        <div className={`${shellCard} text-center py-10`}>
+        <AppCard className="text-center py-10">
           <Mail className="mx-auto mb-4 h-14 w-14 text-[#b89b87]" />
           <p className="text-[#3e2815] font-bold mb-1">Nic tu jeszcze nie czeka</p>
           <p className="text-xs font-medium text-[#8a7262]">
             Zrób forward rachunku na adres gospodarstwa, a po chwili pojawi się tutaj do akceptacji.
           </p>
-        </div>
+        </AppCard>
       ) : (
         <div className="space-y-4">
           {pending.map((item) => {
             const isExpanded = expandedId === item._id;
             const review = reviewItems[item._id];
-            const totalAmount = item.items.reduce((sum, row) => sum + row.amount, 0);
+            const totalAmount = item.items.reduce((sum: number, row: any) => sum + row.amount, 0);
 
             return (
-              <div
+              <AppCard
                 key={item._id}
-                className="overflow-hidden rounded-xl border border-white/50 bg-white/40 shadow-[0_8px_24px_rgba(180,120,80,0.12)]"
+                padding="none"
+                className="overflow-hidden"
               >
                 <button
                   type="button"
@@ -220,24 +212,21 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                     )}
 
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#b89b87]">
-                        Data zakupu
-                      </label>
-                      <input
+                      <FormLabel>Data zakupu</FormLabel>
+                      <FormInput
                         type="date"
                         value={reviewDates[item._id] || ""}
                         onChange={(event) =>
                           setReviewDates((prev) => ({ ...prev, [item._id]: event.target.value }))
                         }
-                        className="mt-1 w-full rounded-xl border border-white/60 bg-white/70 px-4 py-2.5 text-base font-bold text-[#2b180a] outline-none shadow-inner focus:border-[#cf833f]"
                       />
                     </div>
 
                     {item.storageUrls.length > 0 && (
                       <div>
-                        <p className="text-[11px] font-bold uppercase tracking-wider text-[#b89b87]">Załączniki</p>
+                      <FormLabel>Załączniki</FormLabel>
                         <div className="mt-2 grid grid-cols-2 gap-2">
-                          {item.storageUrls.map((url, index) => (
+                          {item.storageUrls.map((url: string | null, index: number) => (
                             <a
                               key={`${item._id}-${index}`}
                               href={url || undefined}
@@ -267,18 +256,18 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                             className="space-y-2 rounded-xl border border-[#f5e5cf] bg-white p-3.5"
                           >
                             <div className="flex gap-2">
-                              <input
+                              <FormInput
                                 type="text"
                                 value={reviewItem.description}
                                 onChange={(event) =>
                                   updateReviewItem(item._id, index, { description: event.target.value })
                                 }
-                                className="flex-1 rounded-xl border border-white/60 bg-white/60 px-3 py-2 text-sm font-bold text-[#3e2815] outline-none shadow-inner focus:border-[#cf833f]"
                                 placeholder="Opis"
+                                inputSize="sm"
                               />
 
                               <div className="relative w-28">
-                                <input
+                                <FormInput
                                   type="number"
                                   value={reviewItem.amount > 0 ? (reviewItem.amount / 100).toFixed(2) : ""}
                                   onChange={(event) => {
@@ -287,10 +276,11 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                                       amount: Number.isFinite(value) ? Math.round(value * 100) : 0,
                                     });
                                   }}
-                                  className="w-full rounded-xl border border-white/60 bg-white/60 px-3 py-2 text-right text-sm font-bold text-[#cf833f] outline-none shadow-inner focus:border-[#cf833f]"
                                   placeholder="0.00"
                                   min="0"
                                   step="0.01"
+                                  inputSize="sm"
+                                  className="text-right text-[#cf833f]"
                                 />
                                 <span className="pointer-events-none absolute right-3 top-2 text-xs font-bold text-[#b89b87]">
                                   zł
@@ -299,8 +289,8 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                             </div>
 
                             <div className="grid grid-cols-2 gap-2">
-                              <select
-                                className="w-full rounded-xl border border-white/60 bg-white/60 px-2 py-2.5 text-xs font-bold text-[#6d4d38] outline-none shadow-inner focus:border-[#cf833f]"
+                              <FormSelect
+                                selectSize="sm"
                                 value={reviewItem.categoryId || ""}
                                 onChange={(event) =>
                                   updateReviewItem(item._id, index, {
@@ -317,10 +307,10 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                                     {category.name}
                                   </option>
                                 ))}
-                              </select>
+                              </FormSelect>
 
-                              <select
-                                className="w-full rounded-xl border border-white/60 bg-white/60 px-2 py-2.5 text-xs font-bold text-[#6d4d38] outline-none shadow-inner focus:border-[#cf833f]"
+                              <FormSelect
+                                selectSize="sm"
                                 value={reviewItem.subcategoryId || ""}
                                 onChange={(event) =>
                                   updateReviewItem(item._id, index, {
@@ -337,7 +327,7 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                                     {subcategory.name}
                                   </option>
                                 ))}
-                              </select>
+                              </FormSelect>
                             </div>
                           </div>
                         );
@@ -370,21 +360,20 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                         </span>
                       </button>
 
-                      <button
-                        type="button"
+                      <ButtonPrimary
                         onClick={() => handleApprove(item._id)}
                         disabled={saving === item._id}
-                        className="flex-[2] rounded-xl bg-gradient-to-r from-[#de9241] to-[#ca782a] py-3 text-sm font-medium text-white shadow-sm transition-all hover:scale-[1.01] disabled:opacity-60"
+                        loading={saving === item._id}
+                        icon={<CheckCircle className="h-4 w-4" />}
+                        rounded="xl"
+                        className="flex-[2]"
                       >
-                        <span className="flex items-center justify-center gap-1.5">
-                          {saving === item._id ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                          {saving === item._id ? "Zapisywanie..." : "Zatwierdź i zapisz"}
-                        </span>
-                      </button>
+                        {saving === item._id ? "Zapisywanie..." : "Zatwierdź i zapisz"}
+                      </ButtonPrimary>
                     </div>
                   </div>
                 )}
-              </div>
+              </AppCard>
             );
           })}
         </div>

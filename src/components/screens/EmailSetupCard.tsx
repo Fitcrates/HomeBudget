@@ -4,6 +4,10 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { ArrowRight, Clipboard, Mail, RefreshCw } from "lucide-react";
+import { AppCard } from "../ui/AppCard";
+import { ButtonPrimary } from "../ui/ButtonPrimary";
+import { ButtonSecondary } from "../ui/ButtonSecondary";
+import { Spinner } from "../ui/Spinner";
 
 interface Props {
   householdId: Id<"households">;
@@ -49,7 +53,7 @@ export function EmailSetupCard({ householdId, onOpenInbox }: Props) {
   }
 
   return (
-    <div className="rounded-2xl border border-white/50 bg-white/40 p-5 shadow-[0_8px_32px_rgba(180,120,80,0.15)] backdrop-blur-xl">
+    <AppCard>
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -73,9 +77,7 @@ export function EmailSetupCard({ householdId, onOpenInbox }: Props) {
       </div>
 
       {!setup ? (
-        <div className="flex justify-center py-8">
-          <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-[#d87635]" />
-        </div>
+        <Spinner className="py-8" />
       ) : !setup.isResendConfigured ? (
         <div className="mt-4 rounded-2xl border border-[#ffc9b6] bg-[#fff4ef] p-4">
           <p className="text-sm font-bold text-[#9a3e16]">Skrzynka jeszcze nie jest aktywna</p>
@@ -93,14 +95,13 @@ export function EmailSetupCard({ householdId, onOpenInbox }: Props) {
             </p>
           </div>
 
-          <button
-            type="button"
+          <ButtonPrimary
             onClick={handleCreate}
             disabled={busy !== null}
-            className="w-full rounded-xl bg-gradient-to-r from-[#de9241] to-[#ca782a] px-4 py-3 text-sm font-medium text-white shadow-sm transition-all hover:scale-[1.01] disabled:opacity-60"
+            loading={busy === "create"}
           >
             {busy === "create" ? "Tworzenie adresu..." : "Utwórz adres dla tego domostwa"}
-          </button>
+          </ButtonPrimary>
         </div>
       ) : (
         <div className="mt-4 space-y-4">
@@ -128,15 +129,14 @@ export function EmailSetupCard({ householdId, onOpenInbox }: Props) {
             </div>
 
             <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
+              <ButtonSecondary
                 onClick={handleRotate}
                 disabled={busy !== null}
-                className="inline-flex items-center gap-2 rounded-full border border-[#ead8c5] bg-white px-3 py-2 text-[11px] font-bold text-[#8a7262] transition-colors hover:border-[#cf833f] hover:text-[#cf833f] disabled:opacity-60"
+                icon={<RefreshCw className="h-3.5 w-3.5" />}
+                className="text-[11px]"
               >
-                <RefreshCw className="h-3.5 w-3.5" />
                 Zmień adres
-              </button>
+              </ButtonSecondary>
               <button
                 type="button"
                 onClick={onOpenInbox}
@@ -165,6 +165,6 @@ export function EmailSetupCard({ householdId, onOpenInbox }: Props) {
           </div>
         </div>
       )}
-    </div>
+    </AppCard>
   );
 }

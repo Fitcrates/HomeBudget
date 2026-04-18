@@ -12,6 +12,11 @@ import {
   type UserStats,
 } from "../../lib/badges";
 import { BadgeEmblem } from "../ui/BadgeEmblem";
+import { ScreenHeader } from "../ui/ScreenHeader";
+import { TabBar } from "../ui/TabBar";
+import { Spinner } from "../ui/Spinner";
+import { AppCard } from "../ui/AppCard";
+import { ButtonPrimary } from "../ui/ButtonPrimary";
 import { Award, BarChart3, Camera, Edit, Flame, CheckCircle, Sprout, X } from "lucide-react";
 
 interface Props {
@@ -51,40 +56,26 @@ export function BadgesScreen({ householdId }: Props) {
   }, [memberStats, myProfile]);
 
   if (!memberStats) {
-    return (
-      <div className="flex justify-center py-16">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#d87635]" />
-      </div>
-    );
+    return <Spinner className="py-16" />;
   }
 
   return (
     <div className="space-y-8 pb-6">
       {/* Header */}
-      <div className="pt-1">
-        <div className="flex items-center gap-2 mb-1">
-          <Award className="w-8 h-8 text-[#c76823] drop-shadow-sm" />
-          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a] drop-shadow-sm">Osiągnięcia</h2>
-        </div>
-        <p className="text-[14px] text-[#6d4d38] font-bold ml-1 drop-shadow-sm">
-          Zbieraj odznaki za aktywność w domowym budżecie
-        </p>
-        <div className="flex bg-[#fdf9f1] rounded-xl p-1 shadow-[0_4px_12px_rgba(180,120,80,0.1)] gap-1 mt-4">
-          {(["achievements", "fame", "all"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`flex-1 py-2.5 text-[13px] font-medium rounded-xl transition-all ${
-                tab === t
-                  ? "bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white shadow-sm ring-1 ring-[#ede0d4]/60"
-                  : "text-[#aa9382] hover:text-[#cf833f] hover:bg-[#f6eedf]"
-              }`}
-            >
-              {t === "achievements" ? "Zdobyte" : t === "fame" ? "Ranking" : "Pełna Lista"}
-            </button>
-          ))}
-        </div>
-      </div>
+      <ScreenHeader
+        icon={<Award />}
+        title="Osiągnięcia"
+        subtitle="Zbieraj odznaki za aktywność w domowym budżecie"
+      />
+      <TabBar
+        tabs={[
+          { key: "achievements" as const, label: "Zdobyte" },
+          { key: "fame" as const, label: "Ranking" },
+          { key: "all" as const, label: "Pełna Lista" },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
 
       {/* ============ ACHIEVEMENTS TAB ============ */}
       {tab === "achievements" &&
@@ -102,7 +93,7 @@ export function BadgesScreen({ householdId }: Props) {
           return (
             <div key={member.userId} className="space-y-5">
               {/* Member header card */}
-              <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-5 shadow-[0_8px_32px_rgba(180,120,80,0.15)]">
+              <AppCard padding="md">
                 <div className="flex items-center gap-4 mb-5">
                   {member.avatarUrl ? (
                     <img
@@ -136,7 +127,7 @@ export function BadgesScreen({ householdId }: Props) {
                   <StatPill icon={Edit} value={member.manualExpenses} label="Ręcznych" />
                   <StatPill icon={Flame} value={member.streak} label="Dni z rzędu" />
                 </div>
-              </div>
+              </AppCard>
 
               {/* Earned badges – trophy grid */}
               {earned.length > 0 ? (
@@ -471,12 +462,13 @@ function BadgeDetailModal({
         )}
 
         {/* Dismiss button */}
-        <button
-          className="mt-4 w-full py-2.5 rounded-full bg-gradient-to-r from-[#eeb678] to-[#d87635] text-white font-bold text-sm shadow-md hover:shadow-lg transition-shadow active:scale-[0.98]"
+        <ButtonPrimary
+          size="sm"
+          className="mt-4"
           onClick={onClose}
         >
           OK
-        </button>
+        </ButtonPrimary>
       </div>
     </div>
   );

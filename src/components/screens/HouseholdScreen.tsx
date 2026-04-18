@@ -1,11 +1,11 @@
-﻿import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ProfileSettingsScreen } from "./ProfileSettingsScreen";
 import { BadgesScreen } from "./BadgesScreen";
-import { BudgetSettingsScreen } from "./BudgetSettingsScreen";
+import { BudgetSettingsScreen } from "./BudgetSettingsScreenV2";
 import { EmailSetupCard } from "./EmailSetupCard";
 import { EmailInboxScreen } from "./EmailInboxScreen";
 import { FireIcon } from "../ui/icons/FireIcon";
@@ -15,6 +15,12 @@ import { AvatarGirlIcon } from "../ui/icons/AvatarGirlIcon";
 import { Home, Award, User, Clipboard, RefreshCw, UserPlus, Target } from "lucide-react";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { IconTrashButton } from "../ui/IconTrashButton";
+import { TabBar } from "../ui/TabBar";
+import { StatusBadge } from "../ui/StatusBadge";
+import { AppCard } from "../ui/AppCard";
+import { Spinner } from "../ui/Spinner";
+import { ScreenHeader } from "../ui/ScreenHeader";
+import { financialRoleLabel, financialRoleBadgeVariant } from "../../lib/financialRole";
 
 interface Household {
   _id: Id<"households">;
@@ -118,27 +124,14 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
     return <AvatarMaleIcon className="w-14 h-14" />;
   }
 
-  function financialRoleLabel(role?: "parent" | "partner" | "child") {
-    switch (role) {
-      case "parent":
-        return "Rodzic";
-      case "child":
-        return "Dziecko";
-      default:
-        return "Partner";
-    }
-  }
+  // financialRoleLabel + financialRoleBadgeVariant imported from lib/financialRole
 
-  function financialRoleBadge(role?: "parent" | "partner" | "child") {
-    switch (role) {
-      case "parent":
-        return "bg-[#fff1df] text-[#b86a28] border-[#f3d3b6]";
-      case "child":
-        return "bg-[#eef4ff] text-[#3856a8] border-[#c8d8ff]";
-      default:
-        return "bg-[#ebf7ef] text-[#46825d] border-[#8bc5a0]";
-    }
-  }
+  const HOUSEHOLD_TABS = [
+    { key: "household" as const, label: "Dom", icon: Home },
+    { key: "budget" as const, label: "Budżety", icon: Target },
+    { key: "badges" as const, label: "Odznaki", icon: Award },
+    { key: "profile" as const, label: "Profil", icon: User },
+  ];
 
   async function handleFinancialRoleChange(
     targetUserId: Id<"users">,
@@ -159,34 +152,9 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
   return (
     <div className="space-y-0 pb-6">
       <div className="pt-2 pb-4">
-        <div className="flex items-center gap-2 mb-4">
-          <FireIcon className="w-9 h-9 text-[#c76823]" />
-          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a]">Zarządzanie domem</h2>
-        </div>
+        <ScreenHeader icon={<FireIcon className="w-9 h-9" />} title="Zarządzanie domem" />
 
-        <div className="flex bg-[#fdf9f1] rounded-xl p-1 shadow-[0_4px_12px_rgba(180,120,80,0.1)] gap-1">
-          {(
-            [
-              { key: "household", label: "Dom", icon: Home },
-              { key: "budget", label: "Budżety", icon: Target },
-              { key: "badges", label: "Odznaki", icon: Award },
-              { key: "profile", label: "Profil", icon: User },
-            ] as { key: Tab; label: string; icon: any }[]
-          ).map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                tab === key
-                  ? "bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white shadow-sm"
-                  : "text-[#8a7262] hover:text-[#cf833f]"
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              <span>{label}</span>
-            </button>
-          ))}
-        </div>
+        <TabBar tabs={HOUSEHOLD_TABS} value={tab} onChange={setTab} />
       </div>
 
       {tab === "profile" && <ProfileSettingsScreen householdId={household._id} />}
@@ -205,7 +173,7 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
 
       {tab === "household" && householdSubscreen === "overview" && (
         <div className="space-y-6">
-          <div className="bg-[#fdf9f1] rounded-xl p-6 pb-8 shadow-[0_8px_24px_rgba(180,120,80,0.15)] flex flex-col items-center relative overflow-hidden w-full">
+          <AppCard padding="lg" className="!bg-[#fdf9f1] flex flex-col items-center relative overflow-hidden w-full pb-8">
             <h3 className="text-[1.1rem] font-bold text-[#3e2815] mb-6 relative z-10">Nasze gniazdo</h3>
 
             <div className="w-full relative z-10 mb-8">
@@ -242,9 +210,9 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
                         >
                           {name}
                         </span>
-                        <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${financialRoleBadge(m.financialRole)}`}>
+                        <StatusBadge variant={financialRoleBadgeVariant(m.financialRole)}>
                           {financialRoleLabel(m.financialRole)}
-                        </span>
+                        </StatusBadge>
                         {stats && (
                           <span className="text-[10px] font-bold text-[#8a7262] text-center">
                             {new Intl.NumberFormat("pl-PL", {
@@ -332,10 +300,10 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
                 </div>
               )}
             </div>
-          </div>
+          </AppCard>
 
           {members && memberBudgetOverview && (
-            <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-5 shadow-[0_8px_32px_rgba(180,120,80,0.15)] space-y-4">
+            <AppCard padding="md" className="space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-[16px] font-medium text-[#2b180a]">Budżety per osoba</h3>
@@ -356,9 +324,9 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-sm font-bold text-[#2b180a] truncate">{member.displayName}</p>
-                          <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${financialRoleBadge(member.financialRole)}`}>
+                          <StatusBadge variant={financialRoleBadgeVariant(member.financialRole)}>
                             {financialRoleLabel(member.financialRole)}
-                          </span>
+                          </StatusBadge>
                           {member.isOverBudget && (
                             <span className="px-2 py-0.5 rounded-full border border-[#ffc2af] bg-[#fff2ec] text-[10px] font-bold text-[#a94d22]">
                               Przekroczony limit
@@ -428,11 +396,11 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
                   </div>
                 ))}
               </div>
-            </div>
+            </AppCard>
           )}
 
           {members && (
-            <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-5 shadow-[0_8px_32px_rgba(180,120,80,0.15)] space-y-4">
+            <AppCard padding="md" className="space-y-4">
               <div>
                 <h3 className="text-[16px] font-medium text-[#2b180a]">Role finansowe</h3>
                 <p className="text-xs font-bold text-[#8a7262]">
@@ -453,7 +421,7 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
                           {member.role === "owner" ? "Właściciel gospodarstwa" : "Członek gospodarstwa"}
                         </p>
                       </div>
-                      <span className={`px-2 py-1 rounded-full border text-[11px] font-bold ${financialRoleBadge(member.financialRole)}`}>
+                      <span className={`px-2 py-1 rounded-full border text-[11px] font-bold ${member.financialRole === 'parent' ? 'bg-[#fff1df] text-[#b86a28] border-[#f3d3b6]' : member.financialRole === 'child' ? 'bg-[#eef4ff] text-[#3856a8] border-[#c8d8ff]' : 'bg-[#ebf7ef] text-[#46825d] border-[#8bc5a0]'}`}>
                         {financialRoleLabel(member.financialRole)}
                       </span>
                     </div>
@@ -471,7 +439,7 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
                             onClick={() => handleFinancialRoleChange(member.userId, role)}
                             className={`flex-1 rounded-xl border px-3 py-2 text-[11px] font-bold transition-all ${
                               member.financialRole === role
-                                ? `${financialRoleBadge(role)} shadow-sm`
+                                ? `${financialRoleBadgeVariant(role)} shadow-sm`
                                 : "border-[#ead8c5] bg-[#fff8f2] text-[#8a7262] hover:border-[#cf833f] hover:text-[#cf833f]"
                             }`}
                           >
@@ -487,7 +455,7 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
                   </div>
                 ))}
               </div>
-            </div>
+            </AppCard>
           )}
 
           <div className="pt-2">

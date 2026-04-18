@@ -1,4 +1,4 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -10,6 +10,48 @@
   --color-dark: #2e1e0f;
   --font-body: 'Nunito', sans-serif;
   --font-heading: 'Poppins', sans-serif;
+
+  /* ── Text ── */
+  --text-primary: #2b180a;
+  --text-secondary: #6d4d38;
+  --text-muted: #8a7262;
+  --text-faint: #b89b87;
+
+  /* ── Accent ── */
+  --accent: #cf833f;
+  --accent-dark: #ca782a;
+  --accent-light: #de9241;
+
+  /* ── Surfaces ── */
+  --surface-card: rgba(255,255,255,0.4);
+  --surface-card-inner: rgba(255,255,255,0.5);
+  --surface-input: rgba(255,255,255,0.7);
+  --surface-warm: #fdf9f1;
+
+  /* ── Borders ── */
+  --border-card: rgba(255,255,255,0.5);
+  --border-card-inner: rgba(255,255,255,0.6);
+  --border-input: rgba(255,255,255,0.6);
+  --border-subtle: #f5e5cf;
+
+  /* ── Status ── */
+  --color-success: #4aad6f;
+  --color-success-light: #67c48a;
+  --color-warning: #f59e0b;
+  --color-danger: #e86b58;
+  --color-danger-dark: #d44f43;
+
+  /* ── Shadows ── */
+  --shadow-card: 0 8px 32px rgba(180,120,80,0.15);
+  --shadow-card-sm: 0 4px 24px rgba(180,120,80,0.1);
+  --shadow-cta: 0 4px 16px rgba(200,120,50,0.3);
+  --shadow-tab: 0 4px 12px rgba(180,120,80,0.1);
+
+  /* ── Progress ── */
+  --progress-bg: #f5e5cf;
+  --progress-green: #67c48a;
+  --progress-yellow: #f59e0b;
+  --progress-red: #ef4444;
 }
 
 * {

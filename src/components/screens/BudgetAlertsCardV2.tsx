@@ -4,6 +4,7 @@ import { Id } from "../../../convex/_generated/dataModel";
 import { formatAmount } from "../../lib/format";
 import { DynamicIcon } from "../ui/DynamicIcon";
 import { Target, AlertTriangle, CheckCircle, Users } from "lucide-react";
+import { ProgressBar } from "../ui/ProgressBar";
 
 interface Props {
   householdId: Id<"households">;
@@ -137,14 +138,8 @@ export function BudgetAlertsCard({ householdId, currency, dateFrom, dateTo }: Pr
                   </span>
                 </div>
 
-                <div className="h-2 w-full bg-[#f5e5cf] rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${
-                      isOver ? "bg-red-400" : isWarning ? "bg-yellow-400" : "bg-[#67c48a]"
-                    }`}
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
+                <ProgressBar value={pct} />
+
 
                 <div className="flex justify-between mt-1">
                   <span className="text-[10px] font-bold text-[#b89b87]">

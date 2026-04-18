@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../../../convex/_generated/api";
@@ -7,15 +7,13 @@ import { toast } from "sonner";
 import { User, Camera, Eye, EyeOff, LogOut } from "lucide-react";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { IconTrashButton } from "../ui/IconTrashButton";
-
-const cardStyle =
-  "bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
-const labelStyle =
-  "block text-[11px] font-bold text-[#b89b87] uppercase tracking-wider mb-2 ml-1 drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]";
-const inputStyle =
-  "w-full text-base bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white transition-all text-[#2b180a] font-bold placeholder-[#e0c9b7] shadow-inner";
-const btnPrimary =
-  "w-full py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-medium text-[14px] shadow-[0_4px_16px_rgba(200,120,50,0.3)] hover:scale-[1.02] active:scale-95 transition-all outline-none disabled:opacity-50";
+import { AppCard } from "../ui/AppCard";
+import { FormLabel } from "../ui/FormLabel";
+import { FormInput } from "../ui/FormInput";
+import { ButtonPrimary } from "../ui/ButtonPrimary";
+import { ButtonSecondary } from "../ui/ButtonSecondary";
+import { ScreenHeader } from "../ui/ScreenHeader";
+import { financialRoleLabel } from "../../lib/financialRole";
 
 interface Props {
   householdId?: Id<"households">;
@@ -166,33 +164,19 @@ export function ProfileSettingsScreen({ householdId }: Props) {
   }
   const strength = passwordStrength(newPassword);
 
-  function financialRoleLabel(role?: "parent" | "partner" | "child") {
-    switch (role) {
-      case "parent":
-        return "Rodzic";
-      case "child":
-        return "Dziecko";
-      default:
-        return "Partner";
-    }
-  }
+  // financialRoleLabel imported from lib/financialRole
 
   return (
     <div className="space-y-6 pb-6">
-      {/* Header */}
-      <div className="pt-1 pb-1 px-1">
-        <div className="flex items-center gap-2 mb-1">
-          <User className="w-8 h-8 text-[#c76823] drop-shadow-sm" />
-          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a] drop-shadow-sm">Mój profil</h2>
-        </div>
-        {myProfile?.email && (
-          <p className="text-sm text-[#6d4d38] font-bold ml-1 mt-1 drop-shadow-sm">{myProfile.email}</p>
-        )}
-      </div>
+      <ScreenHeader
+        icon={<User />}
+        title="Mój profil"
+        subtitle={myProfile?.email}
+      />
 
       {myMembership && (
-        <div className={`${cardStyle} space-y-2`}>
-          <p className={labelStyle}>Rola finansowa</p>
+        <AppCard className="space-y-2">
+          <FormLabel>Rola finansowa</FormLabel>
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-bold text-[#2b180a]">{financialRoleLabel(myMembership.financialRole)}</p>
@@ -208,12 +192,12 @@ export function ProfileSettingsScreen({ householdId }: Props) {
               {myMembership.role === "owner" ? "Właściciel" : "Członek"}
             </span>
           </div>
-        </div>
+        </AppCard>
       )}
 
       {/* Avatar + Display Name */}
-      <form onSubmit={handleSaveProfile} className={`${cardStyle} space-y-5`}>
-        <p className={labelStyle}>Zdjęcie profilowe</p>
+      <form onSubmit={handleSaveProfile} className="app-card space-y-5">
+        <FormLabel>Zdjęcie profilowe</FormLabel>
 
         <div className="flex items-center gap-5">
           <div className="relative shrink-0">
@@ -261,38 +245,37 @@ export function ProfileSettingsScreen({ householdId }: Props) {
         </div>
 
         <div>
-          <label className={labelStyle}>Nazwa wyświetlana</label>
-          <input
+          <FormLabel>Nazwa wyświetlana</FormLabel>
+          <FormInput
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="Jak mamy Cię wyświetlać?"
-            className={inputStyle}
           />
         </div>
 
-        <button type="submit" disabled={savingProfile || uploadingAvatar} className={btnPrimary}>
+        <ButtonPrimary type="submit" loading={savingProfile} disabled={uploadingAvatar}>
           {savingProfile ? "Zapisywanie..." : "Zapisz profil"}
-        </button>
+        </ButtonPrimary>
       </form>
 
       {/* Password Change */}
-      <form onSubmit={handleChangePassword} className={`${cardStyle} space-y-4`}>
+      <form onSubmit={handleChangePassword} className="app-card space-y-4">
         <div>
-          <p className={labelStyle}>Zmiana hasła</p>
-          <p className="text-xs text-[#8a7262] font-medium drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">
+          <FormLabel>Zmiana hasła</FormLabel>
+          <p className="text-xs text-[#8a7262] font-medium">
             Podaj aktualne hasło, aby ustawić nowe.
           </p>
         </div>
 
         <div>
-          <label className={labelStyle}>Aktualne hasło</label>
+          <FormLabel>Aktualne hasło</FormLabel>
           <div className="relative">
-            <input
+            <FormInput
               type={showCurrent ? "text" : "password"}
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               placeholder="••••••••"
-              className={`${inputStyle} pr-12`}
+              className="pr-12"
               autoComplete="current-password"
             />
             <button
@@ -306,14 +289,14 @@ export function ProfileSettingsScreen({ householdId }: Props) {
         </div>
 
         <div>
-          <label className={labelStyle}>Nowe hasło</label>
+          <FormLabel>Nowe hasło</FormLabel>
           <div className="relative">
-            <input
+            <FormInput
               type={showNew ? "text" : "password"}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Min. 8 znaków"
-              className={`${inputStyle} pr-12`}
+              className="pr-12"
               autoComplete="new-password"
             />
             <button
@@ -337,17 +320,16 @@ export function ProfileSettingsScreen({ householdId }: Props) {
         </div>
 
         <div>
-          <label className={labelStyle}>Potwierdź nowe hasło</label>
+          <FormLabel>Potwierdź nowe hasło</FormLabel>
           <div className="relative">
-            <input
+            <FormInput
               type={showConfirm ? "text" : "password"}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Powtórz nowe hasło"
-              className={`${inputStyle} pr-12 ${
-                confirmPassword && confirmPassword !== newPassword
-                  ? "border-red-300 focus:border-red-400"
-                  : confirmPassword && confirmPassword === newPassword
+              error={!!(confirmPassword && confirmPassword !== newPassword)}
+              className={`pr-12 ${
+                confirmPassword && confirmPassword === newPassword
                   ? "border-green-300 focus:border-green-400"
                   : ""
               }`}
@@ -369,36 +351,34 @@ export function ProfileSettingsScreen({ householdId }: Props) {
           )}
         </div>
 
-        <button
+        <ButtonPrimary
           type="submit"
+          loading={changingPassword}
           disabled={
-            changingPassword ||
             !currentPassword ||
             newPassword.length < 8 ||
             newPassword !== confirmPassword
           }
-          className={btnPrimary}
         >
           {changingPassword ? "Zmienianie..." : "Zmień hasło"}
-        </button>
+        </ButtonPrimary>
       </form>
 
       {/* Sign out */}
-      <div className={`${cardStyle} space-y-3`}>
-        <p className={labelStyle}>Konto</p>
-        <p className="text-xs text-[#8a7262] font-medium drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">
+      <AppCard className="space-y-3">
+        <FormLabel>Konto</FormLabel>
+        <p className="text-xs text-[#8a7262] font-medium">
           Zalogowany jako:{" "}
           <span className="text-[#cf833f]">{myProfile?.email || "..."}</span>
         </p>
-        <button
-          type="button"
+        <ButtonSecondary
+          variant="outline"
+          icon={<LogOut className="w-5 h-5" />}
           onClick={() => void signOut()}
-          className="w-full py-3.5 rounded-xl border border-[#e6c9b0]/50 bg-white/60 backdrop-blur-sm text-[#8a4f2a] font-bold text-[15px] hover:border-[#cf833f]/60 hover:bg-white transition-all shadow-sm flex items-center justify-center gap-2"
         >
-          <LogOut className="w-5 h-5" />
-          <span>Wyloguj się</span>
-        </button>
-      </div>
+          Wyloguj się
+        </ButtonSecondary>
+      </AppCard>
 
       <ConfirmDialog
         open={showRemoveAvatarModal}

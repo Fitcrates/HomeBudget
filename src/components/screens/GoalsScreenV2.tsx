@@ -20,6 +20,13 @@ import { formatAmount } from "../../lib/format";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { DynamicIcon } from "../ui/DynamicIcon";
 import { IconTrashButton } from "../ui/IconTrashButton";
+import { AppCard } from "../ui/AppCard";
+import { ScreenHeader } from "../ui/ScreenHeader";
+import { Spinner } from "../ui/Spinner";
+import { ProgressBar } from "../ui/ProgressBar";
+import { FormLabel } from "../ui/FormLabel";
+import { FormInput } from "../ui/FormInput";
+import { ButtonPrimary } from "../ui/ButtonPrimary";
 
 interface Props {
   householdId: Id<"households">;
@@ -131,8 +138,6 @@ export function GoalsScreen({ householdId, currency }: Props) {
   const goals = useQuery(api.goals.listForHousehold, { householdId }) as GoalViewModel[] | undefined;
   const [showAdd, setShowAdd] = useState(false);
 
-  const cardClass =
-    "bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-xl p-5 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
   const summary = useMemo(() => {
     if (!goals || goals.length === 0) return null;
 
@@ -146,27 +151,20 @@ export function GoalsScreen({ householdId, currency }: Props) {
 
   return (
     <div className="space-y-6 pb-6">
-      <div className="pt-2 pb-1">
-        <div className="mb-2 flex items-center gap-2">
-          <Target className="h-9 w-9 text-[#c76823] drop-shadow-sm" />
-          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a] drop-shadow-sm">
-            Skarbonki
-          </h2>
-        </div>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="ml-1 text-[1.1rem] font-bold text-[#3e2815] drop-shadow-sm sm:text-[1.2rem]">
-            Cele oszczędnościowe
-          </h3>
+      <ScreenHeader
+        icon={<Target />}
+        title="Skarbonki"
+        subtitle="Cele oszczędnościowe"
+        action={
           <button
             onClick={() => setShowAdd(!showAdd)}
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-[#cf833f] px-3 py-2 text-xs font-bold text-white shadow-sm transition-transform active:scale-95 sm:w-auto sm:hover:scale-105"
+            className="inline-flex items-center justify-center gap-1.5 rounded-full bg-[#cf833f] px-3 py-2 text-xs font-bold text-white shadow-sm transition-transform active:scale-95 hover:scale-105"
           >
             {showAdd ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
             {showAdd ? "Zamknij" : "Nowy cel"}
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {showAdd && (
         <div className="animate-in fade-in slide-in-from-top-4">
@@ -175,7 +173,7 @@ export function GoalsScreen({ householdId, currency }: Props) {
       )}
 
       {summary && (
-       <div className={`${cardClass} flex divide-x divide-[#f2d6bf]`}>
+       <AppCard padding="md" className="flex divide-x divide-[#f2d6bf]">
   {[
     { label: "Do odłożenia", value: formatAmount(summary.remainingTotal, currency) },
     { label: "Tempo 30 dni", value: formatAmount(summary.monthlyPace, currency), sub: "na wszystkich skarbonkach" },
@@ -187,15 +185,13 @@ export function GoalsScreen({ householdId, currency }: Props) {
       {sub && <p className="mt-1 text-xs font-medium text-[#8a7262]">{sub}</p>}
     </div>
   ))}
-</div>
+</AppCard>
       )}
 
       {goals === undefined ? (
-        <div className="flex justify-center py-12">
-          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-[#d87635]" />
-        </div>
+        <Spinner className="py-12" />
       ) : goals.length === 0 ? (
-        <div className={`${cardClass} flex flex-col items-center py-10 text-center opacity-90`}>
+        <AppCard padding="md" className="flex flex-col items-center py-10 text-center opacity-90">
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-[#f5e5cf] bg-[#fcf4e4] shadow-sm">
             <Star className="h-8 w-8 text-[#ca782a]" />
           </div>
@@ -203,7 +199,7 @@ export function GoalsScreen({ householdId, currency }: Props) {
           <p className="text-sm font-bold text-[#8a7262]">
             Dodaj swój pierwszy cel oszczędnościowy, np. na wakacje lub samochód.
           </p>
-        </div>
+        </AppCard>
       ) : (
         <div className="space-y-4">
           {goals.map((goal) => (

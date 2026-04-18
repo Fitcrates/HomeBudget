@@ -1,11 +1,11 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation } from "convex/react";
 import { DashboardScreen } from "./screens/DashboardScreen";
 import { ExpensesScreen } from "./screens/ExpensesScreen";
 import { AddExpenseScreen } from "./screens/AddExpenseScreen";
 import { HouseholdScreen } from "./screens/HouseholdScreen";
 import { OcrScreen } from "./screens/OcrScreen";
-import { GoalsScreen } from "./screens/GoalsScreen";
+import { GoalsScreen } from "./screens/GoalsScreenV2";
 import { ChatScreen } from "./screens/ChatScreen";
 import { BadgeNotificationProvider } from "./providers/BadgeNotificationProvider";
 import { api } from "../../convex/_generated/api";

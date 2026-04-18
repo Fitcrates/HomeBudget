@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -6,59 +6,39 @@ import { Bot, ShoppingCart, Send, Plus, Check, Square, X } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { ScreenHeader } from "../ui/ScreenHeader";
+import { TabBar } from "../ui/TabBar";
+import { AppCard } from "../ui/AppCard";
 
 interface Props {
   householdId: Id<"households">;
 }
 
-type Tab = "chat" | "shopping";
+type ChatTab = "chat" | "shopping";
 
 export function ChatScreen({ householdId }: Props) {
-  const [tab, setTab] = useState<Tab>("chat");
+  const [tab, setTab] = useState<ChatTab>("chat");
 
   const shoppingList = useQuery(api.shopping.listForHousehold, { householdId }) ?? [];
   const unboughtCount = shoppingList.filter(i => !i.isBought).length;
 
   return (
     <div className="flex flex-col h-[calc(100vh-140px)] pb-2 relative">
-      {/* Header and Toggle */}
       <div className="pt-2 pb-4 flex-shrink-0">
-        <div className="flex items-center justify-between w-full mb-3">
-          <div className="flex items-center gap-2 drop-shadow-sm">
-            <Bot className="w-8 h-8 text-[#c76823]" />
-            <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a]">Agent</h2>
-          </div>
-        </div>
-
-        <div className="flex bg-[#fdf9f1] rounded-xl p-1 shadow-[0_4px_12px_rgba(180,120,80,0.1)] gap-1">
-          <button
-            onClick={() => setTab("chat")}
-            className={`flex-1 py-2.5 rounded-xl text-[13px] font-bold transition-all flex items-center justify-center gap-2 ${
-              tab === "chat"
-                ? "bg-white text-[#cf833f] shadow-sm transform scale-[1.02]"
-                : "text-[#8a7262] hover:bg-white/50"
-            }`}
-          >
-            <Bot className="w-4 h-4" />
-            Rozmowa
-          </button>
-          <button
-            onClick={() => setTab("shopping")}
-            className={`flex-1 py-2.5 rounded-xl text-[13px] font-bold transition-all flex items-center justify-center gap-2 relative ${
-              tab === "shopping"
-                ? "bg-white text-[#cf833f] shadow-sm transform scale-[1.02]"
-                : "text-[#8a7262] hover:bg-white/50"
-            }`}
-          >
-            <ShoppingCart className="w-4 h-4" />
-            Lista zakupów
-            {unboughtCount > 0 && (
-              <span className="bg-[#cf833f] text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center absolute top-2 right-4 shadow-sm animate-pulse">
-                {unboughtCount}
-              </span>
-            )}
-          </button>
-        </div>
+        <ScreenHeader icon={<Bot className="w-9 h-9" />} title="Agent" />
+        <TabBar
+          tabs={[
+            { key: "chat", label: "Rozmowa", icon: Bot },
+            { 
+               key: "shopping", 
+               label: "Lista zakupów", 
+               icon: ShoppingCart,
+               badge: unboughtCount > 0 ? unboughtCount : undefined 
+            },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
       </div>
 
       {tab === "chat" ? <ChatView householdId={householdId} /> : <ShoppingListView householdId={householdId} items={shoppingList} />}
@@ -216,7 +196,7 @@ function ActiveChatSession({ householdId, sessionId }: { householdId: Id<"househ
   }
 
   return (
-    <div className="flex-1 overflow-hidden flex flex-col bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl shadow-[0_8px_32px_rgba(180,120,80,0.15)] relative">
+    <AppCard padding="none" className="flex-1 overflow-hidden flex flex-col relative w-full h-full">
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
         {messages?.map((msg) => {
           const isMe = msg.role === "user";
@@ -348,7 +328,7 @@ function ActiveChatSession({ householdId, sessionId }: { householdId: Id<"househ
            </p>
         )}
       </div>
-    </div>
+    </AppCard>
   );
 }
 
@@ -382,7 +362,7 @@ function ShoppingListView({ householdId, items }: { householdId: Id<"households"
   }
 
   return (
-    <div className="flex-1 overflow-hidden flex flex-col bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl shadow-[0_8px_32px_rgba(180,120,80,0.15)] relative">
+    <AppCard padding="none" className="flex-1 overflow-hidden flex flex-col relative w-full h-full">
       <div className="p-4 bg-white/60 border-b border-white/50">
         <form onSubmit={handleAdd} className="flex gap-2">
            <input 
@@ -456,7 +436,7 @@ function ShoppingListView({ householdId, items }: { householdId: Id<"households"
           setPendingDeleteItemId(null);
         }}
       />
-    </div>
+    </AppCard>
   );
 }
 

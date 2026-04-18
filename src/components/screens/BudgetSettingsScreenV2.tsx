@@ -8,6 +8,15 @@ import { formatAmount } from "../../lib/format";
 import { Target, Calendar, Save, Users, TrendingUp, ShieldAlert } from "lucide-react";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { IconTrashButton } from "../ui/IconTrashButton";
+import { TabBar } from "../ui/TabBar";
+import { FormLabel } from "../ui/FormLabel";
+import { FormInput } from "../ui/FormInput";
+import { ButtonPrimary } from "../ui/ButtonPrimary";
+import { ProgressBar } from "../ui/ProgressBar";
+import { Spinner } from "../ui/Spinner";
+import { ScreenHeader } from "../ui/ScreenHeader";
+import { StatusBadge } from "../ui/StatusBadge";
+import { financialRoleLabel, financialRoleBadgeVariant } from "../../lib/financialRole";
 
 interface Props {
   householdId: Id<"households">;
@@ -135,31 +144,13 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
     }
   }
 
-  function financialRoleLabel(role?: "parent" | "partner" | "child") {
-    switch (role) {
-      case "parent":
-        return "Rodzic";
-      case "child":
-        return "Dziecko";
-      default:
-        return "Partner";
-    }
-  }
-
-  function financialRoleBadge(role?: "parent" | "partner" | "child") {
-    switch (role) {
-      case "parent":
-        return "bg-[#fff1df] text-[#b86a28] border-[#f3d3b6]";
-      case "child":
-        return "bg-[#eef4ff] text-[#3856a8] border-[#c8d8ff]";
-      default:
-        return "bg-[#ebf7ef] text-[#46825d] border-[#8bc5a0]";
-    }
-  }
+  // financialRoleLabel + financialRoleBadgeVariant imported from lib/financialRole
 
   const cardClass = "app-card";
-  const inputStyle =
-    "w-full text-sm bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white text-[#2b180a] font-bold shadow-inner transition-all";
+  const BUDGET_TABS = [
+    { key: "categories" as const, label: "Kategorie", icon: Target },
+    { key: "people" as const, label: "Osoby", icon: Users },
+  ];
 
   const overBudgetCount = memberBudgetOverview?.filter((member) => member.isOverBudget).length ?? 0;
   const activePersonBudgets = memberBudgetOverview?.filter((member) => member.personalBudget).length ?? 0;
@@ -174,69 +165,26 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
   ) {
     return (
       <div className="space-y-6 pb-6">
-        <div className="pt-2 pb-1">
-          <div className="flex items-center gap-2 mb-1">
-            <button
-              onClick={onBack}
-              className="text-2xl text-[#6d4d38] font-bold hover:text-[#2b180a] leading-none drop-shadow-sm"
-            >
-              ←
-            </button>
-            <Target className="w-8 h-8 text-[#c76823] drop-shadow-sm" />
-            <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a] drop-shadow-sm">
-              Budżety i limity
-            </h2>
-          </div>
-        </div>
-
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#d87635]" />
-        </div>
+        <ScreenHeader
+          icon={<Target />}
+          title="Budżety i limity"
+          onBack={onBack}
+        />
+        <Spinner className="py-12" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6 pb-6">
-      <div className="pt-2 pb-1">
-        <div className="flex items-center gap-2 mb-1">
-          <button
-            onClick={onBack}
-            className="text-2xl text-[#6d4d38] font-bold hover:text-[#2b180a] leading-none drop-shadow-sm"
-          >
-            ←
-          </button>
-          <Target className="w-8 h-8 text-[#c76823] drop-shadow-sm" />
-          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a] drop-shadow-sm">
-            Budżety i limity
-          </h2>
-        </div>
-        <p className="text-xs text-[#8a7262] font-medium ml-10 mt-1">
-          Zarządzaj limitami kategorii oraz budżetami per osoba.
-        </p>
-      </div>
+      <ScreenHeader
+        icon={<Target />}
+        title="Budżety i limity"
+        subtitle="Zarządzaj limitami kategorii oraz budżetami per osoba."
+        onBack={onBack}
+      />
 
-      <div className="flex bg-[#fdf9f1] rounded-xl p-1 shadow-[0_4px_12px_rgba(180,120,80,0.1)] gap-1">
-        {(
-          [
-            { key: "categories", label: "Kategorie", icon: Target },
-            { key: "people", label: "Osoby", icon: Users },
-          ] as { key: BudgetMode; label: string; icon: any }[]
-        ).map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => setMode(key)}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-              mode === key
-                ? "bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white shadow-sm"
-                : "text-[#8a7262] hover:text-[#cf833f]"
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            <span>{label}</span>
-          </button>
-        ))}
-      </div>
+      <TabBar tabs={BUDGET_TABS} value={mode} onChange={setMode} />
 
       {mode === "people" && (
         <div className="grid grid-cols-3 gap-3">
@@ -328,14 +276,14 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
                       <label className="block text-[11px] font-bold text-[#b89b87] uppercase tracking-wider mb-1.5 ml-1">
                         Limit kwotowy ({currency})
                       </label>
-                      <input
+                      <FormInput
                         type="number"
                         min="0"
                         step="0.01"
+                        inputSize="sm"
                         value={categoryEditAmount}
                         onChange={(e) => setCategoryEditAmount(e.target.value)}
                         placeholder="np. 1500.00"
-                        className={inputStyle}
                         autoFocus
                       />
                     </div>
@@ -358,15 +306,14 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
                       ))}
                     </div>
 
-                    <button
-                      type="button"
+                    <ButtonPrimary
                       onClick={handleSaveCategory}
-                      disabled={savingCategory || !categoryEditAmount}
-                      className="w-full py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-medium text-[14px] shadow-sm hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                      loading={savingCategory}
+                      disabled={!categoryEditAmount}
+                      icon={<Save className="w-4 h-4" />}
                     >
-                      <Save className="w-4 h-4" />
-                      <span>{savingCategory ? "Zapisywanie..." : "Zapisz limit kategorii"}</span>
-                    </button>
+                      {savingCategory ? "Zapisywanie..." : "Zapisz limit kategorii"}
+                    </ButtonPrimary>
                   </div>
                 )}
               </div>
@@ -385,9 +332,9 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-bold text-[#2b180a] truncate">{member.displayName}</p>
-                      <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${financialRoleBadge(member.financialRole)}`}>
+                      <StatusBadge variant={financialRoleBadgeVariant(member.financialRole)}>
                         {financialRoleLabel(member.financialRole)}
-                      </span>
+                      </StatusBadge>
                     </div>
                     <p className="text-[11px] font-bold text-[#8a7262]">
                       Wydał(a) w tym miesiącu {formatAmount(member.monthlySpent, currency)}
@@ -460,14 +407,14 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
                       <label className="block text-[11px] font-bold text-[#b89b87] uppercase tracking-wider mb-1.5 ml-1">
                         Limit osobisty ({currency})
                       </label>
-                      <input
+                      <FormInput
                         type="number"
                         min="0"
                         step="0.01"
+                        inputSize="sm"
                         value={personEditAmount}
                         onChange={(e) => setPersonEditAmount(e.target.value)}
                         placeholder="np. 300.00"
-                        className={inputStyle}
                         autoFocus
                       />
                     </div>
@@ -490,15 +437,14 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
                       ))}
                     </div>
 
-                    <button
-                      type="button"
+                    <ButtonPrimary
                       onClick={handleSavePersonBudget}
-                      disabled={savingPerson || !personEditAmount}
-                      className="w-full py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-medium text-[14px] shadow-sm hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                      loading={savingPerson}
+                      disabled={!personEditAmount}
+                      icon={<Save className="w-4 h-4" />}
                     >
-                      <Save className="w-4 h-4" />
-                      <span>{savingPerson ? "Zapisywanie..." : "Zapisz budżet osobisty"}</span>
-                    </button>
+                      {savingPerson ? "Zapisywanie..." : "Zapisz budżet osobisty"}
+                    </ButtonPrimary>
                   </div>
                 )}
               </div>

@@ -7,6 +7,13 @@ import { toast } from "sonner";
 import { DollarSign, Zap, Check, Save } from "lucide-react";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { IconTrashButton } from "../ui/IconTrashButton";
+import { AppCard } from "../ui/AppCard";
+import { FormLabel } from "../ui/FormLabel";
+import { FormInput } from "../ui/FormInput";
+import { ButtonPrimary } from "../ui/ButtonPrimary";
+import { ProgressBar } from "../ui/ProgressBar";
+import { AlertBanner } from "../ui/AlertBanner";
+import { Spinner } from "../ui/Spinner";
 
 interface Props {
   householdId: Id<"households">;
@@ -60,29 +67,28 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
     }
   }
 
-  const cardClass =
-    "bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
+  const cardHeader = (
+    <div className="flex items-center gap-2 drop-shadow-sm">
+      <DollarSign className="w-6 h-6 text-[#c76823]" />
+      <h3 className="text-[15px] font-medium text-[#2b180a]">Dochód miesięczny</h3>
+    </div>
+  );
 
   // Loading state
   if (income === undefined) {
     return (
-      <div className={cardClass}>
-        <div className="flex justify-center py-4">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#d87635]" />
-        </div>
-      </div>
+      <AppCard>
+        <Spinner size="sm" className="py-4" />
+      </AppCard>
     );
   }
 
   // No income set yet
   if (!income && !editing) {
     return (
-      <div className={cardClass}>
+      <AppCard>
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2 drop-shadow-sm">
-            <DollarSign className="w-6 h-6 text-[#c76823]" />
-            <h3 className="text-[15px] font-medium text-[#2b180a]">Dochód miesięczny</h3>
-          </div>
+          {cardHeader}
           <button
             onClick={startEdit}
             className="text-xs font-bold text-[#cf833f] hover:underline"
@@ -93,7 +99,7 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
         <p className="text-xs text-[#b89b87] font-medium text-center py-2">
           Ustaw miesięczny dochód, aby śledzić budżet w czasie rzeczywistym.
         </p>
-      </div>
+      </AppCard>
     );
   }
 
@@ -117,12 +123,9 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
     : "bg-gradient-to-r from-[#67c48a] to-[#4aad6f]";
 
   return (
-    <div className={cardClass}>
+    <AppCard>
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2 drop-shadow-sm">
-          <DollarSign className="w-6 h-6 text-[#c76823]" />
-          <h3 className="text-[15px] font-medium text-[#2b180a]">Dochód miesięczny</h3>
-        </div>
+        {cardHeader}
         <div className="flex items-center gap-2">
           {income && (
             <IconTrashButton
@@ -143,31 +146,30 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
       {editing ? (
         <div className="space-y-3">
           <div>
-            <label className="block text-[11px] font-bold text-[#b89b87] uppercase tracking-wider mb-1.5 ml-1">
+            <FormLabel>
               Miesięczny dochód netto ({currency})
-            </label>
-            <input
+            </FormLabel>
+            <FormInput
               type="number"
               min="0"
               step="0.01"
               value={inputAmount}
               onChange={(e) => setInputAmount(e.target.value)}
               placeholder="np. 8000.00"
-              className="w-full text-base bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white transition-all text-[#2b180a] font-bold shadow-inner"
               autoFocus
             />
             <p className="text-[10px] text-[#b89b87] font-medium mt-1 ml-1">
               Łączny dochód netto całego gospodarstwa domowego
             </p>
           </div>
-          <button
+          <ButtonPrimary
             onClick={handleSave}
-            disabled={saving || !inputAmount}
-            className="w-full py-3 bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white rounded-full font-medium text-[14px] shadow-sm hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            loading={saving}
+            disabled={!inputAmount}
+            icon={<Save className="w-4 h-4" />}
           >
-            <Save className="w-4 h-4" />
-            <span>{saving ? "Zapisywanie..." : "Zapisz dochód"}</span>
-          </button>
+            {saving ? "Zapisywanie..." : "Zapisz dochód"}
+          </ButtonPrimary>
         </div>
       ) : (
         <div className="space-y-4">
@@ -192,57 +194,44 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
           </div>
 
           {/* Progress bar */}
-          <div>
-            <div className="h-3 w-full bg-[#f5e5cf] rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${barColor}`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <div className="flex justify-between mt-1.5">
-              <span className="text-[10px] font-bold text-[#b89b87]">
-                {pct.toFixed(0)}% wykorzystano
-              </span>
-              <span
-                className={`text-[10px] font-bold ${
-                  isOver ? "text-red-500" : "text-[#67c48a]"
-                }`}
-              >
-                {isOver
-                  ? `Przekroczono o ${formatAmount(Math.abs(remaining), currency)}`
-                  : `Pozostało ${formatAmount(remaining, currency)}`}
-              </span>
-            </div>
-          </div>
-
-          {/* Pace indicator */}
-          <div
-            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold ${
-              isAheadOfPace
-                ? "bg-[#fff5f5] text-red-600 border border-red-100"
-                : "bg-[#f0fff4] text-green-700 border border-green-100"
-            }`}
-          >
-            {isAheadOfPace ? <Zap className="w-4 h-4" /> : <Check className="w-4 h-4" />}
-            <span>
-              {isAheadOfPace
-                ? `Wydajesz szybciej niż planowano — oczekiwano ${formatAmount(Math.round(expectedSpend), currency)} na dzień ${dayOfMonth}.`
-                : `Tempo wydatków jest w normie — oczekiwano ${formatAmount(Math.round(expectedSpend), currency)} na dzień ${dayOfMonth}.`}
+          <ProgressBar value={pct} height="md" />
+          <div className="flex justify-between mt-1.5">
+            <span className="text-[10px] font-bold text-[#b89b87]">
+              {pct.toFixed(0)}% wykorzystano
+            </span>
+            <span
+              className={`text-[10px] font-bold ${
+                isOver ? "text-red-500" : "text-[#67c48a]"
+              }`}
+            >
+              {isOver
+                ? `Przekroczono o ${formatAmount(Math.abs(remaining), currency)}`
+                : `Pozostało ${formatAmount(remaining, currency)}`}
             </span>
           </div>
 
+          {/* Pace indicator */}
+          <AlertBanner
+            variant={isAheadOfPace ? "error" : "success"}
+            icon={isAheadOfPace ? <Zap className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+          >
+            {isAheadOfPace
+              ? `Wydajesz szybciej niż planowano — oczekiwano ${formatAmount(Math.round(expectedSpend), currency)} na dzień ${dayOfMonth}.`
+              : `Tempo wydatków jest w normie — oczekiwano ${formatAmount(Math.round(expectedSpend), currency)} na dzień ${dayOfMonth}.`}
+          </AlertBanner>
+
           {/* Savings projection */}
           {!isOver && monthly > 0 && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-[#fffbeb] text-[#92610a] border border-yellow-100">
-              <DollarSign className="w-4 h-4" />
-              <span>
-                Prognoza oszczędności:{" "}
-                <span className="text-[#cf833f]">
-                  {formatAmount(Math.max(0, monthly - Math.round((spentThisMonth / dayOfMonth) * daysInMonth)), currency)}
-                </span>{" "}
-                do końca miesiąca
-              </span>
-            </div>
+            <AlertBanner
+              variant="warning"
+              icon={<DollarSign className="w-4 h-4" />}
+            >
+              Prognoza oszczędności:{" "}
+              <span className="text-[#cf833f]">
+                {formatAmount(Math.max(0, monthly - Math.round((spentThisMonth / dayOfMonth) * daysInMonth)), currency)}
+              </span>{" "}
+              do końca miesiąca
+            </AlertBanner>
           )}
         </div>
       )}
@@ -258,6 +247,6 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
           setShowRemoveModal(false);
         }}
       />
-    </div>
+    </AppCard>
   );
 }

@@ -1,4 +1,4 @@
-﻿import { useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { useState, useMemo } from "react";
@@ -7,13 +7,15 @@ import { PieChart } from "../charts/PieChart";
 import { BarChart } from "../charts/BarChart";
 import { formatAmount } from "../../lib/format";
 import { InsightsOverviewCard, InsightsScenariosCard } from "./DashboardInsightsPanels";
-import { BudgetAlertsCard } from "./BudgetAlertsCard";
+import { BudgetAlertsCard } from "./BudgetAlertsCardV2";
 import { IncomeMonitorCard } from "./IncomeMonitorCard";
 import { HomeIcon } from "../ui/icons/HomeIcon";
 import { ExpensesIcon } from "../ui/icons/ExpensesIcon";
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
-import catLottie from "../../assets/Cat playing animation.lottie?url";
 import { BarChart3, WandSparkles } from "lucide-react";
+import { AppCard } from "../ui/AppCard";
+import { TabBar } from "../ui/TabBar";
+import { CatLoader } from "../ui/CatLoader";
+import { ScreenHeader } from "../ui/ScreenHeader";
 
 interface Props {
   householdId: Id<"households">;
@@ -53,17 +55,18 @@ export function DashboardScreen({ householdId, currency }: Props) {
 
   const isLoading = summary === undefined || byCategory === undefined || byPeriod === undefined;
 
-  const cardClass = "bg-white/40 backdrop-blur-xl border border-white/50 w-full rounded-xl p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)]";
+  const DASHBOARD_TABS = [
+    { key: "overview" as const, label: "Przegląd", icon: BarChart3 },
+    { key: "simulations" as const, label: "Symulacje", icon: WandSparkles },
+  ];
 
   return (
     <div className="space-y-6">
-      <div className="pt-2 pb-1">
-        <div className="flex items-center gap-2 mb-2">
-          <HomeIcon className="w-9 h-9 text-[#c76823] drop-shadow-sm" />
-          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a] drop-shadow-sm">Cześć, Rodzinko!</h2>
-        </div>
-        <h3 className="text-[1.2rem] font-bold text-[#3e2815] mb-5 ml-1 drop-shadow-sm">Dashboard</h3>
-      </div>
+      <ScreenHeader
+        icon={<HomeIcon className="w-9 h-9" />}
+        title="Cześć, Rodzinko!"
+        subtitle="Dashboard"
+      />
 
       <PeriodSelector
         value={period}
@@ -74,46 +77,15 @@ export function DashboardScreen({ householdId, currency }: Props) {
         onCustomTo={setCustomTo}
       />
 
-      <div className="flex gap-1 rounded-xl bg-[#fdf9f1] p-1 shadow-[0_4px_12px_rgba(180,120,80,0.1)]">
-        {(
-          [
-            { key: "overview", label: "Przegląd", icon: BarChart3 },
-            { key: "simulations", label: "Symulacje", icon: WandSparkles },
-          ] as { key: DashboardTab; label: string; icon: any }[]
-        ).map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => setActiveTab(key)}
-            className={`flex-1 rounded-xl py-2.5 text-xs font-bold transition-all ${
-              activeTab === key
-                ? "bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white shadow-sm"
-                : "text-[#8a7262] hover:text-[#cf833f]"
-            }`}
-          >
-            <span className="flex items-center justify-center gap-1.5">
-              <Icon className="h-4 w-4" />
-              {label}
-            </span>
-          </button>
-        ))}
-      </div>
+      <TabBar tabs={DASHBOARD_TABS} value={activeTab} onChange={setActiveTab} />
 
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-12 gap-4">
-          <div className="w-32 h-32 relative flex items-center justify-center bg-[#fff8f2] rounded-full shadow-inner border border-[#f2d6bf]">
-            <div className="absolute inset-0 border-[4px] border-t-transparent border-[#de9241] rounded-full animate-spin" />
-            <div className="absolute inset-2 border-[4px] border-b-transparent border-[#ca782a] rounded-full animate-spin direction-reverse" />
-            <div className="w-24 h-24 rounded-full overflow-hidden absolute">
-              <DotLottieReact src={catLottie} loop autoplay />
-            </div>
-          </div>
-          <p className="text-[#8a7262] font-bold text-sm animate-pulse">Ładowanie danych...</p>
-        </div>
+        <CatLoader message="Ładowanie danych..." size="lg" />
       ) : (
         activeTab === "overview" ? (
           <div className="space-y-6">
             {(summary?.count > 0 || byCategory.length > 0 || byPeriod.length > 0) && (
-              <div className={cardClass}>
+              <AppCard>
                 {summary && summary.count > 0 && (
                   <div className="flex items-center justify-between">
                     <div>
@@ -139,7 +111,7 @@ export function DashboardScreen({ householdId, currency }: Props) {
                     <BarChart data={byPeriod} currency={currency} />
                   </>
                 )}
-              </div>
+              </AppCard>
             )}
 
             <IncomeMonitorCard
@@ -158,10 +130,10 @@ export function DashboardScreen({ householdId, currency }: Props) {
             <InsightsOverviewCard householdId={householdId} />
 
             {byCategory.length === 0 && (
-              <div className={`${cardClass} text-center py-10 opacity-80 backdrop-blur-xl border border-white/50 bg-white/40`}>
+              <AppCard className="text-center py-10 opacity-80">
                 <ExpensesIcon className="w-16 h-16 mx-auto mb-4 text-[#d8c5bc]" />
-                <p className="text-[#8a7262] font-bold drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">Brak wydatków w tym okresie</p>
-              </div>
+                <p className="text-[#8a7262] font-bold">Brak wydatków w tym okresie</p>
+              </AppCard>
             )}
           </div>
         ) : (

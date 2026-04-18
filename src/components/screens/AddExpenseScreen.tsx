@@ -6,6 +6,11 @@ import { DynamicIcon } from "../ui/DynamicIcon";
 import { toast } from "sonner";
 import { DollarSign, CloudUpload, FileText, Image as ImageIcon } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
+import { FormLabel } from "../ui/FormLabel";
+import { FormInput } from "../ui/FormInput";
+import { ButtonPrimary } from "../ui/ButtonPrimary";
+import { ScreenHeader } from "../ui/ScreenHeader";
+import { Spinner } from "../ui/Spinner";
 
 // Set pdf.js worker source
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -148,19 +153,15 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
     }
   }
 
-  const cardStyle = "app-card space-y-3";
-  const labelStyle = "block text-[11px] font-bold text-[#b89b87] uppercase tracking-wider mb-2 ml-1 drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]";
-  const inputStyle = "w-full text-base bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white transition-all text-[#2b180a] font-bold shadow-inner placeholder-[#e0c9b7]";
+
 
   return (
     <div className="space-y-6 pb-4">
-      <div className="pt-2 pb-1">
-        <div className="flex items-center gap-3 mb-1">
-          <DollarSign className="w-8 h-8 text-[#c76823] drop-shadow-sm" />
-          <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a] drop-shadow-sm">Dodaj wydatek</h2>
-        </div>
-        <p className="text-[#6d4d38] text-[15px] ml-1 font-bold drop-shadow-sm">Wprowadź szczegóły transakcji</p>
-      </div>
+      <ScreenHeader
+        icon={<DollarSign />}
+        title="Dodaj wydatek"
+        subtitle="Wprowadź szczegóły transakcji"
+      />
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Receipt / Uploads (Moved to top) */}
@@ -222,21 +223,20 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
         </div>
 
         {/* Details Card (Amount, Date, Description, Checkbox) */}
-        <div className={`${cardStyle} space-y-4`}>
+        <div className="app-card space-y-3 space-y-4">
           {/* Amount */}
           <div>
-            <label className={labelStyle}>
-              Kwota
-            </label>
+            <FormLabel>Kwota</FormLabel>
             <div className="flex items-center gap-3 relative">
-              <input
+              <FormInput
                 type="number"
                 step="0.01"
                 min="0"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full text-3xl bg-white/70 backdrop-blur-sm border border-white/60 rounded-xl px-4 py-3 outline-none focus:border-[#cf833f] focus:bg-white transition-all text-[#2b180a] font-bold shadow-inner placeholder-[#e0c9b7]"
+                inputSize="lg"
+                className="text-3xl"
                 required
               />
               <span className="absolute right-4 text-xl font-bold text-[#b89b87]">PLN</span>
@@ -246,29 +246,23 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
           <div className="grid grid-cols-2 gap-4">
             {/* Date */}
             <div>
-              <label className={labelStyle}>
-                Data
-              </label>
-              <input
+              <FormLabel>Data</FormLabel>
+              <FormInput
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className={inputStyle}
                 required
               />
             </div>
 
             {/* Description */}
             <div>
-              <label className={labelStyle}>
-                Opis
-              </label>
-              <input
+              <FormLabel>Opis</FormLabel>
+              <FormInput
                 type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Opcjonalnie"
-                className={inputStyle}
               />
             </div>
           </div>
@@ -287,14 +281,10 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
         </div>
 
         {/* Categories Accordion */}
-        <div className={`${cardStyle} space-y-3`}>
-          <label className={labelStyle}>
-            Kategoria i Podkategoria
-          </label>
+        <div className="app-card space-y-3">
+          <FormLabel>Kategoria i Podkategoria</FormLabel>
           {categories === undefined ? (
-            <div className="flex justify-center py-6">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500" />
-            </div>
+            <Spinner className="py-6" />
           ) : (
             <div className="flex flex-col gap-2.5">
               {categories.map((cat) => {
@@ -364,13 +354,15 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
 
         {/* End of Form */}
 
-        <button
+        <ButtonPrimary
           type="submit"
-          disabled={saving || !categoryId || !subcategoryId || !amount}
-          className="w-full py-4 bg-gradient-to-r from-[#e78b40] to-[#cb621e] text-white rounded-full font-bold text-lg hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all shadow-[0_8px_20px_rgba(200,100,50,0.3)] mt-4 focus:outline-none"
+          loading={saving}
+          disabled={!categoryId || !subcategoryId || !amount}
+          size="lg"
+          className="mt-4"
         >
           {saving ? "Zapisywanie..." : "Dodaj wydatek"}
-        </button>
+        </ButtonPrimary>
       </form>
     </div>
   );
