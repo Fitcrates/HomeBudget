@@ -19,7 +19,6 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import * as pdfjsLib from "pdfjs-dist";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { IconTrashButton } from "../ui/IconTrashButton";
 import { ScreenHeader } from "../ui/ScreenHeader";
@@ -33,11 +32,9 @@ import { CatLoader } from "../ui/CatLoader";
 import { CompactTable } from "../ui/CompactTable";
 import { AlertBanner } from "../ui/AlertBanner";
 import { Spinner } from "../ui/Spinner";
+import { prepareOcrUploads } from "../../lib/ocrUpload";
 
 import catLottie from "../../assets/Cat playing animation.lottie?url";
-
-// Set pdf.js worker source
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 interface Props {
   storageIds: Id<"_storage">[];
@@ -311,34 +308,8 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
     if (rawFiles.length === 0) return;
     setUploading(true);
     try {
-      const processedBlobs: { blob: Blob; type: string }[] = [];
-
-      for (const file of rawFiles) {
-        if (file.type === PDF_MIME || file.name.toLowerCase().endsWith(".pdf")) {
-          const arrayBuffer = await file.arrayBuffer();
-          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-          const numPages = Math.min(3, pdf.numPages); // Limit to 3 pages
-
-          for (let i = 1; i <= numPages; i++) {
-            const page = await pdf.getPage(i);
-            const viewport = page.getViewport({ scale: 1.5 });
-            const canvas = document.createElement("canvas");
-            const context = canvas.getContext("2d");
-            if (!context) continue;
-
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
-            await page.render({ canvasContext: context, canvas, viewport }).promise;
-
-            const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.9));
-            if (blob) processedBlobs.push({ blob, type: "image/jpeg" });
-          }
-        } else {
-          processedBlobs.push({ blob: file, type: file.type });
-        }
-      }
-
-      const toUpload = processedBlobs.slice(0, 3 - currentStorageIds.length);
+      const preparedUploads = await prepareOcrUploads(rawFiles);
+      const toUpload = preparedUploads.slice(0, 3 - currentStorageIds.length);
       if (toUpload.length === 0) {
         toast.error("Osiągnięto limit 3 stron/plików.");
         setUploading(false);
@@ -347,7 +318,6 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
 
       const newIds: Id<"_storage">[] = [];
       const newPreviews: string[] = [];
-      const newTypes: string[] = [];
 
       for (const item of toUpload) {
         const uploadUrl = await generateUploadUrl();
@@ -358,15 +328,25 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
         });
         const { storageId } = await res.json();
         newIds.push(storageId as Id<"_storage">);
-        newTypes.push(item.type);
         newPreviews.push(URL.createObjectURL(item.blob));
       }
 
       setCurrentStorageIds((prev) => [...prev, ...newIds]);
-      setCurrentMimeTypes((prev) => [...prev, ...newTypes]);
+      setCurrentMimeTypes((prev) => [...prev, ...toUpload.map((item) => item.type)]);
       setPreviewUrls((prev) => [...prev, ...newPreviews]);
-      setPreviewTypes((prev) => [...prev, ...newTypes]);
-      toast.success(`Dodano ${newIds.length} plik(i).`);
+      setPreviewTypes((prev) => [...prev, ...toUpload.map((item) => item.type)]);
+      const optimized = {
+        optimizedCount: newIds.length,
+        savedBytes: 0,
+        storageIds: newIds,
+      };
+
+      if (optimized.optimizedCount > 0 && optimized.savedBytes > 0) {
+        const savedMb = (optimized.savedBytes / (1024 * 1024)).toFixed(2);
+        toast.success(`Dodano ${optimized.storageIds.length} plik(i). Oszczędzono ${savedMb} MB dzięki kompresji.`);
+      } else {
+        toast.success(`Dodano ${optimized.storageIds.length} plik(i).`);
+      }
     } catch (err: any) {
       console.error(err);
       toast.error("Błąd przetwarzania pliku. Spróbuj powtórzyć.");

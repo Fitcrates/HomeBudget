@@ -81,12 +81,17 @@ const applicationTables = {
     ocrRawText: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
     isSubscription: v.optional(v.boolean()),
+    sourcePendingEmailExpenseId: v.optional(v.id("pending_email_expenses")),
+    sourceProviderMessageId: v.optional(v.string()),
   })
     .index("by_household", ["householdId"])
     .index("by_household_and_date", ["householdId", "date"])
     .index("by_household_user_date", ["householdId", "userId", "date"])
     .index("by_household_and_category", ["householdId", "categoryId"])
     .index("by_household_and_subcategory", ["householdId", "subcategoryId"])
+    .index("by_source_pending_email_expense_id", ["sourcePendingEmailExpenseId"])
+    .index("by_household_and_source_provider_message_id", ["householdId", "sourceProviderMessageId"])
+    .index("by_household_and_receipt_image_id", ["householdId", "receiptImageId"])
     .index("by_user", ["userId"]),
 
   // Budget limits per category per household
@@ -188,6 +193,9 @@ const applicationTables = {
       })
     ),
     status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+    isProcessed: v.optional(v.boolean()),
+    processedAt: v.optional(v.number()),
+    processedExpenseIds: v.optional(v.array(v.id("expenses"))),
     reviewedAt: v.optional(v.number()),
     reviewedByUserId: v.optional(v.id("users")),
   })

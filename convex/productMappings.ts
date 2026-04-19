@@ -28,6 +28,38 @@ export const lookupMapping = internalQuery({
   },
 });
 
+export const lookupMappingsBatch = internalQuery({
+  args: {
+    householdId: v.id("households"),
+    rawDescriptions: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const uniqueDescriptions = [...new Set(args.rawDescriptions.map((value) => value.trim()).filter(Boolean))];
+    if (uniqueDescriptions.length === 0) {
+      return [];
+    }
+
+    const results = await Promise.all(
+      uniqueDescriptions.map(async (rawDescription) => {
+        const mapping = await ctx.db
+          .query("product_mappings")
+          .withIndex("by_household_and_raw", (q) =>
+            q.eq("householdId", args.householdId).eq("rawDescription", rawDescription)
+          )
+          .unique();
+
+        if (!mapping) return null;
+        return {
+          rawDescription,
+          mapping,
+        };
+      })
+    );
+
+    return results.filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+  },
+});
+
 // ── Public: upsert mapping when user corrects in UI ───────────────
 
 export const upsertMapping = mutation({

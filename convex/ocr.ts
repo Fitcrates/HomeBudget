@@ -1,9 +1,11 @@
 "use node";
 
+import { createRequire } from "module";
 import OpenAI from "openai";
 import { v } from "convex/values";
 import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { buildCompactCategoryList } from "./ocr/categories";
 import { createGroqCompletionWithRetry } from "./ocr/groq";
 import {
@@ -19,6 +21,157 @@ type ImageInput = {
   mimeType: string;
 };
 
+function logOcrTiming(traceLabel: string, stage: string, details: Record<string, unknown> = {}) {
+  console.log(`[OCR TIMING][${traceLabel}] ${stage}`, details);
+}
+
+function summarizeResultQuality(result: ProcessReceiptResult) {
+  const categorizedCount = result.items.filter((item) => item.categoryId && item.subcategoryId).length;
+  const unresolvedCount = Math.max(result.items.length - categorizedCount, 0);
+  const positiveItemCount = result.items.filter((item) => Number.parseFloat(item.amount || "0") > 0).length;
+  const negativeItemCount = result.items.filter((item) => Number.parseFloat(item.amount || "0") < 0).length;
+  const itemsTotal = result.items.reduce((sum, item) => sum + (Number.parseFloat(item.amount || "0") || 0), 0);
+  const receiptMismatchCount = result.receiptSummaries.filter((receipt) => receipt.mismatchType !== "ok").length;
+  const exactMatchCount = result.receiptSummaries.filter((receipt) => receipt.mismatchType === "ok").length;
+  const totalMismatchAbs = result.receiptSummaries.reduce((sum, receipt) => {
+    const expected = Number.parseFloat(receipt.totalAmount || "0");
+    if (!(expected > 0)) {
+      return sum;
+    }
+    return sum + Math.abs(Number.parseFloat(receipt.difference || "0"));
+  }, 0);
+
+  return {
+    itemCount: result.items.length,
+    categorizedCount,
+    unresolvedCount,
+    positiveItemCount,
+    negativeItemCount,
+    itemsTotal,
+    receiptMismatchCount,
+    exactMatchCount,
+    totalMismatchAbs,
+  };
+}
+
+function shouldPreferRecoveryCandidate(current: ProcessReceiptResult, candidate: ProcessReceiptResult) {
+  const currentQuality = summarizeResultQuality(current);
+  const candidateQuality = summarizeResultQuality(candidate);
+
+  if (candidateQuality.itemCount === 0 && currentQuality.itemCount > 0) {
+    return false;
+  }
+
+  if (currentQuality.positiveItemCount > 0 && candidateQuality.positiveItemCount === 0) {
+    return false;
+  }
+
+  if (currentQuality.itemsTotal > 0 && candidateQuality.itemsTotal < 0) {
+    return false;
+  }
+
+  if (currentQuality.categorizedCount > 0 && candidateQuality.categorizedCount === 0) {
+    return false;
+  }
+
+  if (
+    candidateQuality.negativeItemCount > candidateQuality.positiveItemCount &&
+    currentQuality.negativeItemCount <= currentQuality.positiveItemCount
+  ) {
+    return false;
+  }
+
+  if (
+    candidateQuality.totalMismatchAbs + 0.05 < currentQuality.totalMismatchAbs &&
+    candidateQuality.positiveItemCount > 0 &&
+    candidateQuality.categorizedCount >= Math.max(1, Math.floor(currentQuality.categorizedCount / 2))
+  ) {
+    return true;
+  }
+
+  if (
+    candidateQuality.totalMismatchAbs <= currentQuality.totalMismatchAbs + 0.05 &&
+    candidateQuality.categorizedCount > currentQuality.categorizedCount + 1
+  ) {
+    return true;
+  }
+
+  if (
+    candidateQuality.totalMismatchAbs <= currentQuality.totalMismatchAbs + 0.05 &&
+    candidateQuality.exactMatchCount > currentQuality.exactMatchCount
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+const OCR_UPLOAD_MAX_DIMENSION = 1800;
+const OCR_UPLOAD_WEBP_QUALITY = 82;
+const OCR_UPLOAD_WEBP_EFFORT = 4;
+const OCR_UPLOAD_MAX_INPUT_PIXELS = 40_000_000;
+const require = createRequire(import.meta.url);
+
+let sharpFactory: typeof import("sharp") | null = null;
+
+function normalizeMimeType(value: string | null | undefined) {
+  return (value || "application/octet-stream").split(";")[0].trim().toLowerCase();
+}
+
+function getSharp() {
+  if (!sharpFactory) {
+    if (process.platform === "linux" && process.arch === "arm64") {
+      try {
+        require("@img/sharp-linux-arm64/sharp.node");
+      } catch {
+        // Ignore here and let the real sharp import surface a clear error if still unavailable.
+      }
+    }
+
+    sharpFactory = require("sharp") as typeof import("sharp");
+  }
+
+  return sharpFactory;
+}
+
+async function optimizeReceiptImageForStorage(inputBuffer: Buffer) {
+  const originalSize = inputBuffer.byteLength;
+  const sharp = getSharp();
+
+  const pipeline = sharp(inputBuffer, {
+    failOn: "none",
+    limitInputPixels: OCR_UPLOAD_MAX_INPUT_PIXELS,
+  }).rotate();
+
+  const metadata = await pipeline.metadata();
+  const shouldResize =
+    (metadata.width ?? 0) > OCR_UPLOAD_MAX_DIMENSION ||
+    (metadata.height ?? 0) > OCR_UPLOAD_MAX_DIMENSION;
+
+  const outputBuffer = await (shouldResize
+    ? pipeline.resize({
+        width: OCR_UPLOAD_MAX_DIMENSION,
+        height: OCR_UPLOAD_MAX_DIMENSION,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+    : pipeline
+  )
+    .webp({
+      quality: OCR_UPLOAD_WEBP_QUALITY,
+      effort: OCR_UPLOAD_WEBP_EFFORT,
+    })
+    .toBuffer();
+
+  return {
+    blob: new Blob([Uint8Array.from(outputBuffer)], { type: "image/webp" }),
+    originalSize,
+    optimizedSize: outputBuffer.byteLength,
+    width: metadata.width ?? null,
+    height: metadata.height ?? null,
+  };
+}
+
 async function processImagesWithAI(
   ctx: any,
   householdId: string,
@@ -26,10 +179,19 @@ async function processImagesWithAI(
   compactCategories: string,
   categoriesArray: any[]
 ): Promise<ProcessReceiptResult & { retryUsed: boolean }> {
+  const pipelineStart = Date.now();
   const analyzeBatch = async (
-    batch: ImageInput[]
+    batch: ImageInput[],
+    traceLabel: string,
+    options?: {
+      enableRecoveryPasses?: boolean;
+    }
   ): Promise<ProcessReceiptResult & { retryUsed: boolean }> => {
+    const enableRecoveryPasses = options?.enableRecoveryPasses ?? true;
+    const batchStart = Date.now();
+    const promptStart = Date.now();
     const prompt = buildPrompt(compactCategories);
+    const promptMs = Date.now() - promptStart;
     const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
       { type: "text", text: prompt },
     ];
@@ -45,7 +207,13 @@ async function processImagesWithAI(
       imageCount: batch.length,
       promptLength: prompt.length,
     });
+    logOcrTiming(traceLabel, "prompt_ready", {
+      imageCount: batch.length,
+      promptLength: prompt.length,
+      promptMs,
+    });
 
+    const initialVisionStart = Date.now();
     let response = await createGroqCompletionWithRetry({
       model: VISION_MODEL,
       temperature: 0.1,
@@ -55,14 +223,30 @@ async function processImagesWithAI(
         { role: "user", content: contentParts },
       ],
     }, `vision-batch:${batch.length}`);
+    const initialVisionMs = Date.now() - initialVisionStart;
 
     let content = response.choices[0].message.content ?? "{}";
     console.log("Vision response:", {
       len: content.length,
       model: response.model,
     });
+    logOcrTiming(traceLabel, "vision_completed", {
+      imageCount: batch.length,
+      responseLength: content.length,
+      model: response.model,
+      visionMs: initialVisionMs,
+    });
 
-    let parsed = await parseAndNormalizeResponse(ctx, householdId, content, categoriesArray, VISION_MODEL);
+    const initialParseStart = Date.now();
+    let parsed = await parseAndNormalizeResponse(
+      ctx,
+      householdId,
+      content,
+      categoriesArray,
+      VISION_MODEL,
+      `${traceLabel}:initial`
+    );
+    const initialParseMs = Date.now() - initialParseStart;
     let retryUsed = false;
 
     const suspiciousDuplicateReceipts = findSuspiciousDuplicateReceipts(parsed.items);
@@ -72,14 +256,43 @@ async function processImagesWithAI(
       return expected > 0 && Math.abs(diff) > 0.05;
     });
 
-    const shouldRetryWithAI = suspiciousDuplicateReceipts.length > 0 || mismatchReceipts.some(
+    const rawShouldRetryWithAI = suspiciousDuplicateReceipts.length > 0 || mismatchReceipts.some(
       (receipt) =>
         receipt.mismatchType === "missing_items" ||
         receipt.mismatchType === "missing_discounts" ||
         receipt.mismatchType === "unknown"
     );
+    const maxMismatch = mismatchReceipts.reduce((max, receipt) => {
+      const diff = Math.abs(Number.parseFloat(receipt.difference || "0"));
+      return Math.max(max, diff);
+    }, 0);
+    const initialQuality = summarizeResultQuality(parsed);
+    const totalExpectedAmount = parsed.receiptSummaries.reduce((sum, receipt) => {
+      const expected = Number.parseFloat(receipt.totalAmount || "0");
+      return expected > 0 ? sum + expected : sum;
+    }, 0);
+    const mismatchRatio = totalExpectedAmount > 0 ? initialQuality.totalMismatchAbs / totalExpectedAmount : 0;
+    const shouldRetryWithAI = rawShouldRetryWithAI && (
+      suspiciousDuplicateReceipts.length > 0 ||
+      mismatchRatio > 0.1 ||
+      initialQuality.categorizedCount < initialQuality.itemCount
+    );
 
-    if (shouldRetryWithAI) {
+    logOcrTiming(traceLabel, "initial_parse_completed", {
+      initialParseMs,
+      items: parsed.items.length,
+      receiptGroups: parsed.receiptSummaries.length,
+      suspiciousDuplicateReceipts: suspiciousDuplicateReceipts.length,
+      mismatchedReceipts: mismatchReceipts.length,
+      maxMismatch,
+      mismatchRatio,
+      enableRecoveryPasses,
+      rawShouldRetryWithAI,
+      shouldRetryWithAI,
+      ...initialQuality,
+    });
+
+    if (enableRecoveryPasses && shouldRetryWithAI) {
       retryUsed = true;
       const mismatchHint = mismatchReceipts
         .slice(0, 3)
@@ -101,6 +314,7 @@ async function processImagesWithAI(
         ? ` Podejrzane duplikaty produktow w paragonach: ${suspiciousDuplicateReceipts.map((idx) => idx + 1).join(", ")}. Sprawdz, czy model nie rozbil jednej linii ilosciowej (np. "3 x 9,99 29,97") na kilka osobnych produktow.`
         : "";
 
+      const retryVisionStart = Date.now();
       response = await createGroqCompletionWithRetry({
         model: VISION_MODEL,
         temperature: 0.1,
@@ -115,20 +329,57 @@ async function processImagesWithAI(
           },
         ],
       }, `vision-retry:${batch.length}`);
+      const retryVisionMs = Date.now() - retryVisionStart;
 
       content = response.choices[0].message.content ?? "{}";
-      parsed = await parseAndNormalizeResponse(ctx, householdId, content, categoriesArray, VISION_MODEL);
+      const retryParseStart = Date.now();
+      const retryCandidate = await parseAndNormalizeResponse(
+        ctx,
+        householdId,
+        content,
+        categoriesArray,
+        VISION_MODEL,
+        `${traceLabel}:retry`
+      );
+      const retryParseMs = Date.now() - retryParseStart;
+      const retryPreferred = shouldPreferRecoveryCandidate(parsed, retryCandidate);
+      const retryQuality = summarizeResultQuality(retryCandidate);
+      if (retryPreferred) {
+        parsed = retryCandidate;
+      }
+      logOcrTiming(traceLabel, "retry_completed", {
+        retryVisionMs,
+        retryParseMs,
+        retryPreferred,
+        items: parsed.items.length,
+        receiptGroups: parsed.receiptSummaries.length,
+        ...retryQuality,
+      });
     }
 
-    const stillNeedsAudit = parsed.receiptSummaries.some((receipt) => {
+    const currentQualityForAudit = summarizeResultQuality(parsed);
+    const currentExpectedAmountForAudit = parsed.receiptSummaries.reduce((sum, receipt) => {
+      const expected = Number.parseFloat(receipt.totalAmount || "0");
+      return expected > 0 ? sum + expected : sum;
+    }, 0);
+    const currentMismatchRatioForAudit = currentExpectedAmountForAudit > 0
+      ? currentQualityForAudit.totalMismatchAbs / currentExpectedAmountForAudit
+      : 0;
+    const rawStillNeedsAudit = parsed.receiptSummaries.some((receipt) => {
       const expected = Number.parseFloat(receipt.totalAmount || "0");
       const diff = Math.abs(Number.parseFloat(receipt.difference || "0"));
       return expected > 0 && diff > 0.05;
     }) || findSuspiciousDuplicateReceipts(parsed.items).length > 0;
+    const stillNeedsAudit = rawStillNeedsAudit && (
+      findSuspiciousDuplicateReceipts(parsed.items).length > 0 ||
+      currentMismatchRatioForAudit > 0.1 ||
+      currentQualityForAudit.categorizedCount < currentQualityForAudit.itemCount
+    );
 
-    if (stillNeedsAudit) {
+    if (enableRecoveryPasses && stillNeedsAudit) {
       retryUsed = true;
-      parsed = await auditReceiptWithAI(
+      const auditStart = Date.now();
+      const auditCandidate = await auditReceiptWithAI(
         ctx,
         householdId,
         batch,
@@ -136,16 +387,41 @@ async function processImagesWithAI(
         categoriesArray,
         content,
         parsed,
-        findSuspiciousDuplicateReceipts(parsed.items)
+        findSuspiciousDuplicateReceipts(parsed.items),
+        `${traceLabel}:audit`
       );
+      const auditMs = Date.now() - auditStart;
+      const auditPreferred = shouldPreferRecoveryCandidate(parsed, auditCandidate);
+      const auditQuality = summarizeResultQuality(auditCandidate);
+      if (auditPreferred) {
+        parsed = auditCandidate;
+      }
+      logOcrTiming(traceLabel, "audit_completed", {
+        auditMs,
+        auditPreferred,
+        items: parsed.items.length,
+        receiptGroups: parsed.receiptSummaries.length,
+        ...auditQuality,
+      });
     }
+
+    logOcrTiming(traceLabel, "batch_completed", {
+      batchMs: Date.now() - batchStart,
+      items: parsed.items.length,
+      receiptGroups: parsed.receiptSummaries.length,
+      retryUsed,
+    });
 
     return { ...parsed, retryUsed };
   };
 
   const mergeBatchResults = (
-    results: Array<ProcessReceiptResult & { retryUsed: boolean }>
+    results: Array<ProcessReceiptResult & { retryUsed: boolean }>,
+    options?: {
+      combineIntoSingleReceipt?: boolean;
+    }
   ): ProcessReceiptResult & { retryUsed: boolean } => {
+    const combineIntoSingleReceipt = options?.combineIntoSingleReceipt ?? false;
     const mergedItems: ProcessedReceiptItem[] = [];
     const mergedSummaries: ReceiptSummary[] = [];
     const rawLabels: string[] = [];
@@ -165,7 +441,7 @@ async function processImagesWithAI(
       for (const item of result.items) {
         mergedItems.push({
           ...item,
-          receiptIndex: item.receiptIndex + receiptOffset,
+          receiptIndex: combineIntoSingleReceipt ? 0 : item.receiptIndex + receiptOffset,
           receiptLabel: item.receiptLabel || `Paragon ${receiptOffset + 1}`,
           sourceImageIndex: item.sourceImageIndex ?? index + 1,
         });
@@ -185,7 +461,7 @@ async function processImagesWithAI(
       for (const summary of summaries) {
         mergedSummaries.push({
           ...summary,
-          receiptIndex: summary.receiptIndex + receiptOffset,
+          receiptIndex: combineIntoSingleReceipt ? 0 : summary.receiptIndex + receiptOffset,
           receiptLabel: summary.receiptLabel || `Paragon ${receiptOffset + 1}`,
           sourceImageIndex: summary.sourceImageIndex ?? index + 1,
         });
@@ -194,7 +470,45 @@ async function processImagesWithAI(
       total += Number.parseFloat(result.totalAmount || "0") || 0;
       payable += Number.parseFloat(result.payableAmount || "0") || 0;
       deposit += Number.parseFloat(result.depositTotal || "0") || 0;
-      receiptOffset += resultReceiptCount;
+      receiptOffset += combineIntoSingleReceipt ? 0 : resultReceiptCount;
+    }
+
+    if (combineIntoSingleReceipt) {
+      const mergedItemsTotal = mergedItems.reduce(
+        (sum, item) => sum + (Number.parseFloat(item.amount || "0") || 0),
+        0
+      );
+      const firstSummary = mergedSummaries[0];
+      const receiptLabel = firstSummary?.receiptLabel || "Paragon 1";
+      const depositTotalValue = mergedSummaries.reduce(
+        (sum, summary) => sum + (Number.parseFloat(summary.depositTotal || "0") || 0),
+        0
+      );
+
+      const singleSummary: ReceiptSummary = {
+        receiptIndex: 0,
+        receiptLabel,
+        totalAmount: mergedItemsTotal > 0 ? mergedItemsTotal.toFixed(2) : "",
+        payableAmount: "",
+        depositTotal: depositTotalValue > 0 ? depositTotalValue.toFixed(2) : "",
+        sourceImageIndex: null,
+      };
+
+      return {
+        items: mergedItems.map((item) => ({
+          ...item,
+          receiptIndex: 0,
+          receiptLabel,
+        })),
+        rawText: rawLabels.join(" | "),
+        totalAmount: singleSummary.totalAmount,
+        payableAmount: "",
+        depositTotal: singleSummary.depositTotal,
+        modelUsed: VISION_MODEL,
+        receiptCount: 1,
+        receiptSummaries: enrichReceiptSummariesWithValidation([singleSummary], mergedItems),
+        retryUsed,
+      };
     }
 
     return {
@@ -210,26 +524,89 @@ async function processImagesWithAI(
     };
   };
 
-  const combined = await analyzeBatch(imageDataList);
+  logOcrTiming("ocr:images", "pipeline_started", {
+    imageCount: imageDataList.length,
+  });
+
+  const combined = await analyzeBatch(imageDataList, "ocr:images:combined");
+  logOcrTiming("ocr:images", "combined_completed", {
+    items: combined.items.length,
+    receiptGroups: combined.receiptSummaries.length,
+    retryUsed: combined.retryUsed,
+    totalMs: Date.now() - pipelineStart,
+  });
+
   if (!(imageDataList.length > 1 && combined.items.length === 0)) {
+    logOcrTiming("ocr:images", "pipeline_completed", {
+      strategy: "combined",
+      imageCount: imageDataList.length,
+      totalMs: Date.now() - pipelineStart,
+      items: combined.items.length,
+      receiptGroups: combined.receiptSummaries.length,
+    });
     return combined;
   }
 
   console.warn("Combined OCR for many images returned no items. Falling back to per-image processing.");
+  logOcrTiming("ocr:images", "per_image_fallback_started", {
+    imageCount: imageDataList.length,
+    elapsedMsBeforeFallback: Date.now() - pipelineStart,
+  });
+
+  const fallbackStart = Date.now();
+  const perImageSettled = await Promise.all(
+    imageDataList.map((image, index) =>
+      analyzeBatch([image], `ocr:images:fallback:${index + 1}`, {
+        enableRecoveryPasses: false,
+      })
+        .then((result) => ({ status: "fulfilled" as const, index, result }))
+        .catch((error) => ({ status: "rejected" as const, index, error }))
+    )
+  );
   const perImageResults: Array<ProcessReceiptResult & { retryUsed: boolean }> = [];
 
-  for (const image of imageDataList) {
-    const result = await analyzeBatch([image]);
+  for (const entry of perImageSettled) {
+    if (entry.status === "rejected") {
+      console.error(`Per-image OCR fallback failed for image ${entry.index + 1}:`, entry.error);
+      continue;
+    }
+
+    const result = entry.result;
     if (result.items.length > 0 || result.receiptSummaries.some((summary) => summary.totalAmount || summary.payableAmount)) {
       perImageResults.push(result);
     }
   }
 
+  logOcrTiming("ocr:images", "per_image_fallback_completed", {
+    imageCount: imageDataList.length,
+    successfulImages: perImageResults.length,
+    failedImages: perImageSettled.filter((entry) => entry.status === "rejected").length,
+    fallbackMs: Date.now() - fallbackStart,
+  });
+
   if (perImageResults.length === 0) {
+    logOcrTiming("ocr:images", "pipeline_completed", {
+      strategy: "combined_empty",
+      imageCount: imageDataList.length,
+      totalMs: Date.now() - pipelineStart,
+      items: combined.items.length,
+      receiptGroups: combined.receiptSummaries.length,
+    });
     return combined;
   }
 
-  return mergeBatchResults(perImageResults);
+  const merged = mergeBatchResults(perImageResults, {
+    combineIntoSingleReceipt: true,
+  });
+  logOcrTiming("ocr:images", "pipeline_completed", {
+    strategy: "per_image_fallback",
+    imageCount: imageDataList.length,
+    totalMs: Date.now() - pipelineStart,
+    items: merged.items.length,
+    receiptGroups: merged.receiptSummaries.length,
+  });
+
+  return merged;
 }
 
 async function auditReceiptWithAI(
@@ -240,8 +617,10 @@ async function auditReceiptWithAI(
   categoriesArray: any[],
   previousJson: string,
   parsed: ProcessReceiptResult,
-  suspiciousDuplicateReceipts: number[]
+  suspiciousDuplicateReceipts: number[],
+  traceLabel = "ocr:audit"
 ): Promise<ProcessReceiptResult> {
+  const promptStart = Date.now();
   const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
     {
       type: "text",
@@ -256,6 +635,15 @@ async function auditReceiptWithAI(
     });
   }
 
+  const promptMs = Date.now() - promptStart;
+  logOcrTiming(traceLabel, "audit_prompt_ready", {
+    imageCount: imageDataList.length,
+    promptMs,
+    suspiciousDuplicateReceipts: suspiciousDuplicateReceipts.length,
+    previousItems: parsed.items.length,
+  });
+
+  const visionStart = Date.now();
   const response = await createGroqCompletionWithRetry({
     model: VISION_MODEL,
     temperature: 0.0,
@@ -265,11 +653,29 @@ async function auditReceiptWithAI(
       { role: "user", content: contentParts },
     ],
   }, `vision-audit:${imageDataList.length}`);
+  const visionMs = Date.now() - visionStart;
 
   const content = response.choices[0].message.content ?? "{}";
-  const audited = await parseAndNormalizeResponse(ctx, householdId, content, categoriesArray, VISION_MODEL);
+  const parseStart = Date.now();
+  const audited = await parseAndNormalizeResponse(
+    ctx,
+    householdId,
+    content,
+    categoriesArray,
+    VISION_MODEL,
+    traceLabel
+  );
+  const parseMs = Date.now() - parseStart;
 
   console.log("Receipt audit response:", {
+    previousItems: parsed.items.length,
+    auditedItems: audited.items.length,
+    receiptsWithMismatch: audited.receiptSummaries.filter((receipt) => receipt.mismatchType !== "ok").length,
+  });
+  logOcrTiming(traceLabel, "audit_result_ready", {
+    imageCount: imageDataList.length,
+    visionMs,
+    parseMs,
     previousItems: parsed.items.length,
     auditedItems: audited.items.length,
     receiptsWithMismatch: audited.receiptSummaries.filter((receipt) => receipt.mismatchType !== "ok").length,
@@ -285,7 +691,16 @@ async function processTextWithAI(
   compactCategories: string,
   categoriesArray: any[]
 ): Promise<ProcessReceiptResult & { retryUsed: boolean }> {
+  const promptStart = Date.now();
   const prompt = buildPrompt(compactCategories, text.slice(0, 8000));
+  const promptMs = Date.now() - promptStart;
+  logOcrTiming("ocr:text", "prompt_ready", {
+    promptLength: prompt.length,
+    textLength: text.length,
+    promptMs,
+  });
+
+  const visionStart = Date.now();
   const response = await createGroqCompletionWithRetry({
     model: VISION_MODEL,
     temperature: 0.1,
@@ -295,9 +710,25 @@ async function processTextWithAI(
       { role: "user", content: prompt },
     ],
   }, "text-ocr");
+  const visionMs = Date.now() - visionStart;
 
   const content = response.choices[0].message.content ?? "{}";
-  const parsed = await parseAndNormalizeResponse(ctx, householdId, content, categoriesArray, VISION_MODEL);
+  const parseStart = Date.now();
+  const parsed = await parseAndNormalizeResponse(
+    ctx,
+    householdId,
+    content,
+    categoriesArray,
+    VISION_MODEL,
+    "ocr:text"
+  );
+  const parseMs = Date.now() - parseStart;
+  logOcrTiming("ocr:text", "pipeline_completed", {
+    visionMs,
+    parseMs,
+    items: parsed.items.length,
+    receiptGroups: parsed.receiptSummaries.length,
+  });
   return { ...parsed, retryUsed: false };
 }
 
@@ -661,6 +1092,93 @@ export const getFileUrl = action({
   },
 });
 
+export const optimizeReceiptUploads = action({
+  args: {
+    storageIds: v.array(v.id("_storage")),
+  },
+  handler: async (ctx, args) => {
+    if (args.storageIds.length === 0) {
+      return {
+        storageIds: [],
+        mimeTypes: [],
+        optimizedCount: 0,
+        skippedCount: 0,
+        totalOriginalBytes: 0,
+        totalOptimizedBytes: 0,
+        savedBytes: 0,
+      };
+    }
+
+    const optimizedStorageIds: Id<"_storage">[] = [];
+    const mimeTypes: string[] = [];
+    let optimizedCount = 0;
+    let skippedCount = 0;
+    let totalOriginalBytes = 0;
+    let totalOptimizedBytes = 0;
+
+    for (const storageId of args.storageIds) {
+      const blob = await ctx.storage.get(storageId);
+      if (!blob) {
+        throw new Error("Nie znaleziono przesłanego pliku do optymalizacji.");
+      }
+
+      const mimeType = normalizeMimeType(blob.type);
+      const originalBuffer = Buffer.from(await blob.arrayBuffer());
+      totalOriginalBytes += originalBuffer.byteLength;
+
+      if (!mimeType.startsWith("image/")) {
+        optimizedStorageIds.push(storageId);
+        mimeTypes.push(mimeType);
+        totalOptimizedBytes += originalBuffer.byteLength;
+        skippedCount++;
+        continue;
+      }
+
+      try {
+        const optimized = await optimizeReceiptImageForStorage(originalBuffer);
+        const optimizedStorageId = await ctx.storage.store(optimized.blob);
+
+        await ctx.storage.delete(storageId);
+
+        optimizedStorageIds.push(optimizedStorageId);
+        mimeTypes.push("image/webp");
+        optimizedCount++;
+        totalOptimizedBytes += optimized.optimizedSize;
+
+        console.log("OCR upload optimized:", {
+          originalStorageId: storageId,
+          optimizedStorageId,
+          originalMimeType: mimeType,
+          originalBytes: optimized.originalSize,
+          optimizedBytes: optimized.optimizedSize,
+          width: optimized.width,
+          height: optimized.height,
+        });
+      } catch (error: any) {
+        console.warn("OCR upload optimization skipped:", {
+          storageId,
+          mimeType,
+          message: error?.message || String(error),
+        });
+        optimizedStorageIds.push(storageId);
+        mimeTypes.push(mimeType);
+        skippedCount++;
+        totalOptimizedBytes += originalBuffer.byteLength;
+      }
+    }
+
+    return {
+      storageIds: optimizedStorageIds,
+      mimeTypes,
+      optimizedCount,
+      skippedCount,
+      totalOriginalBytes,
+      totalOptimizedBytes,
+      savedBytes: Math.max(totalOriginalBytes - totalOptimizedBytes, 0),
+    };
+  },
+});
+
 export const processReceiptWithAI = action({
   args: {
     storageIds: v.array(v.id("_storage")),
@@ -685,11 +1203,22 @@ export const processReceiptWithAI = action({
       if (categoriesArray.length === 0) {
         throw new Error("Brak kategorii.");
       }
+      logOcrTiming("ocr:action", "categories_ready", {
+        categoryCount: categoriesArray.length,
+        elapsedMs: Date.now() - startTime,
+      });
 
+      const compactCategoriesStart = Date.now();
       const compactCategories = buildCompactCategoryList(categoriesArray);
+      logOcrTiming("ocr:action", "category_prompt_built", {
+        compactCategoriesLength: compactCategories.length,
+        buildMs: Date.now() - compactCategoriesStart,
+      });
       const imageDataList: ImageInput[] = [];
+      const imageLoadStart = Date.now();
 
       for (const storageId of args.storageIds) {
+        const fileStart = Date.now();
         const url = await ctx.storage.getUrl(storageId);
         if (!url) continue;
 
@@ -700,12 +1229,25 @@ export const processReceiptWithAI = action({
         const base64 = Buffer.from(arrayBuffer).toString("base64");
         const mimeType = (fileResponse.headers.get("content-type") || "image/jpeg").split(";")[0].trim();
         imageDataList.push({ base64, mimeType });
+        logOcrTiming("ocr:action", "image_loaded", {
+          storageId,
+          mimeType,
+          bytes: arrayBuffer.byteLength,
+          loadMs: Date.now() - fileStart,
+        });
       }
 
       if (imageDataList.length === 0) {
         throw new Error("Nie udało się załadować obrazów.");
       }
 
+      logOcrTiming("ocr:action", "images_ready", {
+        imageCount: imageDataList.length,
+        totalLoadMs: Date.now() - imageLoadStart,
+        elapsedMs: Date.now() - startTime,
+      });
+
+      const aiStart = Date.now();
       const result = await processImagesWithAI(
         ctx,
         args.householdId,
@@ -713,6 +1255,13 @@ export const processReceiptWithAI = action({
         compactCategories,
         categoriesArray
       );
+      logOcrTiming("ocr:action", "ai_completed", {
+        imageCount: imageDataList.length,
+        aiMs: Date.now() - aiStart,
+        items: result.items.length,
+        receiptGroups: result.receiptSummaries.length,
+        retryUsed: result.retryUsed,
+      });
 
       const ms = Date.now() - startTime;
       const sumMatchedTotal = result.receiptSummaries.length > 0

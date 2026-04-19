@@ -13,7 +13,7 @@ import {
   enrichReceiptSummariesWithValidation,
 } from "./normalization";
 import { AuditedLineCandidate, ProcessReceiptResult, ProcessedReceiptItem, ReceiptSummary } from "./types";
-import { asString, extractJsonBlock, normalizeExpectedTotals, parseAmountNumber } from "./utils";
+import { asString, extractJsonBlock, normalizeExpectedTotals, parseAmountNumber, stripDiacritics } from "./utils";
 
 async function fetchExchangeRate(currencyCode: string): Promise<number> {
   const code = currencyCode.toUpperCase();
@@ -56,14 +56,47 @@ function shouldPreferAuditedItems(
     auditedItems.length > preliminaryItems.length;
 }
 
+const GENERIC_HEURISTIC_SUBCATEGORY_NAMES = new Set([
+  "supermarket",
+  "dyskont",
+  "delikatesy",
+  "higiena osobista",
+  "wyposazenie",
+  "marketplace",
+  "rozne",
+]);
+
+function findSubcategoryNameById(categoriesArray: any[], subcategoryId: string | null | undefined): string | null {
+  if (!subcategoryId) return null;
+
+  for (const category of categoriesArray) {
+    const subcategories = Array.isArray(category?.subcategories) ? category.subcategories : [];
+    const match = subcategories.find((entry: any) => String(entry?._id) === String(subcategoryId));
+    if (match?.name) {
+      return asString(match.name) || null;
+    }
+  }
+
+  return null;
+}
+
+function isGenericHeuristicFallback(categoriesArray: any[], subcategoryId: string | null | undefined): boolean {
+  const subcategoryName = findSubcategoryNameById(categoriesArray, subcategoryId);
+  if (!subcategoryName) return false;
+  return GENERIC_HEURISTIC_SUBCATEGORY_NAMES.has(stripDiacritics(subcategoryName));
+}
+
 export async function parseAndNormalizeResponse(
   ctx: any,
   householdId: string,
   content: string,
   categoriesArray: any[],
-  modelUsed: string
+  modelUsed: string,
+  traceLabel = "ocr"
 ): Promise<ProcessReceiptResult> {
+  const parseStart = Date.now();
   try {
+    const jsonParseStart = Date.now();
     const extracted = extractJsonBlock(content);
     const parsed = JSON.parse(extracted || "{}");
 
@@ -128,8 +161,12 @@ export async function parseAndNormalizeResponse(
       receiptContextByIndex.set(0, globalReceiptContext);
     }
 
+    const jsonParseMs = Date.now() - jsonParseStart;
+
+    const exchangeRateStart = Date.now();
     const currency = asString(parsed?.currency).toUpperCase();
     const exchangeRate = await fetchExchangeRate(currency);
+    const exchangeRateMs = Date.now() - exchangeRateStart;
 
     const auditedLineCandidates: AuditedLineCandidate[] = (auditProductLines.length > 0 || auditTranscribedLines.length > 0)
       ? (() => {
@@ -166,6 +203,7 @@ export async function parseAndNormalizeResponse(
       })()
       : [];
 
+    const normalizationStart = Date.now();
     const normalizedTopLevelTotals = normalizeExpectedTotals(
       parsed?.totalAmount,
       parsed?.payableAmount,
@@ -233,84 +271,148 @@ export async function parseAndNormalizeResponse(
       });
     }
 
-    for (const item of normalizedItems) {
-      if (Number.parseFloat(item.amount || "0") < 0) continue;
-      if (!item.originalRawDescription) continue;
+    const normalizeAiItemsMs = Date.now() - normalizationStart;
 
-      try {
-        const mapping = await ctx.runQuery(internal.productMappings.lookupMapping, {
+    const mappingLookupStart = Date.now();
+    const mappingRawDescriptions = [
+      ...new Set(
+        [
+          ...normalizedItems,
+          ...auditedLineCandidates.map((entry) => entry.item),
+        ]
+          .filter((item) => Number.parseFloat(item.amount || "0") >= 0 && Boolean(item.originalRawDescription))
+          .map((item) => item.originalRawDescription!)
+      ),
+    ];
+    const mappingResults = mappingRawDescriptions.length > 0
+      ? await ctx.runQuery(internal.productMappings.lookupMappingsBatch, {
           householdId: householdId as any,
-          rawDescription: item.originalRawDescription,
-        });
+          rawDescriptions: mappingRawDescriptions,
+        })
+      : [];
+    const mappingByRawDescription = new Map<string, any>(
+      mappingResults.map((entry: any) => [entry.rawDescription, entry.mapping])
+    );
+    const mappingLookupMs = Date.now() - mappingLookupStart;
 
-        if (mapping) {
-          item.categoryId = mapping.categoryId;
-          item.subcategoryId = mapping.subcategoryId;
-          if (exchangeRate === 1) {
-            item.description = mapping.correctedDescription;
+    const categoryResolutionStart = Date.now();
+    let mappedFromHistoryCount = 0;
+    let resolvedFromAiCategoryCount = 0;
+    let resolvedByHeuristicCount = 0;
+
+    const assignCategoriesToItems = (
+      itemsToCategorize: ProcessedReceiptItem[],
+      allowAiCategoryResolution: boolean
+    ) => {
+      for (const item of itemsToCategorize) {
+        if (Number.parseFloat(item.amount || "0") < 0) continue;
+        if (!item.originalRawDescription) continue;
+
+        try {
+          const mapping = mappingByRawDescription.get(item.originalRawDescription);
+
+          if (mapping) {
+            item.categoryId = mapping.categoryId;
+            item.subcategoryId = mapping.subcategoryId;
+            if (exchangeRate === 1) {
+              item.description = mapping.correctedDescription;
+            }
+            item.fromMapping = true;
+            mappedFromHistoryCount++;
+          } else if (allowAiCategoryResolution) {
+            const originalAiCategory = parsedItemsWithMeta.find((entry) =>
+              entry.receiptIndex === item.receiptIndex &&
+              asString(entry.item?.description) === item.originalRawDescription
+            )?.item ?? parsedItems.find((entry: any) => asString(entry?.description) === item.originalRawDescription);
+
+            const resolved = resolveCategoryNames(
+              asString(originalAiCategory?.category),
+              asString(originalAiCategory?.subcategory),
+              categoriesArray
+            );
+
+            item.categoryId = resolved.categoryId;
+            item.subcategoryId = resolved.subcategoryId;
+            if (resolved.categoryId && resolved.subcategoryId) {
+              resolvedFromAiCategoryCount++;
+            }
           }
-          item.fromMapping = true;
-        } else {
-          const originalAiCategory = parsedItemsWithMeta.find((entry) =>
-            entry.receiptIndex === item.receiptIndex &&
-            asString(entry.item?.description) === item.originalRawDescription
-          )?.item ?? parsedItems.find((entry: any) => asString(entry?.description) === item.originalRawDescription);
 
-          const resolved = resolveCategoryNames(
-            asString(originalAiCategory?.category),
-            asString(originalAiCategory?.subcategory),
-            categoriesArray
+          const heuristicCategory = resolveHeuristicCategory(
+            item.originalRawDescription || item.description,
+            categoriesArray,
+            receiptContextByIndex.get(item.receiptIndex) || item.receiptLabel || globalReceiptContext
+          );
+          if (heuristicCategory?.categoryId && heuristicCategory?.subcategoryId && !item.fromMapping) {
+            const hasExistingResolution = Boolean(item.categoryId && item.subcategoryId);
+            const genericHeuristicFallback = isGenericHeuristicFallback(
+              categoriesArray,
+              heuristicCategory.subcategoryId
+            );
+            const shouldApplyHeuristic =
+              !hasExistingResolution ||
+              !genericHeuristicFallback;
+
+            if (!shouldApplyHeuristic) {
+              continue;
+            }
+
+            if (
+              item.categoryId !== heuristicCategory.categoryId ||
+              item.subcategoryId !== heuristicCategory.subcategoryId
+            ) {
+              resolvedByHeuristicCount++;
+            }
+            item.categoryId = heuristicCategory.categoryId;
+            item.subcategoryId = heuristicCategory.subcategoryId;
+          }
+        } catch {
+          // Ignore mapping lookup failures and keep OCR result usable.
+        }
+      }
+    };
+
+    assignCategoriesToItems(normalizedItems, true);
+
+    const categoryResolutionMs = Date.now() - categoryResolutionStart;
+
+    const discountLinkingStart = Date.now();
+    const assignDiscountCategories = (itemsToCategorize: ProcessedReceiptItem[]) => {
+      for (const item of itemsToCategorize) {
+        const amountValue = Number.parseFloat(item.amount || "0");
+        if (!(amountValue < 0)) continue;
+
+        const linkedCandidate = findBestDiscountCandidate(
+          itemsToCategorize.filter((candidate) =>
+            candidate.receiptIndex === item.receiptIndex && Number.parseFloat(candidate.amount || "0") > 0
+          ),
+          item.receiptIndex,
+          item.originalRawDescription || item.description,
+          Math.abs(amountValue)
+        );
+
+        if (linkedCandidate?.categoryId) {
+          item.categoryId = linkedCandidate.categoryId;
+          item.subcategoryId = linkedCandidate.subcategoryId;
+          continue;
+        }
+
+        const previousPositive = [...itemsToCategorize]
+          .reverse()
+          .find((candidate) =>
+            candidate.receiptIndex === item.receiptIndex &&
+            Number.parseFloat(candidate.amount || "0") > 0
           );
 
-          item.categoryId = resolved.categoryId;
-          item.subcategoryId = resolved.subcategoryId;
+        if (previousPositive?.categoryId) {
+          item.categoryId = previousPositive.categoryId;
+          item.subcategoryId = previousPositive.subcategoryId;
         }
-
-        const heuristicCategory = resolveHeuristicCategory(
-          item.originalRawDescription || item.description,
-          categoriesArray,
-          receiptContextByIndex.get(item.receiptIndex) || item.receiptLabel || globalReceiptContext
-        );
-        if (heuristicCategory?.categoryId && heuristicCategory?.subcategoryId && !item.fromMapping) {
-          item.categoryId = heuristicCategory.categoryId;
-          item.subcategoryId = heuristicCategory.subcategoryId;
-        }
-      } catch {
-        // Ignore mapping lookup failures and keep OCR result usable.
       }
-    }
+    };
 
-    for (const item of normalizedItems) {
-      const amountValue = Number.parseFloat(item.amount || "0");
-      if (!(amountValue < 0)) continue;
-
-      const linkedCandidate = findBestDiscountCandidate(
-        normalizedItems.filter((candidate) =>
-          candidate.receiptIndex === item.receiptIndex && Number.parseFloat(candidate.amount || "0") > 0
-        ),
-        item.receiptIndex,
-        item.originalRawDescription || item.description,
-        Math.abs(amountValue)
-      );
-
-      if (linkedCandidate?.categoryId) {
-        item.categoryId = linkedCandidate.categoryId;
-        item.subcategoryId = linkedCandidate.subcategoryId;
-        continue;
-      }
-
-      const previousPositive = [...normalizedItems]
-        .reverse()
-        .find((candidate) =>
-          candidate.receiptIndex === item.receiptIndex &&
-          Number.parseFloat(candidate.amount || "0") > 0
-        );
-
-      if (previousPositive?.categoryId) {
-        item.categoryId = previousPositive.categoryId;
-        item.subcategoryId = previousPositive.subcategoryId;
-      }
-    }
+    assignDiscountCategories(normalizedItems);
+    const discountLinkingMs = Date.now() - discountLinkingStart;
 
     const preliminaryItems = normalizedItems.filter(
       (item) => item.amount || item.description !== "Nieznana pozycja"
@@ -344,22 +446,48 @@ export async function parseAndNormalizeResponse(
         sourceImageIndex: null,
       }];
 
+    const dedupeStart = Date.now();
     let candidateItems = preliminaryItems;
     if (auditedLineCandidates.length > 0) {
       const auditedItems = auditedLineCandidates.map((entry) => entry.item);
       const expectedTotal = Number.parseFloat(totalAmount || receiptSummariesBase[0]?.totalAmount || "0");
 
       if (shouldPreferAuditedItems(preliminaryItems, auditedItems, expectedTotal)) {
+        assignCategoriesToItems(auditedItems, false);
+        assignDiscountCategories(auditedItems);
         candidateItems = auditedItems;
       }
     }
 
     const dedupedItems = collapseLikelyDuplicateItems(candidateItems, receiptSummariesBase);
     const receiptSummaries = enrichReceiptSummariesWithValidation(receiptSummariesBase, dedupedItems);
+    const dedupeValidationMs = Date.now() - dedupeStart;
+    const totalParseMs = Date.now() - parseStart;
+    const categorizedCount = dedupedItems.filter((item) => item.categoryId && item.subcategoryId).length;
 
     console.log(
       `Normalized: ${dedupedItems.length} items in ${receiptSummaries.length} receipt group(s) (model: ${modelUsed})`
     );
+    console.log(`[OCR TIMING][${traceLabel}] parseAndNormalizeResponse`, {
+      jsonParseMs,
+      exchangeRateMs,
+      normalizeAiItemsMs,
+      mappingLookupMs,
+      categoryResolutionMs,
+      discountLinkingMs,
+      dedupeValidationMs,
+      totalParseMs,
+      rawItems: parsedItems.length,
+      normalizedItems: normalizedItems.length,
+      finalItems: dedupedItems.length,
+      categorizedCount,
+      unresolvedCount: Math.max(dedupedItems.length - categorizedCount, 0),
+      mappedFromHistoryCount,
+      resolvedFromAiCategoryCount,
+      resolvedByHeuristicCount,
+      auditedLineCandidates: auditedLineCandidates.length,
+      receiptGroups: receiptSummaries.length,
+    });
 
     return {
       items: dedupedItems,

@@ -27,6 +27,25 @@ type ResendAttachment = {
   download_url: string;
 };
 
+type ExistingPendingLookup = {
+  status: "pending" | "approved" | "rejected";
+} | null;
+
+type IngestEmailResult =
+  | {
+      ok: true;
+      skipped?: boolean;
+      reason?: "already_ingested";
+      status?: "pending" | "approved" | "rejected";
+      detectedBy?: "ocr" | "text" | "fallback";
+      itemCount?: number;
+      attachmentCount?: number;
+    }
+  | {
+      ok: false;
+      reason: "no_matching_inbox" | "empty_email";
+    };
+
 function getRequiredEnv(name: string) {
   const value = process.env[name];
   if (!value) {
@@ -136,7 +155,23 @@ export const ingestResendEmail = internalAction({
     emailSubject: v.string(),
     receivedAt: v.number(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<IngestEmailResult> => {
+    const existingPending = (await ctx.runQuery(
+      internal.emailTokens.getPendingExpenseByProviderMessageId as any,
+      {
+        providerMessageId: args.emailId,
+      }
+    )) as ExistingPendingLookup;
+
+    if (existingPending) {
+      return {
+        ok: true,
+        skipped: true,
+        reason: "already_ingested",
+        status: existingPending.status,
+      };
+    }
+
     const email = await getReceivedEmail(args.emailId);
     const recipients = Array.isArray(email.to) ? email.to.map((value) => normalizeEmailAddress(value)) : [];
 
@@ -221,7 +256,7 @@ export const ingestResendEmail = internalAction({
           confidence: "high",
           sourceStorageId,
         };
-      }).filter((item) => item.amount > 0);
+      }).filter((item: { amount: number }) => item.amount > 0);
 
       ocrRawText = result.rawText || undefined;
       detectedBy = parsedItems.length > 0 ? "ocr" : "fallback";
@@ -240,7 +275,7 @@ export const ingestResendEmail = internalAction({
         categoryId: item.categoryId || undefined,
         subcategoryId: item.subcategoryId || undefined,
         confidence: "medium",
-      })).filter((item) => item.amount > 0);
+      })).filter((item: { amount: number }) => item.amount > 0);
 
       ocrRawText = ocrRawText || result.rawText || undefined;
       detectedBy = parsedItems.length > 0 ? "text" : "fallback";

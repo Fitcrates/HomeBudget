@@ -9,8 +9,8 @@ interface FormInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 
 const sizeMap = {
   sm: "text-sm py-2",
-  md: "text-base py-3",
-  lg: "text-2xl py-3",
+  md: "text-md py-2",
+  lg: "text-lg py-3",
 } as const;
 
 export const FormInput = forwardRef<HTMLInputElement, FormInputProps>(

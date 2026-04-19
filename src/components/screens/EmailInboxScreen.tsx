@@ -88,7 +88,7 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
 
     setSaving(pendingId);
     try {
-      await approve({
+      const result = await approve({
         pendingId,
         items: items.map((item) => ({
           description: item.description,
@@ -100,7 +100,11 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
         date: new Date(reviewDates[pendingId] || new Date().toISOString().split("T")[0]).getTime(),
       });
 
-      toast.success("Wydatki zostały zapisane.");
+      toast.success(
+        result?.alreadyProcessed
+          ? "Ten mail był już wcześniej przetworzony. Kolejka została odświeżona."
+          : "Wydatki zostały zapisane."
+      );
       setExpandedId(null);
     } catch (error: any) {
       toast.error(error.message || "Nie udało się zatwierdzić maila.");

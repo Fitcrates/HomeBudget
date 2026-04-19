@@ -3,6 +3,7 @@ import { mutation, query, internalMutation, internalQuery } from "./_generated/s
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { assertMember } from "./households";
 import type { Id } from "./_generated/dataModel";
+import { listEffectivelyPendingEmailExpenses } from "./lib/pendingEmailExpenses";
 
 const ALIAS_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 const ALIAS_SUFFIX_LENGTH = 6;
@@ -76,17 +77,12 @@ export const get = query({
     const inbox = await getInboxWithAuth(ctx, args.householdId, userId);
     if (!inbox) return null;
 
-    const pendingCount = await ctx.db
-      .query("pending_email_expenses")
-      .withIndex("by_household_and_status", (q) =>
-        q.eq("householdId", args.householdId).eq("status", "pending")
-      )
-      .collect();
+    const pending = await listEffectivelyPendingEmailExpenses(ctx, args.householdId);
 
     return {
       ...inbox,
       isResendConfigured: Boolean(getReceivingDomain()),
-      pendingCount: pendingCount.length,
+      pendingCount: pending.length,
     };
   },
 });
@@ -98,12 +94,7 @@ export const getSetup = query({
     if (!userId) return null;
 
     const inbox = await getInboxWithAuth(ctx, args.householdId, userId);
-    const pending = await ctx.db
-      .query("pending_email_expenses")
-      .withIndex("by_household_and_status", (q) =>
-        q.eq("householdId", args.householdId).eq("status", "pending")
-      )
-      .collect();
+    const pending = await listEffectivelyPendingEmailExpenses(ctx, args.householdId);
 
     return {
       inbox,
@@ -215,6 +206,18 @@ export const findInboxByAddress = internalQuery({
   },
 });
 
+export const getPendingExpenseByProviderMessageId = internalQuery({
+  args: { providerMessageId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("pending_email_expenses")
+      .withIndex("by_provider_message_id", (q) =>
+        q.eq("providerMessageId", args.providerMessageId)
+      )
+      .unique();
+  },
+});
+
 export const markInboxReceived = internalMutation({
   args: {
     inboxId: v.id("email_inboxes"),
@@ -261,16 +264,15 @@ export const savePendingExpense = internalMutation({
       .withIndex("by_provider_message_id", (q) => q.eq("providerMessageId", args.providerMessageId))
       .unique();
 
-    const payload = {
-      ...args,
-      status: "pending" as const,
-    };
-
     if (existing) {
-      await ctx.db.patch(existing._id, payload);
       return existing._id;
     }
 
-    return await ctx.db.insert("pending_email_expenses", payload);
+    return await ctx.db.insert("pending_email_expenses", {
+      ...args,
+      status: "pending",
+      isProcessed: false,
+      processedExpenseIds: [],
+    });
   },
 });

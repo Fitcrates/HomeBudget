@@ -23,6 +23,7 @@ import type * as http from "../http.js";
 import type * as income from "../income.js";
 import type * as insights from "../insights.js";
 import type * as insightsNode from "../insightsNode.js";
+import type * as lib_pendingEmailExpenses from "../lib/pendingEmailExpenses.js";
 import type * as migrations from "../migrations.js";
 import type * as ocr from "../ocr.js";
 import type * as ocrLogs from "../ocrLogs.js";
@@ -62,6 +63,7 @@ declare const fullApi: ApiFromModules<{
   income: typeof income;
   insights: typeof insights;
   insightsNode: typeof insightsNode;
+  "lib/pendingEmailExpenses": typeof lib_pendingEmailExpenses;
   migrations: typeof migrations;
   ocr: typeof ocr;
   ocrLogs: typeof ocrLogs;
