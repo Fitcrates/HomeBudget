@@ -1,6 +1,6 @@
 "use node";
 
-export const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+export const VISION_MODEL = "gemini-2.5-flash";
 
 export const SYSTEM_PROMPT = `Jesteś ekspertem OCR do odczytu polskich paragonów i faktur.
 Wyodrębniasz KAŻDY produkt. Rozumiesz polskie skróty paragonowe.
@@ -21,15 +21,18 @@ ${source}ZASADY:
 3. RABAT/OPUST/PRZECENA:
    - Jesli rabat jest pokazany jako osobna linia (np. "OPUST -2,00" lub "RABAT BIEDRONKA -1,50"), zwroc go jako OSOBNA pozycje z UJEMNA kwota (np. amount: "-2.00").
    - NIE odejmuj rabatu od ceny produktu powyzej. Produkt ma miec swoja pelna cene, rabat idzie jako oddzielna linia.
+   - Jesli pod kwota rabatu wydrukowana jest nowa "cena po rabacie" (np. w Biedronce), IGNORUJ ja - nie tworz z niej osobnego produktu i nie zastepuj nia pierwotnej ceny.
    - Opis rabatu powinien zawierac nazwe produktu, jesli jest widoczna (np. "Rabat: Mleko").
 4. KAUCJE za opakowania zwrotne NIE sa zwyklymi produktami. Nie dodawaj ich do items. Zwroc je jako depositTotal.
-5. SUMY:
+5. DUPLIKATY: Jesli na paragonie sa fizycznie 2 OSOBNE wiersze z identycznym produktem (np. Mleko i ponizej znowu Mleko), zwroc je jako 2 oddzielne obiekty JSON. NIE lacz ich w jedna pozycje (np. 2x 11.98), chyba ze to fizycznie jeden wiersz z mnoznikiem.
+6. NAZWY PRODUKTOW: Wyczysc nazwy z mnoznikow (np. "2x", "1,500 kg x"), cen jednostkowych oraz liter VAT (A, B, C, D, E, F, G) na koncu nazwy.
+7. SUMY:
    - totalAmount = suma towarow (items musza sie do tego sumowac, wlaczajac ujemne rabaty)
    - payableAmount = koncowa kwota do zaplaty (moze byc wieksza przez kaucje)
    - depositTotal = suma kaucji / opakowan zwrotnych
-6. Ignoruj naglowki, PTU, platnosci karta/gotowka, NIP, adres, "PARAGON FISKALNY", rozliczenie platnosci.
-7. Jesli na przeslanych obrazach sa ROZNE paragony, rozdziel je do osobnych grup w tablicy receipts.
-8. Jesli przeslano wiele zdjec JEDNEGO paragonu, polacz produkty ze wszystkich zdjec w JEDNA grupe. Nie duplikuj produktow widocznych na wiecej niz jednym zdjeciu.
+8. Ignoruj naglowki, PTU, platnosci karta/gotowka, NIP, adres, "PARAGON FISKALNY", rozliczenie platnosci.
+9. Jesli na przeslanych obrazach sa ROZNE paragony, rozdziel je do osobnych grup.
+10. ZDJECIA NA ZAKLADKE: Jesli jedno zdjecie to kontynuacja poprzedniego, polacz produkty. NIE duplikuj wierszy ktore sa na "zakladce" (tym samym fizycznym fragmencie papieru widocznym na 2 zdjeciach). Ale pamietaj o regule nr 5!
 
 DOPASOWANIE KATEGORII DO WYSTAWCY:
 - Najpierw zidentyfikuj sklep lub wystawce rachunku.
@@ -107,18 +110,21 @@ export function buildAuditPrompt(
   suspiciousDuplicateReceipts: number[]
 ): string {
   return [
-    "AUDYT PARAGONU.",
-    "Wykonaj drugi, rygorystyczny odczyt TYLKO dla pozycji podejrzanych.",
-    "Najpierw przeczytaj z obrazu DOSLOWNIE linie produktowe i rabatowe, szczegolnie wzorce typu:",
+    "AUDYT PARAGONU. Wykonaj drugi, rygorystyczny odczyt TYLKO dla podejrzanych paragonow.",
+    "Przeczytaj z obrazu DOSLOWNIE linie produktowe i rabatowe, szczegolnie wzorce typu:",
     '- "3 x 9,99 29,97" -> jedna pozycja, amount = "29.97"',
     '- "1,234 kg x 12,99  16,03" -> jedna pozycja, amount = "16.03" (laczna cena, NIE cena za kg)',
-    '- "OPUST ... -9,98" -> osobna pozycja z ujemna kwota',
+    '- "OPUST ... -9,98" -> osobna pozycja, amount = "-9.98"',
     '- "SUMA PLN 83,99"',
     '- "KAUCJA ... 1,00" -> depositTotal, nie item',
     '- "DO ZAPLATY 84,99" -> payableAmount',
-    "Nie wolno zgadywac nazw z innych domen. Jesli na paragonie jest piwo, nie wolno zwracac nawozu.",
-    "Jedna linia ilosciowa ma dac jedna pozycje JSON z laczna kwota po uwzglednieniu rabatu.",
-    "Jesli rabat jest pokazany jako osobna linia koncowa lub globalna, zwroc go jako osobna pozycje z ujemna kwota.",
+    "ZASADY KRYTYCZNE:",
+    "1. RABATY: Rabat musi byc ZAWSZE oddzielna pozycja z minusem (amount: \"-X.XX\").",
+    "2. NIE ODEJMUJ rabatu od produktu. Produkt zawsze ma swoja pierwotna, pelna cene.",
+    "3. CENA PO RABACIE: W sklepach typu Biedronka pod kwota rabatu bywa nadrukowana 'cena po rabacie'. ZIGNORUJ JA CALKOWICIE. Nie wpisuj jej jako produktu ani nie podmieniaj ceny bazowej.",
+    "4. DUPLIKATY: Jesli na paragonie widzisz dwa osobne, fizyczne wiersze z tym samym produktem, zwroc 2 oddzielne obiekty. Nie lacz ich w jeden.",
+    "5. OCZYSZCZANIE NAZW: Usun z nazw produktow litery VAT (A, B, C, D) i dopiski ilosciowe (np. 1x, 0.405 kg x).",
+    "Nie wolno zgadywac nazw z innych domen. Jesli to rachunek za serwery (np. AWS, Vercel), mapuj Memory/Network do Praca i biznes -> Narzedzia / SaaS. Nie myl z paliwem.",
     "Krzew/roslina/kwiat ma byc kategoryzowany do Dom i mieszkanie -> Ogrod i balkon lub zblizonej podkategorii domowej, a nie do zywnosci.",
     "Jesli wystawca to usluga cloud/backend/SaaS (np. Railway, Vercel, AWS, Supabase), to pozycje typu Memory, vCPU, Disk, Network, Pro plan, requests, seats maja trafic do Praca i biznes -> Narzedzia / SaaS.",
     "Nie wolno klasyfikowac oplat cloudowych do Transport/Paliwo przez skojarzenie ze slowem Railway albo Network.",

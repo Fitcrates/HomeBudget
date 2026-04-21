@@ -7,7 +7,7 @@ import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { buildCompactCategoryList } from "./ocr/categories";
-import { createGroqCompletionWithRetry } from "./ocr/groq";
+import { createVisionCompletionWithRetry } from "./ocr/groq";
 import {
   enrichReceiptSummariesWithValidation,
   findSuspiciousDuplicateReceipts,
@@ -215,7 +215,7 @@ async function processImagesWithAI(
 
     let currentMaxTokens = 8192;
     const initialVisionStart = Date.now();
-    let response = await createGroqCompletionWithRetry({
+    let response = await createVisionCompletionWithRetry({
       model: VISION_MODEL,
       temperature: 0.0,
       max_tokens: currentMaxTokens,
@@ -259,7 +259,7 @@ async function processImagesWithAI(
       currentMaxTokens = 16384;
       retryUsed = true;
       const truncRetryStart = Date.now();
-      response = await createGroqCompletionWithRetry({
+      response = await createVisionCompletionWithRetry({
         model: VISION_MODEL,
         temperature: 0.0,
         max_tokens: currentMaxTokens,
@@ -351,7 +351,7 @@ async function processImagesWithAI(
         : "";
 
       const retryVisionStart = Date.now();
-      response = await createGroqCompletionWithRetry({
+      response = await createVisionCompletionWithRetry({
         model: VISION_MODEL,
         temperature: 0.0,
         max_tokens: currentMaxTokens,
@@ -689,7 +689,7 @@ async function auditReceiptWithAI(
   });
 
   const visionStart = Date.now();
-  const response = await createGroqCompletionWithRetry({
+  const response = await createVisionCompletionWithRetry({
     model: VISION_MODEL,
     temperature: 0.0,
     max_tokens: 8192,
@@ -746,7 +746,7 @@ async function processTextWithAI(
   });
 
   const visionStart = Date.now();
-  const response = await createGroqCompletionWithRetry({
+  const response = await createVisionCompletionWithRetry({
     model: VISION_MODEL,
     temperature: 0.0,
     max_tokens: 8192,

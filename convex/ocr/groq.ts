@@ -3,18 +3,19 @@
 import OpenAI from "openai";
 import { sleep } from "./utils";
 
-function getGroq() {
-  const apiKey = process.env.GROQ_API_KEY;
+function getGemini() {
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error("Brak klucza API Groq (GROQ_API_KEY). Skonfiguruj go w ustawieniach Convex.");
+    throw new Error("Brak klucza API Gemini (GEMINI_API_KEY). Skonfiguruj go w ustawieniach Convex.");
   }
+  // Używamy warstwy kompatybilności OpenAI wdrożonej przez Google
   return new OpenAI({
-    baseURL: "https://api.groq.com/openai/v1",
+    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
     apiKey,
   });
 }
 
-function extractGroqStatusCode(error: any): number | null {
+function extractStatusCode(error: any): number | null {
   const candidates = [
     error?.status,
     error?.statusCode,
@@ -30,8 +31,8 @@ function extractGroqStatusCode(error: any): number | null {
   return null;
 }
 
-function isRetriableGroqError(error: any): boolean {
-  const status = extractGroqStatusCode(error);
+function isRetriableError(error: any): boolean {
+  const status = extractStatusCode(error);
   if (status !== null && [408, 409, 425, 429, 500, 502, 503, 504].includes(status)) {
     return true;
   }
@@ -46,7 +47,7 @@ function isRetriableGroqError(error: any): boolean {
   );
 }
 
-export async function createGroqCompletionWithRetry(
+export async function createVisionCompletionWithRetry(
   request: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
   label: string,
   maxAttempts = 4
@@ -55,13 +56,13 @@ export async function createGroqCompletionWithRetry(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      return await getGroq().chat.completions.create(request);
+      return await getGemini().chat.completions.create(request);
     } catch (error: any) {
       lastError = error;
-      const retriable = isRetriableGroqError(error);
-      const status = extractGroqStatusCode(error);
+      const retriable = isRetriableError(error);
+      const status = extractStatusCode(error);
 
-      console.error(`Groq OCR call failed (${label})`, {
+      console.error(`Gemini OCR call failed (${label})`, {
         attempt,
         maxAttempts,
         status,
@@ -73,13 +74,22 @@ export async function createGroqCompletionWithRetry(
         break;
       }
 
-      const delayMs = 1200 * Math.pow(2, attempt - 1);
+      let delayMs = 1200 * Math.pow(2, attempt - 1);
+      const match = String(error?.message || "").match(/try again in ([\d.]+)s/);
+      if (match && match[1]) {
+        const requestedWaitMs = Math.ceil(parseFloat(match[1]) * 1000) + 500;
+        if (!isNaN(requestedWaitMs) && requestedWaitMs > delayMs) {
+          delayMs = requestedWaitMs;
+          console.log(`[OCR] Rate limit hit. Waiting ${delayMs}ms based on API hint.`);
+        }
+      }
+      
       await sleep(delayMs);
     }
   }
 
-  const status = extractGroqStatusCode(lastError);
-  if (status === 503 || isRetriableGroqError(lastError)) {
+  const status = extractStatusCode(lastError);
+  if (status === 503 || isRetriableError(lastError)) {
     throw new Error("Model OCR jest chwilowo przeciążony. Spróbuj ponownie za kilkanaście sekund.");
   }
 
