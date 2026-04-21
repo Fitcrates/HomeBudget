@@ -13,19 +13,23 @@ export function buildPrompt(compactCategories: string, documentText?: string): s
 
   return `Wyodrebnij WSZYSTKIE pozycje zakupowe z ${documentText ? "tekstu" : "obrazu/obrazow"}.
 ${source}ZASADY:
-1. Kazdy produkt - nie pomijaj zadnej pozycji.
-2. Czytaj wartosc laczna pozycji, nie cene jednostkowa.
-3. Rabat/Opust/Promocja/Kupon musi byc uwzgledniony w finalnej cenie pozycji.
-4. Jesli rabat jest pokazany jako osobna linia, mozesz zwrocic go jako osobna pozycje z ujemna kwota zamiast wciskac go w pierwszy produkt.
-5. Ilosc >1 -> LACZNA wartosc (np. 3x2.50 = "7.50").
-6. Kaucje za opakowania zwrotne NIE sa zwyklymi produktami. Nie dodawaj ich do items, ale zwroc je osobno jako depositTotal.
-7. Jesli widzisz zarowno "SUMA PLN"/"Podsuma" jak i "DO ZAPLATY", to:
-- totalAmount = suma towarow po rabatach, bez kaucji i bez platnosci
-- payableAmount = koncowa kwota do zaplaty
-- depositTotal = suma kaucji / opakowan zwrotnych
-- items musza sumowac sie do totalAmount, nie do payableAmount
-8. Ignoruj naglowki, PTU, platnosci karta/gotowka, rozliczenie platnosci i inne linie techniczne.
-9. Jesli na przeslanych obrazach sa rozne paragony, rozdziel je do osobnych grup.
+1. Kazdy produkt - nie pomijaj zadnej pozycji. Jesli paragon jest dluzszy niz widoczny na jednym zdjeciu, produkty z kazdego zdjecia musza byc uwzglednione.
+2. CENA: Zawsze podawaj LACZNA cene pozycji - to co klient zaplaci za dana pozycje. NIE podawaj ceny jednostkowej.
+   - Jesli jest np. "2 x 4,99" to amount = "9.98" (iloczyn).
+   - Jesli jest waga np. "1,234 kg x 12,99 PLN/kg" to amount = to kwota OBOK, np. "16.03", a nie 12.99.
+   - Jesli pod produktem jest linia typu "1,500 x 9,99" z kwota "14,99" obok, to amount = "14.99".
+3. RABAT/OPUST/PRZECENA:
+   - Jesli rabat jest pokazany jako osobna linia (np. "OPUST -2,00" lub "RABAT BIEDRONKA -1,50"), zwroc go jako OSOBNA pozycje z UJEMNA kwota (np. amount: "-2.00").
+   - NIE odejmuj rabatu od ceny produktu powyzej. Produkt ma miec swoja pelna cene, rabat idzie jako oddzielna linia.
+   - Opis rabatu powinien zawierac nazwe produktu, jesli jest widoczna (np. "Rabat: Mleko").
+4. KAUCJE za opakowania zwrotne NIE sa zwyklymi produktami. Nie dodawaj ich do items. Zwroc je jako depositTotal.
+5. SUMY:
+   - totalAmount = suma towarow (items musza sie do tego sumowac, wlaczajac ujemne rabaty)
+   - payableAmount = koncowa kwota do zaplaty (moze byc wieksza przez kaucje)
+   - depositTotal = suma kaucji / opakowan zwrotnych
+6. Ignoruj naglowki, PTU, platnosci karta/gotowka, NIP, adres, "PARAGON FISKALNY", rozliczenie platnosci.
+7. Jesli na przeslanych obrazach sa ROZNE paragony, rozdziel je do osobnych grup w tablicy receipts.
+8. Jesli przeslano wiele zdjec JEDNEGO paragonu, polacz produkty ze wszystkich zdjec w JEDNA grupe. Nie duplikuj produktow widocznych na wiecej niz jednym zdjeciu.
 
 DOPASOWANIE KATEGORII DO WYSTAWCY:
 - Najpierw zidentyfikuj sklep lub wystawce rachunku.
@@ -62,13 +66,13 @@ KATEGORYZACJA SZCZEGOLOWA:
 KATEGORIE:
 ${compactCategories}
 
-JSON:
+Zwroc WYLACZNIE poprawny JSON (bez komentarzy, bez tekstu przed/po):
 {
-  "rawText": "Tylko marka/sklep i data, np. 'Lidl 2026-04-11'",
+  "rawText": "Sklep i data, np. 'Lidl 2026-04-11'",
   "currency": "PLN",
-  "totalAmount": "Suma towarow po rabatach, bez kaucji, np. '83.99'",
-  "payableAmount": "Kwota do zaplaty, jesli wystepuje, np. '84.99'",
-  "depositTotal": "Suma kaucji, jesli wystepuje, np. '1.00'",
+  "totalAmount": "Suma towarow po rabatach, bez kaucji",
+  "payableAmount": "Kwota do zaplaty (z kaucjami)",
+  "depositTotal": "Suma kaucji",
   "receiptCount": 1,
   "receipts": [
     {
@@ -80,20 +84,18 @@ JSON:
       "depositTotal": "1.00",
       "items": [
         {
-          "description": "Nazwa produktu",
-          "amount": "12.98",
+          "description": "Mleko 3.2% 1L",
+          "amount": "3.49",
+          "category": "Zywnosc i napoje",
+          "subcategory": "Nabial i jaja"
+        },
+        {
+          "description": "Rabat: Mleko 3.2%",
+          "amount": "-0.50",
           "category": "Zywnosc i napoje",
           "subcategory": "Nabial i jaja"
         }
       ]
-    }
-  ],
-  "items": [
-    {
-      "description": "Nazwa produktu",
-      "amount": "12.98",
-      "category": "Zywnosc i napoje",
-      "subcategory": "Nabial i jaja"
     }
   ]
 }`;
@@ -108,14 +110,15 @@ export function buildAuditPrompt(
     "AUDYT PARAGONU.",
     "Wykonaj drugi, rygorystyczny odczyt TYLKO dla pozycji podejrzanych.",
     "Najpierw przeczytaj z obrazu DOSLOWNIE linie produktowe i rabatowe, szczegolnie wzorce typu:",
-    '- "3 x 9,99 29,97"',
-    '- "OPUST ... -9,98"',
+    '- "3 x 9,99 29,97" -> jedna pozycja, amount = "29.97"',
+    '- "1,234 kg x 12,99  16,03" -> jedna pozycja, amount = "16.03" (laczna cena, NIE cena za kg)',
+    '- "OPUST ... -9,98" -> osobna pozycja z ujemna kwota',
     '- "SUMA PLN 83,99"',
-    '- "KAUCJA ... 1,00"',
-    '- "DO ZAPLATY 84,99"',
+    '- "KAUCJA ... 1,00" -> depositTotal, nie item',
+    '- "DO ZAPLATY 84,99" -> payableAmount',
     "Nie wolno zgadywac nazw z innych domen. Jesli na paragonie jest piwo, nie wolno zwracac nawozu.",
     "Jedna linia ilosciowa ma dac jedna pozycje JSON z laczna kwota po uwzglednieniu rabatu.",
-    "Jesli rabat jest pokazany jako osobna linia koncowa lub globalna, mozesz zwrocic go jako osobna pozycje z ujemna kwota.",
+    "Jesli rabat jest pokazany jako osobna linia koncowa lub globalna, zwroc go jako osobna pozycje z ujemna kwota.",
     "Krzew/roslina/kwiat ma byc kategoryzowany do Dom i mieszkanie -> Ogrod i balkon lub zblizonej podkategorii domowej, a nie do zywnosci.",
     "Jesli wystawca to usluga cloud/backend/SaaS (np. Railway, Vercel, AWS, Supabase), to pozycje typu Memory, vCPU, Disk, Network, Pro plan, requests, seats maja trafic do Praca i biznes -> Narzedzia / SaaS.",
     "Nie wolno klasyfikowac oplat cloudowych do Transport/Paliwo przez skojarzenie ze slowem Railway albo Network.",

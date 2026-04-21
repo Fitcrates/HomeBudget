@@ -332,7 +332,14 @@ export function parseAuditedProductLines(
   return items;
 }
 
-export function findSuspiciousDuplicateReceipts(items: ProcessedReceiptItem[]): number[] {
+/**
+ * Only flag receipts with duplicates when those duplicates actually cause a total mismatch.
+ * Previously, ANY duplicate (even valid "bought 2 of the same item") triggered expensive retry passes.
+ */
+export function findSuspiciousDuplicateReceipts(
+  items: ProcessedReceiptItem[],
+  summaries?: ReceiptSummary[]
+): number[] {
   const duplicates = new Set<number>();
   const counts = new Map<string, number>();
 
@@ -341,9 +348,40 @@ export function findSuspiciousDuplicateReceipts(items: ProcessedReceiptItem[]): 
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
 
+  // Collect receipt indices that have any duplicated items
+  const receiptsWithDuplicates = new Set<number>();
   for (const [key, count] of counts) {
     if (count <= 1) continue;
-    duplicates.add(Number.parseInt(key.split("|")[0] || "0", 10));
+    receiptsWithDuplicates.add(Number.parseInt(key.split("|")[0] || "0", 10));
+  }
+
+  // Only flag as suspicious if the receipt's total actually mismatches
+  // (i.e. removing the duplicates would bring the total closer to expected)
+  if (summaries && summaries.length > 0) {
+    for (const receiptIndex of receiptsWithDuplicates) {
+      const summary = summaries.find((s) => s.receiptIndex === receiptIndex);
+      if (!summary) {
+        duplicates.add(receiptIndex);
+        continue;
+      }
+      const expected = Number.parseFloat(summary.totalAmount || "0");
+      if (!(expected > 0)) {
+        duplicates.add(receiptIndex);
+        continue;
+      }
+      const receiptItems = items.filter((item) => item.receiptIndex === receiptIndex);
+      const currentTotal = receiptItems.reduce((sum, item) => sum + Number.parseFloat(item.amount || "0"), 0);
+      const diff = Math.abs(currentTotal - expected);
+      // Only flag if there's a meaningful mismatch (>0.05 PLN)
+      if (diff > 0.05) {
+        duplicates.add(receiptIndex);
+      }
+    }
+  } else {
+    // No summaries available, flag all duplicates (legacy behavior)
+    for (const receiptIndex of receiptsWithDuplicates) {
+      duplicates.add(receiptIndex);
+    }
   }
 
   return [...duplicates];

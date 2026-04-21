@@ -13,7 +13,7 @@ import {
   enrichReceiptSummariesWithValidation,
 } from "./normalization";
 import { AuditedLineCandidate, ProcessReceiptResult, ProcessedReceiptItem, ReceiptSummary } from "./types";
-import { asString, extractJsonBlock, normalizeExpectedTotals, parseAmountNumber, stripDiacritics } from "./utils";
+import { asString, extractJsonBlockWithMeta, normalizeExpectedTotals, parseAmountNumber, stripDiacritics } from "./utils";
 
 async function fetchExchangeRate(currencyCode: string): Promise<number> {
   const code = currencyCode.toUpperCase();
@@ -93,12 +93,16 @@ export async function parseAndNormalizeResponse(
   categoriesArray: any[],
   modelUsed: string,
   traceLabel = "ocr"
-): Promise<ProcessReceiptResult> {
+): Promise<ProcessReceiptResult & { wasTruncated: boolean }> {
   const parseStart = Date.now();
   try {
     const jsonParseStart = Date.now();
-    const extracted = extractJsonBlock(content);
+    const { json: extracted, wasTruncated } = extractJsonBlockWithMeta(content);
     const parsed = JSON.parse(extracted || "{}");
+
+    if (wasTruncated) {
+      console.warn(`[OCR][${traceLabel}] JSON output was TRUNCATED. Some items may be missing. Content length: ${content.length}`);
+    }
 
     type ParsedItemWithMeta = {
       item: any;
@@ -115,6 +119,8 @@ export async function parseAndNormalizeResponse(
       ? parsed.audit.productLines
       : [];
 
+    // Primary source: receipts[].items (structured per-receipt format)
+    // Fallback: top-level items[] or root array (legacy/flat format)
     const parsedItemsWithMeta: ParsedItemWithMeta[] = receiptEntries.length > 0
       ? receiptEntries.flatMap((receipt: any, idx: number) => {
         const receiptItems = Array.isArray(receipt?.items) ? receipt.items : [];
@@ -214,7 +220,7 @@ export async function parseAndNormalizeResponse(
     const payableAmount = normalizedTopLevelTotals.payableAmount;
     const depositTotal = normalizedTopLevelTotals.depositTotal;
 
-    console.log(`AI returned ${parsedItems.length} raw items (Currency: ${currency}, Rate: ${exchangeRate}, Total: ${totalAmount}, Payable: ${payableAmount}, Deposit: ${depositTotal})`);
+    console.log(`AI returned ${parsedItems.length} raw items (Currency: ${currency}, Rate: ${exchangeRate}, Total: ${totalAmount}, Payable: ${payableAmount}, Deposit: ${depositTotal}, Truncated: ${wasTruncated})`);
 
     const normalizedItems: ProcessedReceiptItem[] = [];
 
@@ -477,6 +483,7 @@ export async function parseAndNormalizeResponse(
       discountLinkingMs,
       dedupeValidationMs,
       totalParseMs,
+      wasTruncated,
       rawItems: parsedItems.length,
       normalizedItems: normalizedItems.length,
       finalItems: dedupedItems.length,
@@ -498,6 +505,7 @@ export async function parseAndNormalizeResponse(
       modelUsed,
       receiptCount: Math.max(1, receiptSummaries.length),
       receiptSummaries,
+      wasTruncated,
     };
   } catch (error) {
     console.error("Failed to parse AI JSON:", error);
@@ -519,6 +527,7 @@ export async function parseAndNormalizeResponse(
         depositTotal: "",
         sourceImageIndex: null,
       }],
+      wasTruncated: false,
     };
   }
 }

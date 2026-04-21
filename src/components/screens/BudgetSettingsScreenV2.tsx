@@ -188,7 +188,7 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
 
       {mode === "people" && (
         <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-xl border border-white/50 bg-white/50 p-4 shadow-sm">
+          <div className="rounded-xl border border-white/50 bg-white/50 p-2 shadow-sm">
             <div className="flex items-center gap-2 text-[#cf833f] mb-2">
               <TrendingUp className="w-4 h-4" />
               <span className="text-[11px] font-bold uppercase tracking-wider">Najwięcej wydaje</span>
@@ -199,7 +199,7 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
             </p>
           </div>
 
-          <div className="rounded-xl border border-white/50 bg-white/50 p-4 shadow-sm">
+          <div className="rounded-xl border border-white/50 bg-white/50 p-2 shadow-sm">
             <div className="flex items-center gap-2 text-[#cf833f] mb-2">
               <ShieldAlert className="w-4 h-4" />
               <span className="text-[11px] font-bold uppercase tracking-wider">Przekroczone</span>
@@ -208,7 +208,7 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
             <p className="text-xs font-bold text-[#8a7262]">osób ponad limit</p>
           </div>
 
-          <div className="rounded-xl border border-white/50 bg-white/50 p-4 shadow-sm">
+          <div className="rounded-xl border border-white/50 bg-white/50 p-2 shadow-sm">
             <div className="flex items-center gap-2 text-[#cf833f] mb-2">
               <Users className="w-4 h-4" />
               <span className="text-[11px] font-bold uppercase tracking-wider">Aktywne limity</span>

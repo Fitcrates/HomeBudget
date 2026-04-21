@@ -213,11 +213,12 @@ async function processImagesWithAI(
       promptMs,
     });
 
+    let currentMaxTokens = 8192;
     const initialVisionStart = Date.now();
     let response = await createGroqCompletionWithRetry({
       model: VISION_MODEL,
-      temperature: 0.1,
-      max_tokens: 4096,
+      temperature: 0.0,
+      max_tokens: currentMaxTokens,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: contentParts },
@@ -226,15 +227,18 @@ async function processImagesWithAI(
     const initialVisionMs = Date.now() - initialVisionStart;
 
     let content = response.choices[0].message.content ?? "{}";
+    const finishReason = response.choices[0].finish_reason;
     console.log("Vision response:", {
       len: content.length,
       model: response.model,
+      finishReason,
     });
     logOcrTiming(traceLabel, "vision_completed", {
       imageCount: batch.length,
       responseLength: content.length,
       model: response.model,
       visionMs: initialVisionMs,
+      finishReason,
     });
 
     const initialParseStart = Date.now();
@@ -249,7 +253,39 @@ async function processImagesWithAI(
     const initialParseMs = Date.now() - initialParseStart;
     let retryUsed = false;
 
-    const suspiciousDuplicateReceipts = findSuspiciousDuplicateReceipts(parsed.items);
+    // Auto-retry with higher token limit if output was truncated
+    if (parsed.wasTruncated || finishReason === "length") {
+      console.warn(`[OCR] Output truncated (finishReason=${finishReason}). Retrying with higher max_tokens.`);
+      currentMaxTokens = 16384;
+      retryUsed = true;
+      const truncRetryStart = Date.now();
+      response = await createGroqCompletionWithRetry({
+        model: VISION_MODEL,
+        temperature: 0.0,
+        max_tokens: currentMaxTokens,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: contentParts },
+        ],
+      }, `vision-truncation-retry:${batch.length}`);
+      content = response.choices[0].message.content ?? "{}";
+      const truncRetryMs = Date.now() - truncRetryStart;
+      logOcrTiming(traceLabel, "truncation_retry_completed", {
+        truncRetryMs,
+        responseLength: content.length,
+        finishReason: response.choices[0].finish_reason,
+      });
+      parsed = await parseAndNormalizeResponse(
+        ctx,
+        householdId,
+        content,
+        categoriesArray,
+        VISION_MODEL,
+        `${traceLabel}:truncation-retry`
+      );
+    }
+
+    const suspiciousDuplicateReceipts = findSuspiciousDuplicateReceipts(parsed.items, parsed.receiptSummaries);
     const mismatchReceipts = parsed.receiptSummaries.filter((receipt) => {
       const expected = Number.parseFloat(receipt.totalAmount || "0");
       const diff = Number.parseFloat(receipt.difference || "0");
@@ -317,15 +353,15 @@ async function processImagesWithAI(
       const retryVisionStart = Date.now();
       response = await createGroqCompletionWithRetry({
         model: VISION_MODEL,
-        temperature: 0.1,
-        max_tokens: 4096,
+        temperature: 0.0,
+        max_tokens: currentMaxTokens,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: contentParts },
           { role: "assistant", content },
           {
             role: "user",
-            content: `Wykryto rozbieznosci per paragon: ${mismatchHint}.${duplicateHint} Sprawdz osobne linie OPUST/RABAT/PRZECENA oraz KAUCJA/OPAKOWANIA ZWROTNE. Jesli rabat jest pokazany jako osobna linia, wolno zwrocic go jako osobna pozycje z UJEMNA kwota zamiast odejmowac od pierwszego produktu. Jedna linia z iloscia ma dawac jedna pozycje JSON z laczna kwota, a nie kilka duplikatow. Nie zmieniaj nazwy produktu na niepowiazany rzeczownik, jesli na paragonie widac np. piwo, nie wolno zwracac nawozu. totalAmount ma odpowiadac sumie items, a payableAmount moze byc wyzsze przez kaucje. Zwroc POPRAWIONY, PELNY JSON.`,
+            content: `Wykryto rozbieznosci per paragon: ${mismatchHint}.${duplicateHint} Sprawdz osobne linie OPUST/RABAT/PRZECENA oraz KAUCJA/OPAKOWANIA ZWROTNE. Jesli rabat jest pokazany jako osobna linia, wolno zwrocic go jako osobna pozycje z UJEMNA kwota zamiast odejmowac od pierwszego produktu. Jedna linia z iloscia ma dawac jedna pozycje JSON z laczna kwota, a nie kilka duplikatow. Nie zmieniaj nazwy produktu na niepowiazany rzeczownik, jesli na paragonie widac np. piwo, nie wolno zwracac nawozu. totalAmount ma odpowiadac sumie items, a payableAmount moze byc wyzsze przez kaucje. Cena produktu = LACZNA cena do zaplaty, NIE cena za kg. Zwroc POPRAWIONY, PELNY JSON.`,
           },
         ],
       }, `vision-retry:${batch.length}`);
@@ -365,13 +401,14 @@ async function processImagesWithAI(
     const currentMismatchRatioForAudit = currentExpectedAmountForAudit > 0
       ? currentQualityForAudit.totalMismatchAbs / currentExpectedAmountForAudit
       : 0;
+    const postRetrySuspiciousDuplicates = findSuspiciousDuplicateReceipts(parsed.items, parsed.receiptSummaries);
     const rawStillNeedsAudit = parsed.receiptSummaries.some((receipt) => {
       const expected = Number.parseFloat(receipt.totalAmount || "0");
       const diff = Math.abs(Number.parseFloat(receipt.difference || "0"));
       return expected > 0 && diff > 0.05;
-    }) || findSuspiciousDuplicateReceipts(parsed.items).length > 0;
+    }) || postRetrySuspiciousDuplicates.length > 0;
     const stillNeedsAudit = rawStillNeedsAudit && (
-      findSuspiciousDuplicateReceipts(parsed.items).length > 0 ||
+      postRetrySuspiciousDuplicates.length > 0 ||
       currentMismatchRatioForAudit > 0.1 ||
       currentQualityForAudit.categorizedCount < currentQualityForAudit.itemCount
     );
@@ -387,7 +424,7 @@ async function processImagesWithAI(
         categoriesArray,
         content,
         parsed,
-        findSuspiciousDuplicateReceipts(parsed.items),
+        postRetrySuspiciousDuplicates,
         `${traceLabel}:audit`
       );
       const auditMs = Date.now() - auditStart;
@@ -536,7 +573,15 @@ async function processImagesWithAI(
     totalMs: Date.now() - pipelineStart,
   });
 
-  if (!(imageDataList.length > 1 && combined.items.length === 0)) {
+  // Decide whether the combined result is acceptable or we need per-image fallback.
+  // Trigger fallback when: combined returned 0 items, OR combined was truncated with multi-image input.
+  const combinedQuality = summarizeResultQuality(combined);
+  const shouldFallbackToPerImage = imageDataList.length > 1 && (
+    combined.items.length === 0 ||
+    (combined as any).wasTruncated === true
+  );
+
+  if (!shouldFallbackToPerImage) {
     logOcrTiming("ocr:images", "pipeline_completed", {
       strategy: "combined",
       imageCount: imageDataList.length,
@@ -547,7 +592,7 @@ async function processImagesWithAI(
     return combined;
   }
 
-  console.warn("Combined OCR for many images returned no items. Falling back to per-image processing.");
+  console.warn(`Combined OCR for ${imageDataList.length} images needs fallback (items=${combined.items.length}, truncated=${(combined as any).wasTruncated}). Falling back to per-image processing.`);
   logOcrTiming("ocr:images", "per_image_fallback_started", {
     imageCount: imageDataList.length,
     elapsedMsBeforeFallback: Date.now() - pipelineStart,
@@ -619,7 +664,7 @@ async function auditReceiptWithAI(
   parsed: ProcessReceiptResult,
   suspiciousDuplicateReceipts: number[],
   traceLabel = "ocr:audit"
-): Promise<ProcessReceiptResult> {
+): Promise<ProcessReceiptResult & { wasTruncated: boolean }> {
   const promptStart = Date.now();
   const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
     {
@@ -647,7 +692,7 @@ async function auditReceiptWithAI(
   const response = await createGroqCompletionWithRetry({
     model: VISION_MODEL,
     temperature: 0.0,
-    max_tokens: 4096,
+    max_tokens: 8192,
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: contentParts },
@@ -703,8 +748,8 @@ async function processTextWithAI(
   const visionStart = Date.now();
   const response = await createGroqCompletionWithRetry({
     model: VISION_MODEL,
-    temperature: 0.1,
-    max_tokens: 4096,
+    temperature: 0.0,
+    max_tokens: 8192,
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: prompt },
