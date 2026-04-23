@@ -3,16 +3,21 @@
 import OpenAI from "openai";
 import { sleep } from "./utils";
 
+let cachedGeminiClient: OpenAI | null = null;
+
 function getGemini() {
+  if (cachedGeminiClient) return cachedGeminiClient;
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("Brak klucza API Gemini (GEMINI_API_KEY). Skonfiguruj go w ustawieniach Convex.");
   }
   // Używamy warstwy kompatybilności OpenAI wdrożonej przez Google
-  return new OpenAI({
+  cachedGeminiClient = new OpenAI({
     baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
     apiKey,
   });
+  return cachedGeminiClient;
 }
 
 function extractStatusCode(error: any): number | null {

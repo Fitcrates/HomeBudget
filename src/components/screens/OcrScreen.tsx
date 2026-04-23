@@ -1,4 +1,4 @@
-﻿import { useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -178,8 +178,20 @@ function writeCachedOcrResult(cacheKey: string, result: ProcessReceiptResult, no
   }
 }
 
+type ProcessingStage = "idle" | "cache" | "uploading" | "ai" | "categorizing" | "done";
+
+const STAGE_LABELS: Record<ProcessingStage, string> = {
+  idle: "",
+  cache: "Sprawdzanie pamięci podręcznej...",
+  uploading: "Przygotowanie zdjęć...",
+  ai: "Analiza AI — odczyt paragonu...",
+  categorizing: "Dopasowanie kategorii...",
+  done: "Gotowe!",
+};
+
 export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props) {
   const [processing, setProcessing] = useState(false);
+  const [processingStage, setProcessingStage] = useState<ProcessingStage>("idle");
   const [rawText, setRawText] = useState("");
   const [items, setItems] = useState<ParsedItem[] | null>(null);
   const [expectedTotal, setExpectedTotal] = useState<string>("");
@@ -218,33 +230,17 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
   }
 
   async function computeOcrFingerprint(categoriesChecksum: string) {
+    // Use storageIds directly as cache key — they are already unique identifiers.
+    // No need to re-download images just to hash them.
     const parts: string[] = [
       `household:${String(householdId)}`,
       `categories:${categoriesChecksum}`,
       `count:${currentStorageIds.length}`,
+      ...currentStorageIds.map((id, i) => {
+        const mime = currentMimeTypes[i] || previewTypes[i] || "unknown";
+        return `${i}:${String(id)}:${mime}`;
+      }),
     ];
-
-    for (let i = 0; i < currentStorageIds.length; i++) {
-      const storageId = currentStorageIds[i];
-      const mime = currentMimeTypes[i] || previewTypes[i] || "unknown";
-      try {
-        const url = await getFileUrl({ storageId });
-        if (!url) {
-          parts.push(`${i}:${String(storageId)}:${mime}:missing-url`);
-          continue;
-        }
-        const res = await fetch(url);
-        if (!res.ok) {
-          parts.push(`${i}:${String(storageId)}:${mime}:http-${res.status}`);
-          continue;
-        }
-        const data = await res.arrayBuffer();
-        const fileHash = await sha256Hex(data);
-        parts.push(`${i}:${mime}:${data.byteLength}:${fileHash}`);
-      } catch {
-        parts.push(`${i}:${String(storageId)}:${mime}:fetch-error`);
-      }
-    }
 
     return sha256Hex(parts.join("|"));
   }
@@ -362,7 +358,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
       return;
     }
     setProcessing(true);
-    const startTime = Date.now();
+    setProcessingStage("cache");
     try {
       const now = Date.now();
       cleanupOcrCache(now);
@@ -375,10 +371,12 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
         : false;
 
       if (cachedResult && !cachedHasMismatch) {
+        setProcessingStage("done");
         applyOcrResult(cachedResult, true);
         return;
       }
 
+      setProcessingStage("ai");
       const result = (await processAI({
         storageIds: currentStorageIds,
         categories,
@@ -386,7 +384,9 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
         isPdf: false,
       })) as ProcessReceiptResult;
 
+      setProcessingStage("categorizing");
       writeCachedOcrResult(cacheKey, result, now);
+      setProcessingStage("done");
       applyOcrResult(result, false);
     } catch (err: any) {
       toast.error(err.message || "Błąd podczas łączenia z AI.");
@@ -402,12 +402,8 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
       ]);
       setReceiptSummaries([]);
     } finally {
-      const elapsed = Date.now() - startTime;
-      const minLoadingTime = 2000;
-      if (elapsed < minLoadingTime) {
-        await new Promise((resolve) => setTimeout(resolve, minLoadingTime - elapsed));
-      }
       setProcessing(false);
+      setProcessingStage("idle");
     }
   }
 
@@ -745,8 +741,41 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
               </div>
             </div>
             {processing && (
-              <div className="mb-4">
-                <CatLoader message="Czytanie dokumentu..." />
+              <div className="mb-4 space-y-3">
+                <CatLoader message={STAGE_LABELS[processingStage] || "Przetwarzanie..."} />
+                <div className="space-y-1.5">
+                  {(["cache", "ai", "categorizing"] as const).map((stage) => {
+                    const stageOrder = ["cache", "uploading", "ai", "categorizing", "done"] as const;
+                    const currentIdx = stageOrder.indexOf(processingStage);
+                    const thisIdx = stageOrder.indexOf(stage);
+                    const isActive = processingStage === stage;
+                    const isDone = currentIdx > thisIdx;
+                    return (
+                      <div
+                        key={stage}
+                        className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-300 ${
+                          isActive
+                            ? "bg-[#fff1e4] text-[#cf833f] border border-[#f2d6bf]"
+                            : isDone
+                              ? "bg-[#ebf7ef] text-[#46825d] border border-[#8bc5a0]"
+                              : "bg-[#f8f1e8]/60 text-[#c4aa90] border border-transparent"
+                        }`}
+                      >
+                        {isDone ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                        ) : isActive ? (
+                          <span className="relative flex h-3.5 w-3.5 shrink-0">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#cf833f] opacity-40" />
+                            <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-[#cf833f]" />
+                          </span>
+                        ) : (
+                          <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-[#d8ccba]" />
+                        )}
+                        <span>{STAGE_LABELS[stage]}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
             <ButtonPrimary

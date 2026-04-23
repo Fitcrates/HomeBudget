@@ -13,7 +13,7 @@ import {
   findSuspiciousDuplicateReceipts,
 } from "./ocr/normalization";
 import { parseAndNormalizeResponse } from "./ocr/parser";
-import { buildAuditPrompt, buildPrompt, SYSTEM_PROMPT, VISION_MODEL } from "./ocr/prompt";
+import { buildAuditPrompt, buildPrompt, SYSTEM_PROMPT, VISION_MODEL, VISION_MODEL_SMART } from "./ocr/prompt";
 import { ProcessReceiptResult, ProcessedReceiptItem, ReceiptSummary } from "./ocr/types";
 
 type ImageInput = {
@@ -350,9 +350,11 @@ async function processImagesWithAI(
         ? ` Podejrzane duplikaty produktow w paragonach: ${suspiciousDuplicateReceipts.map((idx) => idx + 1).join(", ")}. Sprawdz, czy model nie rozbil jednej linii ilosciowej (np. "3 x 9,99 29,97") na kilka osobnych produktow.`
         : "";
 
+      // Escalate to thinking model for recovery — needs reasoning about mismatches
       const retryVisionStart = Date.now();
+      console.log(`[OCR] Recovery retry: escalating to ${VISION_MODEL_SMART} (thinking model)`);
       response = await createVisionCompletionWithRetry({
-        model: VISION_MODEL,
+        model: VISION_MODEL_SMART,
         temperature: 0.0,
         max_tokens: currentMaxTokens,
         messages: [
@@ -374,7 +376,7 @@ async function processImagesWithAI(
         householdId,
         content,
         categoriesArray,
-        VISION_MODEL,
+        VISION_MODEL_SMART,
         `${traceLabel}:retry`
       );
       const retryParseMs = Date.now() - retryParseStart;
@@ -688,9 +690,11 @@ async function auditReceiptWithAI(
     previousItems: parsed.items.length,
   });
 
+  // Audit uses thinking model — needs rigorous line-by-line verification
   const visionStart = Date.now();
+  console.log(`[OCR] Audit pass: using ${VISION_MODEL_SMART} (thinking model)`);
   const response = await createVisionCompletionWithRetry({
-    model: VISION_MODEL,
+    model: VISION_MODEL_SMART,
     temperature: 0.0,
     max_tokens: 8192,
     messages: [
@@ -707,7 +711,7 @@ async function auditReceiptWithAI(
     householdId,
     content,
     categoriesArray,
-    VISION_MODEL,
+    VISION_MODEL_SMART,
     traceLabel
   );
   const parseMs = Date.now() - parseStart;
@@ -1259,28 +1263,32 @@ export const processReceiptWithAI = action({
         compactCategoriesLength: compactCategories.length,
         buildMs: Date.now() - compactCategoriesStart,
       });
-      const imageDataList: ImageInput[] = [];
       const imageLoadStart = Date.now();
 
-      for (const storageId of args.storageIds) {
-        const fileStart = Date.now();
-        const url = await ctx.storage.getUrl(storageId);
-        if (!url) continue;
+      const imageLoadResults = await Promise.all(
+        args.storageIds.map(async (storageId) => {
+          const fileStart = Date.now();
+          const url = await ctx.storage.getUrl(storageId);
+          if (!url) return null;
 
-        const fileResponse = await fetch(url);
-        if (!fileResponse.ok) continue;
+          const fileResponse = await fetch(url);
+          if (!fileResponse.ok) return null;
 
-        const arrayBuffer = await fileResponse.arrayBuffer();
-        const base64 = Buffer.from(arrayBuffer).toString("base64");
-        const mimeType = (fileResponse.headers.get("content-type") || "image/jpeg").split(";")[0].trim();
-        imageDataList.push({ base64, mimeType });
-        logOcrTiming("ocr:action", "image_loaded", {
-          storageId,
-          mimeType,
-          bytes: arrayBuffer.byteLength,
-          loadMs: Date.now() - fileStart,
-        });
-      }
+          const arrayBuffer = await fileResponse.arrayBuffer();
+          const base64 = Buffer.from(arrayBuffer).toString("base64");
+          const mimeType = (fileResponse.headers.get("content-type") || "image/jpeg").split(";")[0].trim();
+          logOcrTiming("ocr:action", "image_loaded", {
+            storageId,
+            mimeType,
+            bytes: arrayBuffer.byteLength,
+            loadMs: Date.now() - fileStart,
+          });
+          return { base64, mimeType } as ImageInput;
+        })
+      );
+      const imageDataList: ImageInput[] = imageLoadResults.filter(
+        (result): result is ImageInput => result !== null
+      );
 
       if (imageDataList.length === 0) {
         throw new Error("Nie udało się załadować obrazów.");
