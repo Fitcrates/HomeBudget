@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+﻿import { useRef, useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -746,7 +746,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
             </div>
             {processing && (
               <div className="mb-4">
-                <CatLoader message="Czytanie dokumentu z Groq Llama 4 Scout..." />
+                <CatLoader message="Czytanie dokumentu..." />
               </div>
             )}
             <ButtonPrimary
@@ -906,10 +906,10 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                           value={item.amount}
                           onChange={(e) => updateItem(item.id, { amount: e.target.value })}
                           className={`w-full rounded-xl border bg-white/60 px-3 py-2 text-sm font-bold text-right tabular-nums outline-none ${uncertainPrice
-                              ? "border-[#f3a086] text-[#b74210] focus:border-[#d95d27]"
-                              : isDiscountRow
-                                ? "border-[#9bd1af] text-[#2c7a4b] focus:border-[#4f9a6e]"
-                                : "border-[#f5e5cf] text-[#cf833f] focus:border-[#cf833f]"
+                            ? "border-[#f3a086] text-[#b74210] focus:border-[#d95d27]"
+                            : isDiscountRow
+                              ? "border-[#9bd1af] text-[#2c7a4b] focus:border-[#4f9a6e]"
+                              : "border-[#f5e5cf] text-[#cf833f] focus:border-[#cf833f]"
                             }`}
                           placeholder="0.00"
                         />

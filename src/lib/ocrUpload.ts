@@ -1,8 +1,8 @@
 import * as pdfjsLib from "pdfjs-dist";
 
 const PDF_MIME = "application/pdf";
-const MAX_DIMENSION = 1800;
-const WEBP_QUALITY = 0.82;
+const MAX_DIMENSION = 1200;
+const WEBP_QUALITY = 0.70;
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
