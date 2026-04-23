@@ -1,7 +1,7 @@
 "use node";
 
 // Tier 1: Szybki model do ekstrakcji OCR (wizja → JSON). Używany w ~80-90% scanów.
-export const VISION_MODEL = "gemini-2.0-flash";
+export const VISION_MODEL = "gemini-2.5-flash-lite";
 // Tier 2: Model z myśleniem do korekty i audytu. Używany TYLKO gdy Tier 1 wykryje rozbieżności.
 export const VISION_MODEL_SMART = "gemini-2.5-flash";
 
