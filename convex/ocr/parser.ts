@@ -325,7 +325,11 @@ export async function parseAndNormalizeResponse(
             }
             item.fromMapping = true;
             mappedFromHistoryCount++;
-          } else if (allowAiCategoryResolution) {
+            continue; // mapping has highest priority, skip other resolution
+          }
+          
+          // Try AI category resolution
+          if (allowAiCategoryResolution) {
             const originalAiCategory = parsedItemsWithMeta.find((entry) =>
               entry.receiptIndex === item.receiptIndex &&
               asString(entry.item?.description) === item.originalRawDescription
@@ -344,33 +348,28 @@ export async function parseAndNormalizeResponse(
             }
           }
 
+          // Try heuristic — always run, can upgrade generic AI categories
           const heuristicCategory = resolveHeuristicCategory(
             item.originalRawDescription || item.description,
             categoriesArray,
             receiptContextByIndex.get(item.receiptIndex) || item.receiptLabel || globalReceiptContext
           );
-          if (heuristicCategory?.categoryId && heuristicCategory?.subcategoryId && !item.fromMapping) {
+
+          if (heuristicCategory?.categoryId && heuristicCategory?.subcategoryId) {
             const hasExistingResolution = Boolean(item.categoryId && item.subcategoryId);
-            const genericHeuristicFallback = isGenericHeuristicFallback(
+            
+            // Check if current category is a generic fallback
+            const currentIsGeneric = hasExistingResolution && isGenericHeuristicFallback(
               categoriesArray,
-              heuristicCategory.subcategoryId
+              item.subcategoryId
             );
-            const shouldApplyHeuristic =
-              !hasExistingResolution ||
-              !genericHeuristicFallback;
 
-            if (!shouldApplyHeuristic) {
-              continue;
-            }
-
-            if (
-              item.categoryId !== heuristicCategory.categoryId ||
-              item.subcategoryId !== heuristicCategory.subcategoryId
-            ) {
+            // Apply heuristic if: no resolution yet OR current is generic fallback
+            if (!hasExistingResolution || currentIsGeneric) {
+              item.categoryId = heuristicCategory.categoryId;
+              item.subcategoryId = heuristicCategory.subcategoryId;
               resolvedByHeuristicCount++;
             }
-            item.categoryId = heuristicCategory.categoryId;
-            item.subcategoryId = heuristicCategory.subcategoryId;
           }
         } catch {
           // Ignore mapping lookup failures and keep OCR result usable.

@@ -11,7 +11,7 @@ Extract EVERY product. Never skip items. Return valid JSON only.`;
 // Uproszczony prompt ekstrakcyjny - tylko ekstrakcja, bez kategoryzacji
 // Kategoryzacja odbywa się w kodzie (parser.ts + categories.ts)
 export const EXTRACTION_PROMPT = `Extract ALL items from receipt image(s).
-For each item provide: description, amount (TOTAL price, not unit price).
+For each item provide: description, amount (TOTAL price, not unit price), category, subcategory.
 
 RULES:
 - If "2 x 4.99" then amount = "9.98" (multiply)
@@ -22,6 +22,8 @@ RULES:
 - totalAmount = sum of items (including negative discounts)
 - payableAmount = final amount to pay (may include deposits)
 - depositTotal = sum of deposits/kaucja
+- category and subcategory MUST be chosen from the CATEGORIES list below
+- Match the EXACT category and subcategory names from the list
 
 Works in: Polish, English, German, Czech, Slovak.
 
@@ -42,22 +44,26 @@ Return ONLY valid JSON:
     "depositTotal": "1.00",
     "items": [{
       "description": "Product name",
-      "amount": "9.99"
+      "amount": "9.99",
+      "category": "Żywność i napoje",
+      "subcategory": "Supermarket"
     }]
   }]
 }`;
 
 export function buildPrompt(compactCategories: string, documentText?: string): string {
-  // Używamy uproszczonego promptu ekstrakcyjnego
-  // Kategoryzacja jest wykonywana w kodzie (parser.ts + categories.ts)
+  const categoryBlock = compactCategories
+    ? `\n\nCATEGORIES:\n${compactCategories}`
+    : '';
+
   if (documentText) {
     return `Extract ALL items from the following receipt text.
     
 ${documentText}
 
-${EXTRACTION_PROMPT}`;
+${EXTRACTION_PROMPT}${categoryBlock}`;
   }
-  return EXTRACTION_PROMPT;
+  return `${EXTRACTION_PROMPT}${categoryBlock}`;
 }
 
 

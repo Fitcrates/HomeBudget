@@ -746,7 +746,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                 <div className="space-y-1.5">
                   {(["cache", "ai", "categorizing"] as const).map((stage) => {
                     const stageOrder = ["cache", "uploading", "ai", "categorizing", "done"] as const;
-                    const currentIdx = stageOrder.indexOf(processingStage);
+                    const currentIdx = stageOrder.indexOf(processingStage as typeof stageOrder[number]);
                     const thisIdx = stageOrder.indexOf(stage);
                     const isActive = processingStage === stage;
                     const isDone = currentIdx > thisIdx;
