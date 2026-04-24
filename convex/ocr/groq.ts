@@ -3,6 +3,9 @@
 import OpenAI from "openai";
 import { sleep } from "./utils";
 
+// Timeout for single AI call (30 seconds)
+const AI_CALL_TIMEOUT_MS = 30000;
+
 let cachedGeminiClient: OpenAI | null = null;
 
 function getGemini() {
@@ -16,8 +19,20 @@ function getGemini() {
   cachedGeminiClient = new OpenAI({
     baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
     apiKey,
+    timeout: AI_CALL_TIMEOUT_MS,
+    maxRetries: 0, // We handle retries ourselves
   });
   return cachedGeminiClient;
+}
+
+// Wrapper to add timeout to any promise
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`AI call timeout (${label}): ${timeoutMs}ms exceeded`)), timeoutMs)
+    ),
+  ]);
 }
 
 function extractStatusCode(error: any): number | null {
@@ -61,7 +76,12 @@ export async function createVisionCompletionWithRetry(
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      return await getGemini().chat.completions.create(request);
+      // Add timeout wrapper for each attempt
+      return await withTimeout(
+        getGemini().chat.completions.create(request),
+        AI_CALL_TIMEOUT_MS,
+        label
+      );
     } catch (error: any) {
       lastError = error;
       const retriable = isRetriableError(error);

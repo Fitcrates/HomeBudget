@@ -39,19 +39,25 @@ export const lookupMappingsBatch = internalQuery({
       return [];
     }
 
+    // Task 5: Priorytetyzacja learning - sort by usageCount (most used first)
     const results = await Promise.all(
       uniqueDescriptions.map(async (rawDescription) => {
-        const mapping = await ctx.db
+        const mappings = await ctx.db
           .query("product_mappings")
           .withIndex("by_household_and_raw", (q) =>
             q.eq("householdId", args.householdId).eq("rawDescription", rawDescription)
           )
-          .unique();
+          .collect();
 
-        if (!mapping) return null;
+        if (mappings.length === 0) return null;
+        
+        // Sort by usageCount descending - most frequently used mapping first
+        mappings.sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
+        const bestMapping = mappings[0];
+        
         return {
           rawDescription,
-          mapping,
+          mapping: bestMapping,
         };
       })
     );

@@ -179,6 +179,41 @@ async function processImagesWithAI(
   compactCategories: string,
   categoriesArray: any[]
 ): Promise<ProcessReceiptResult & { retryUsed: boolean }> {
+  // Input validation
+  if (!imageDataList || imageDataList.length === 0) {
+    console.warn("[OCR] No images provided");
+    return {
+      items: [],
+      rawText: "",
+      totalAmount: "",
+      payableAmount: "",
+      depositTotal: "",
+      modelUsed: VISION_MODEL,
+      receiptCount: 0,
+      receiptSummaries: [],
+      retryUsed: false,
+    };
+  }
+
+  // Validate each image has required fields
+  for (let i = 0; i < imageDataList.length; i++) {
+    const img = imageDataList[i];
+    if (!img?.base64 || !img?.mimeType) {
+      console.error(`[OCR] Invalid image at index ${i}: missing base64 or mimeType`);
+      return {
+        items: [],
+        rawText: "",
+        totalAmount: "",
+        payableAmount: "",
+        depositTotal: "",
+        modelUsed: VISION_MODEL,
+        receiptCount: 0,
+        receiptSummaries: [],
+        retryUsed: false,
+      };
+    }
+  }
+
   const pipelineStart = Date.now();
   const analyzeBatch = async (
     batch: ImageInput[],
@@ -213,7 +248,7 @@ async function processImagesWithAI(
       promptMs,
     });
 
-    let currentMaxTokens = 8192;
+    let currentMaxTokens = 65536;
     const initialVisionStart = Date.now();
     let response = await createVisionCompletionWithRetry({
       model: VISION_MODEL,
@@ -223,6 +258,7 @@ async function processImagesWithAI(
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: contentParts },
       ],
+      response_format: { type: "json_object" },
     }, `vision-batch:${batch.length}`);
     const initialVisionMs = Date.now() - initialVisionStart;
 
@@ -267,6 +303,7 @@ async function processImagesWithAI(
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: contentParts },
         ],
+        response_format: { type: "json_object" },
       }, `vision-truncation-retry:${batch.length}`);
       content = response.choices[0].message.content ?? "{}";
       const truncRetryMs = Date.now() - truncRetryStart;
@@ -292,27 +329,19 @@ async function processImagesWithAI(
       return expected > 0 && Math.abs(diff) > 0.05;
     });
 
-    const rawShouldRetryWithAI = suspiciousDuplicateReceipts.length > 0 || mismatchReceipts.some(
-      (receipt) =>
-        receipt.mismatchType === "missing_items" ||
-        receipt.mismatchType === "missing_discounts" ||
-        receipt.mismatchType === "unknown"
-    );
-    const maxMismatch = mismatchReceipts.reduce((max, receipt) => {
-      const diff = Math.abs(Number.parseFloat(receipt.difference || "0"));
-      return Math.max(max, diff);
-    }, 0);
+    // Calculate mismatch ratio for intelligent retry decision
     const initialQuality = summarizeResultQuality(parsed);
     const totalExpectedAmount = parsed.receiptSummaries.reduce((sum, receipt) => {
       const expected = Number.parseFloat(receipt.totalAmount || "0");
       return expected > 0 ? sum + expected : sum;
     }, 0);
     const mismatchRatio = totalExpectedAmount > 0 ? initialQuality.totalMismatchAbs / totalExpectedAmount : 0;
-    const shouldRetryWithAI = rawShouldRetryWithAI && (
-      suspiciousDuplicateReceipts.length > 0 ||
-      mismatchRatio > 0.1 ||
-      initialQuality.categorizedCount < initialQuality.itemCount
-    );
+    
+    // Task 3: Inteligentne retry - simplified logic
+    // Only retry if: (mismatch > 10% OR suspicious duplicates) AND imageCount <= 2
+    const imageCount = batch.length;
+    const hasSignificantMismatch = mismatchRatio > 0.1 || mismatchReceipts.length > 0;
+    const shouldRetryWithAI = enableRecoveryPasses && hasSignificantMismatch && imageCount <= 2;
 
     logOcrTiming(traceLabel, "initial_parse_completed", {
       initialParseMs,
@@ -320,10 +349,8 @@ async function processImagesWithAI(
       receiptGroups: parsed.receiptSummaries.length,
       suspiciousDuplicateReceipts: suspiciousDuplicateReceipts.length,
       mismatchedReceipts: mismatchReceipts.length,
-      maxMismatch,
       mismatchRatio,
       enableRecoveryPasses,
-      rawShouldRetryWithAI,
       shouldRetryWithAI,
       ...initialQuality,
     });
@@ -366,6 +393,7 @@ async function processImagesWithAI(
             content: `Wykryto rozbieznosci per paragon: ${mismatchHint}.${duplicateHint} Sprawdz osobne linie OPUST/RABAT/PRZECENA oraz KAUCJA/OPAKOWANIA ZWROTNE. Jesli rabat jest pokazany jako osobna linia, wolno zwrocic go jako osobna pozycje z UJEMNA kwota zamiast odejmowac od pierwszego produktu. Jedna linia z iloscia ma dawac jedna pozycje JSON z laczna kwota, a nie kilka duplikatow. Nie zmieniaj nazwy produktu na niepowiazany rzeczownik, jesli na paragonie widac np. piwo, nie wolno zwracac nawozu. totalAmount ma odpowiadac sumie items, a payableAmount moze byc wyzsze przez kaucje. Cena produktu = LACZNA cena do zaplaty, NIE cena za kg. Zwroc POPRAWIONY, PELNY JSON.`,
           },
         ],
+        response_format: { type: "json_object" },
       }, `vision-retry:${batch.length}`);
       const retryVisionMs = Date.now() - retryVisionStart;
 
@@ -567,87 +595,116 @@ async function processImagesWithAI(
     imageCount: imageDataList.length,
   });
 
-  const combined = await analyzeBatch(imageDataList, "ocr:images:combined");
-  logOcrTiming("ocr:images", "combined_completed", {
-    items: combined.items.length,
-    receiptGroups: combined.receiptSummaries.length,
-    retryUsed: combined.retryUsed,
-    totalMs: Date.now() - pipelineStart,
-  });
-
-  // Decide whether the combined result is acceptable or we need per-image fallback.
-  // Trigger fallback when: combined returned 0 items, OR combined was truncated with multi-image input.
-  const combinedQuality = summarizeResultQuality(combined);
-  const shouldFallbackToPerImage = imageDataList.length > 1 && (
-    combined.items.length === 0 ||
-    (combined as any).wasTruncated === true
-  );
-
-  if (!shouldFallbackToPerImage) {
-    logOcrTiming("ocr:images", "pipeline_completed", {
-      strategy: "combined",
-      imageCount: imageDataList.length,
-      totalMs: Date.now() - pipelineStart,
-      items: combined.items.length,
-      receiptGroups: combined.receiptSummaries.length,
-    });
-    return combined;
-  }
-
-  console.warn(`Combined OCR for ${imageDataList.length} images needs fallback (items=${combined.items.length}, truncated=${(combined as any).wasTruncated}). Falling back to per-image processing.`);
-  logOcrTiming("ocr:images", "per_image_fallback_started", {
-    imageCount: imageDataList.length,
-    elapsedMsBeforeFallback: Date.now() - pipelineStart,
-  });
-
-  const fallbackStart = Date.now();
-  const perImageSettled = await Promise.all(
+  // NEW ARCHITECTURE: Parallel per-image processing from the start
+  // This replaces the old "combined batch" approach that caused 40-80s for 2 images
+  const parallelStart = Date.now();
+  
+  const perImageResults = await Promise.all(
     imageDataList.map((image, index) =>
-      analyzeBatch([image], `ocr:images:fallback:${index + 1}`, {
-        enableRecoveryPasses: false,
+      analyzeBatch([image], `ocr:image:${index + 1}`, {
+        // Disable recovery passes for simple single-image cases - faster
+        enableRecoveryPasses: imageDataList.length <= 1,
       })
         .then((result) => ({ status: "fulfilled" as const, index, result }))
         .catch((error) => ({ status: "rejected" as const, index, error }))
     )
   );
-  const perImageResults: Array<ProcessReceiptResult & { retryUsed: boolean }> = [];
 
-  for (const entry of perImageSettled) {
+  // Collect successful results
+  const successfulResults: Array<ProcessReceiptResult & { retryUsed: boolean }> = [];
+  for (const entry of perImageResults) {
     if (entry.status === "rejected") {
-      console.error(`Per-image OCR fallback failed for image ${entry.index + 1}:`, entry.error);
+      console.error(`OCR failed for image ${entry.index + 1}:`, entry.error);
       continue;
     }
-
-    const result = entry.result;
-    if (result.items.length > 0 || result.receiptSummaries.some((summary) => summary.totalAmount || summary.payableAmount)) {
-      perImageResults.push(result);
+    if (entry.result.items.length > 0 || entry.result.receiptSummaries.some((s) => s.totalAmount || s.payableAmount)) {
+      successfulResults.push(entry.result);
     }
   }
 
-  logOcrTiming("ocr:images", "per_image_fallback_completed", {
+  const parallelMs = Date.now() - parallelStart;
+  logOcrTiming("ocr:images", "parallel_completed", {
     imageCount: imageDataList.length,
-    successfulImages: perImageResults.length,
-    failedImages: perImageSettled.filter((entry) => entry.status === "rejected").length,
-    fallbackMs: Date.now() - fallbackStart,
+    successfulImages: successfulResults.length,
+    failedImages: perImageResults.length - successfulResults.length,
+    parallelMs,
   });
 
-  if (perImageResults.length === 0) {
+  // If all images failed, return empty result
+  if (successfulResults.length === 0) {
     logOcrTiming("ocr:images", "pipeline_completed", {
-      strategy: "combined_empty",
-      imageCount: imageDataList.length,
+      strategy: "all_failed",
       totalMs: Date.now() - pipelineStart,
-      items: combined.items.length,
-      receiptGroups: combined.receiptSummaries.length,
     });
-    return combined;
+    return {
+      items: [],
+      rawText: "",
+      totalAmount: "",
+      payableAmount: "",
+      depositTotal: "",
+      modelUsed: VISION_MODEL,
+      receiptCount: 0,
+      receiptSummaries: [],
+      retryUsed: false,
+    };
   }
 
-  const merged = mergeBatchResults(perImageResults, {
+  // Merge results from all images
+  const merged = mergeBatchResults(successfulResults, {
     combineIntoSingleReceipt: true,
   });
+
+  // Check if we need a recovery pass on merged results (for multi-image receipts with sum mismatch)
+  // Only for 2+ images where we have meaningful data
+  if (imageDataList.length >= 2 && merged.items.length > 0) {
+    const mismatchReceipts = merged.receiptSummaries.filter((receipt) => {
+      const expected = Number.parseFloat(receipt.totalAmount || "0");
+      const diff = Number.parseFloat(receipt.difference || "0");
+      return expected > 0 && Math.abs(diff) > 0.05;
+    });
+
+    const totalExpected = merged.receiptSummaries.reduce((sum, r) => {
+      const expected = Number.parseFloat(r.totalAmount || "0");
+      return expected > 0 ? sum + expected : sum;
+    }, 0);
+    
+    const mergedQuality = summarizeResultQuality(merged);
+    const mismatchRatio = totalExpected > 0 ? mergedQuality.totalMismatchAbs / totalExpected : 0;
+
+    // Only retry if mismatch is significant (>10%) and we have 2 images max
+    if (mismatchRatio > 0.1 && imageDataList.length <= 2) {
+      console.log(`[OCR] Merged result has mismatch ratio ${mismatchRatio.toFixed(2)}, attempting recovery...`);
+      
+      // Retry with all images combined using smart model
+      const recoveryStart = Date.now();
+      const recoveryResult = await analyzeBatch(imageDataList, "ocr:recovery", {
+        enableRecoveryPasses: true,
+      });
+      
+      const recoveryMs = Date.now() - recoveryStart;
+      logOcrTiming("ocr:images", "recovery_completed", {
+        recoveryMs,
+        itemsBefore: merged.items.length,
+        itemsAfter: recoveryResult.items.length,
+      });
+
+      // Use recovery result if it's better
+      const recoveryQuality = summarizeResultQuality(recoveryResult);
+      if (recoveryQuality.totalMismatchAbs < mergedQuality.totalMismatchAbs ||
+          recoveryQuality.categorizedCount > mergedQuality.categorizedCount) {
+        logOcrTiming("ocr:images", "pipeline_completed", {
+          strategy: "parallel_with_recovery",
+          totalMs: Date.now() - pipelineStart,
+          items: recoveryResult.items.length,
+          receiptGroups: recoveryResult.receiptSummaries.length,
+        });
+        return { ...recoveryResult, retryUsed: true };
+      }
+    }
+  }
+
   logOcrTiming("ocr:images", "pipeline_completed", {
-    strategy: "per_image_fallback",
-    imageCount: imageDataList.length,
+    strategy: "parallel",
     totalMs: Date.now() - pipelineStart,
     items: merged.items.length,
     receiptGroups: merged.receiptSummaries.length,
@@ -696,11 +753,12 @@ async function auditReceiptWithAI(
   const response = await createVisionCompletionWithRetry({
     model: VISION_MODEL_SMART,
     temperature: 0.0,
-    max_tokens: 8192,
+    max_tokens: 65536,
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: contentParts },
     ],
+    response_format: { type: "json_object" },
   }, `vision-audit:${imageDataList.length}`);
   const visionMs = Date.now() - visionStart;
 

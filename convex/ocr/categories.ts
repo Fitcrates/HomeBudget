@@ -3,6 +3,11 @@
 import { CategoryResolution } from "./types";
 import { stripDiacritics } from "./utils";
 
+// Simple in-memory cache for heuristic category resolution
+// Key: description + receiptContext, Value: cached resolution
+const heuristicCache = new Map<string, CategoryResolution | null>();
+const HEURISTIC_CACHE_MAX_SIZE = 200;
+
 const CATEGORY = {
   FOOD: "Zywnosc i napoje",
   HOUSEHOLD: "Chemia domowa i higiena",
@@ -223,6 +228,13 @@ export function resolveHeuristicCategory(
   categoriesArray: any[],
   receiptContextText?: string
 ): CategoryResolution | null {
+  // Check cache first
+  const cacheKey = `${description}|${receiptContextText || ""}`;
+  const cached = heuristicCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+
   const text = stripDiacritics(description);
   const receiptContext = stripDiacritics(receiptContextText || "");
   const combinedContext = `${receiptContext} ${text}`.trim();
@@ -240,6 +252,8 @@ export function resolveHeuristicCategory(
   const isPetIssuer = has(receiptContext, /(zoo|pet|kakadu|maxi zoo|weteryn)/i);
   const isHomeIssuer = has(receiptContext, /(castorama|leroy|obi|ikea|jysk|agata|mebl|ogrodnicz|bricomarche|pepco|action|homla|home&you)/i);
   const isClothingIssuer = has(receiptContext, /(hm\b|h&m|reserved|cropp|house\b|sinsay|zara|mohito|ccc|deichmann|halfprice|tk maxx|answear|zalando|eobuwie|modivo)/i);
+  // Task 4: Wykrywanie używanej odzieży
+  const isUsedClothing = has(receiptContext, /\b(uzyw|used|second.?hand|outlet|stock|deca)\b/i);
   const isBookIssuer = has(receiptContext, /(empik|matras|swiat ksiazki|bookstore|ksiegarnia)/i);
   const isToyIssuer = has(receiptContext, /(smyk|toys|zabawki|lego store)/i);
   const isElectronicsIssuer = has(receiptContext, /(media expert|media markt|rtv euro agd|x-kom|komputronik|apple|samsung|morele|neonet)/i);
@@ -411,6 +425,20 @@ export function resolveHeuristicCategory(
   }
   if (isDrugstoreIssuer && has(combinedContext, /\b(podklad|tusz|pomadka|roz|eyeliner|makijaz)\b/i)) {
     return resolve(CATEGORY.HEALTH, SUB.kosmetyki, categoriesArray);
+  }
+
+  // Task 4: Wykrywanie używanej odzieży - before regular clothing detection
+  if (isUsedClothing) {
+    const result = has(combinedContext, /\b(dzieci|child|kid|baby|niemowle)\b/i)
+      ? resolve(CATEGORY.CLOTHES, SUB.odziezDziecieca, categoriesArray)
+      : resolve(CATEGORY.CLOTHES, SUB.odziez, categoriesArray);
+    // Cache result
+    if (heuristicCache.size >= HEURISTIC_CACHE_MAX_SIZE) {
+      const firstKey = heuristicCache.keys().next().value;
+      if (firstKey) heuristicCache.delete(firstKey);
+    }
+    heuristicCache.set(cacheKey, result);
+    return result;
   }
 
   if (isClothingIssuer || has(combinedContext, /\b(kurtka|bluza|spodnie|sukienka|koszula|t-shirt|sweter)\b/i)) {
@@ -612,6 +640,14 @@ export function resolveHeuristicCategory(
     }
     return resolve(CATEGORY.HOUSEHOLD, SUB.higienaOsobista, categoriesArray);
   }
+
+  // Cache the result (including null for no match)
+  if (heuristicCache.size >= HEURISTIC_CACHE_MAX_SIZE) {
+    // Clear oldest entries when cache is full
+    const firstKey = heuristicCache.keys().next().value;
+    if (firstKey) heuristicCache.delete(firstKey);
+  }
+  heuristicCache.set(cacheKey, null);
 
   return null;
 }
