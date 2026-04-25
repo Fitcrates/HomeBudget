@@ -66,6 +66,21 @@ const GENERIC_HEURISTIC_SUBCATEGORY_NAMES = new Set([
   "rozne",
 ]);
 
+function findFallbackCategory(categoriesArray: any[]): { categoryId: string | null; subcategoryId: string | null } {
+  const category =
+    categoriesArray.find((entry: any) => stripDiacritics(asString(entry?.name)) === "inne") ??
+    categoriesArray[categoriesArray.length - 1];
+  const subcategories = Array.isArray(category?.subcategories) ? category.subcategories : [];
+  const subcategory =
+    subcategories.find((entry: any) => stripDiacritics(asString(entry?.name)) === "rozne") ??
+    subcategories[0];
+
+  return {
+    categoryId: category?._id ?? null,
+    subcategoryId: subcategory?._id ?? null,
+  };
+}
+
 function findSubcategoryNameById(categoriesArray: any[], subcategoryId: string | null | undefined): string | null {
   if (!subcategoryId) return null;
 
@@ -371,6 +386,12 @@ export async function parseAndNormalizeResponse(
               resolvedByHeuristicCount++;
             }
           }
+
+          if (!item.categoryId || !item.subcategoryId) {
+            const fallback = findFallbackCategory(categoriesArray);
+            item.categoryId = fallback.categoryId;
+            item.subcategoryId = fallback.subcategoryId;
+          }
         } catch {
           // Ignore mapping lookup failures and keep OCR result usable.
         }
@@ -412,6 +433,12 @@ export async function parseAndNormalizeResponse(
         if (previousPositive?.categoryId) {
           item.categoryId = previousPositive.categoryId;
           item.subcategoryId = previousPositive.subcategoryId;
+        }
+
+        if (!item.categoryId || !item.subcategoryId) {
+          const fallback = findFallbackCategory(categoriesArray);
+          item.categoryId = fallback.categoryId;
+          item.subcategoryId = fallback.subcategoryId;
         }
       }
     };

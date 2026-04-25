@@ -3,8 +3,11 @@
 import OpenAI from "openai";
 import { sleep } from "./utils";
 
-// Timeout for single AI call (30 seconds)
-const AI_CALL_TIMEOUT_MS = 30000;
+// Keep OCR responsive. A timed out vision call is already too slow for the scan flow,
+// so callers can opt into a retry only where the extra latency is worth it.
+const AI_CALL_TIMEOUT_MS = 12000;
+const AI_CLIENT_TIMEOUT_MS = 20000;
+const DEFAULT_MAX_ATTEMPTS = 2;
 
 let cachedGeminiClient: OpenAI | null = null;
 
@@ -19,7 +22,7 @@ function getGemini() {
   cachedGeminiClient = new OpenAI({
     baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
     apiKey,
-    timeout: AI_CALL_TIMEOUT_MS,
+    timeout: AI_CLIENT_TIMEOUT_MS,
     maxRetries: 0, // We handle retries ourselves
   });
   return cachedGeminiClient;
@@ -70,8 +73,14 @@ function isRetriableError(error: any): boolean {
 export async function createVisionCompletionWithRetry(
   request: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
   label: string,
-  maxAttempts = 4
+  retryOptions: number | { maxAttempts?: number; timeoutMs?: number } = {}
 ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+  const maxAttempts = typeof retryOptions === "number"
+    ? retryOptions
+    : retryOptions.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
+  const timeoutMs = typeof retryOptions === "number"
+    ? AI_CALL_TIMEOUT_MS
+    : retryOptions.timeoutMs ?? AI_CALL_TIMEOUT_MS;
   let lastError: unknown = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -79,7 +88,7 @@ export async function createVisionCompletionWithRetry(
       // Add timeout wrapper for each attempt
       return await withTimeout(
         getGemini().chat.completions.create(request),
-        AI_CALL_TIMEOUT_MS,
+        timeoutMs,
         label
       );
     } catch (error: any) {
@@ -99,7 +108,7 @@ export async function createVisionCompletionWithRetry(
         break;
       }
 
-      let delayMs = 1200 * Math.pow(2, attempt - 1);
+      let delayMs = 800 * Math.pow(2, attempt - 1);
       const match = String(error?.message || "").match(/try again in ([\d.]+)s/);
       if (match && match[1]) {
         const requestedWaitMs = Math.ceil(parseFloat(match[1]) * 1000) + 500;

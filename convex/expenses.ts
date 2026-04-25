@@ -24,6 +24,31 @@ function hasSubscriptionDuplicate(
   );
 }
 
+async function assertCategorySelectionForHousehold(
+  ctx: any,
+  householdId: unknown,
+  categoryId: unknown,
+  subcategoryId: unknown
+) {
+  const [category, subcategory] = await Promise.all([
+    ctx.db.get(categoryId),
+    ctx.db.get(subcategoryId),
+  ]);
+
+  if (!category || !subcategory) {
+    throw new Error("Nieprawidlowa kategoria lub podkategoria.");
+  }
+  if (!category.isSystem && category.householdId !== householdId) {
+    throw new Error("Kategoria nie nalezy do tego gospodarstwa.");
+  }
+  if (!subcategory.isSystem && subcategory.householdId !== householdId) {
+    throw new Error("Podkategoria nie nalezy do tego gospodarstwa.");
+  }
+  if (subcategory.categoryId !== categoryId) {
+    throw new Error("Podkategoria nie nalezy do wybranej kategorii.");
+  }
+}
+
 export const list = query({
   args: {
     householdId: v.id("households"),
@@ -175,6 +200,10 @@ export const createMany = mutation({
 
     if (args.items.length === 0) return { insertedIds: [], insertedCount: 0 };
 
+    for (const item of args.items) {
+      await assertCategorySelectionForHousehold(ctx, args.householdId, item.categoryId, item.subcategoryId);
+    }
+
     const monthKeys = new Set(args.items.map((item) => {
       const date = new Date(item.date);
       return `${date.getFullYear()}-${date.getMonth()}`;
@@ -313,6 +342,10 @@ export const update = mutation({
     const expense = await ctx.db.get(args.expenseId);
     if (!expense) throw new Error("Expense not found");
     await assertMember(ctx, expense.householdId, userId);
+
+    const nextCategoryId = args.categoryId ?? expense.categoryId;
+    const nextSubcategoryId = args.subcategoryId ?? expense.subcategoryId;
+    await assertCategorySelectionForHousehold(ctx, expense.householdId, nextCategoryId, nextSubcategoryId);
 
     const nextAmount = args.amount ?? expense.amount;
     const nextDate = args.date ?? expense.date;

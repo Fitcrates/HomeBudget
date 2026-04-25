@@ -6,7 +6,6 @@ import { v } from "convex/values";
 import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { buildCompactCategoryList } from "./ocr/categories";
 import { createVisionCompletionWithRetry } from "./ocr/groq";
 import {
   enrichReceiptSummariesWithValidation,
@@ -106,10 +105,59 @@ function shouldPreferRecoveryCandidate(current: ProcessReceiptResult, candidate:
   return false;
 }
 
+function parsePositiveAmount(value: string | undefined) {
+  const amount = Number.parseFloat(value || "0");
+  return amount > 0 ? amount : 0;
+}
+
+function chooseCombinedExpectedTotal(summaries: ReceiptSummary[], fallbackItemsTotal: number) {
+  const totals = summaries
+    .map((summary) => parsePositiveAmount(summary.totalAmount))
+    .filter((amount) => amount > 0);
+
+  if (totals.length === 0) {
+    return fallbackItemsTotal > 0 ? fallbackItemsTotal : 0;
+  }
+
+  if (totals.length === 1) {
+    return totals[0];
+  }
+
+  const sum = totals.reduce((accumulator, amount) => accumulator + amount, 0);
+  const max = Math.max(...totals);
+
+  // Split photos of one long receipt often repeat the final receipt total on one
+  // image, while separate receipts usually have different labels/totals. If the
+  // summed expected total is wildly above extracted items, prefer the max total.
+  if (fallbackItemsTotal > 0 && sum > fallbackItemsTotal * 1.35 && max <= fallbackItemsTotal * 1.15) {
+    return max;
+  }
+
+  return sum;
+}
+
+function chooseCombinedPayableAmount(summaries: ReceiptSummary[], expectedTotal: number) {
+  const payableAmounts = summaries
+    .map((summary) => parsePositiveAmount(summary.payableAmount))
+    .filter((amount) => amount > 0);
+  if (payableAmounts.length === 0) return 0;
+
+  const sum = payableAmounts.reduce((accumulator, amount) => accumulator + amount, 0);
+  const max = Math.max(...payableAmounts);
+  if (expectedTotal > 0 && sum > expectedTotal * 1.35 && max <= expectedTotal * 1.15) {
+    return max;
+  }
+  return sum;
+}
+
 const OCR_UPLOAD_MAX_DIMENSION = 1800;
 const OCR_UPLOAD_WEBP_QUALITY = 82;
 const OCR_UPLOAD_WEBP_EFFORT = 4;
 const OCR_UPLOAD_MAX_INPUT_PIXELS = 40_000_000;
+const OCR_FAST_MAX_TOKENS = 8192;
+const OCR_RECOVERY_MAX_TOKENS = 16384;
+const OCR_FAST_TIMEOUT_MS = 9000;
+const OCR_RECOVERY_TIMEOUT_MS = 16000;
 const require = createRequire(import.meta.url);
 
 let sharpFactory: typeof import("sharp") | null = null;
@@ -220,9 +268,11 @@ async function processImagesWithAI(
     traceLabel: string,
     options?: {
       enableRecoveryPasses?: boolean;
+      enableAuditPass?: boolean;
     }
   ): Promise<ProcessReceiptResult & { retryUsed: boolean }> => {
     const enableRecoveryPasses = options?.enableRecoveryPasses ?? true;
+    const enableAuditPass = options?.enableAuditPass ?? false;
     const batchStart = Date.now();
     const promptStart = Date.now();
     const prompt = buildPrompt(compactCategories);
@@ -248,7 +298,7 @@ async function processImagesWithAI(
       promptMs,
     });
 
-    let currentMaxTokens = 65536;
+    let currentMaxTokens = OCR_FAST_MAX_TOKENS;
     const initialVisionStart = Date.now();
     let response = await createVisionCompletionWithRetry({
       model: VISION_MODEL,
@@ -259,7 +309,10 @@ async function processImagesWithAI(
         { role: "user", content: contentParts },
       ],
       response_format: { type: "json_object" },
-    }, `vision-batch:${batch.length}`);
+    }, `vision-batch:${batch.length}`, {
+      maxAttempts: 1,
+      timeoutMs: OCR_FAST_TIMEOUT_MS,
+    });
     const initialVisionMs = Date.now() - initialVisionStart;
 
     let content = response.choices[0].message.content ?? "{}";
@@ -292,7 +345,7 @@ async function processImagesWithAI(
     // Auto-retry with higher token limit if output was truncated
     if (parsed.wasTruncated || finishReason === "length") {
       console.warn(`[OCR] Output truncated (finishReason=${finishReason}). Retrying with higher max_tokens.`);
-      currentMaxTokens = 16384;
+      currentMaxTokens = OCR_RECOVERY_MAX_TOKENS;
       retryUsed = true;
       const truncRetryStart = Date.now();
       response = await createVisionCompletionWithRetry({
@@ -304,7 +357,10 @@ async function processImagesWithAI(
           { role: "user", content: contentParts },
         ],
         response_format: { type: "json_object" },
-      }, `vision-truncation-retry:${batch.length}`);
+      }, `vision-truncation-retry:${batch.length}`, {
+        maxAttempts: 1,
+        timeoutMs: OCR_RECOVERY_TIMEOUT_MS,
+      });
       content = response.choices[0].message.content ?? "{}";
       const truncRetryMs = Date.now() - truncRetryStart;
       logOcrTiming(traceLabel, "truncation_retry_completed", {
@@ -383,7 +439,7 @@ async function processImagesWithAI(
       response = await createVisionCompletionWithRetry({
         model: VISION_MODEL_SMART,
         temperature: 0.0,
-        max_tokens: currentMaxTokens,
+        max_tokens: OCR_RECOVERY_MAX_TOKENS,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: contentParts },
@@ -394,7 +450,10 @@ async function processImagesWithAI(
           },
         ],
         response_format: { type: "json_object" },
-      }, `vision-retry:${batch.length}`);
+      }, `vision-retry:${batch.length}`, {
+        maxAttempts: 1,
+        timeoutMs: OCR_RECOVERY_TIMEOUT_MS,
+      });
       const retryVisionMs = Date.now() - retryVisionStart;
 
       content = response.choices[0].message.content ?? "{}";
@@ -443,7 +502,7 @@ async function processImagesWithAI(
       currentQualityForAudit.categorizedCount < currentQualityForAudit.itemCount
     );
 
-    if (enableRecoveryPasses && stillNeedsAudit) {
+    if (enableRecoveryPasses && enableAuditPass && stillNeedsAudit) {
       retryUsed = true;
       const auditStart = Date.now();
       const auditCandidate = await auditReceiptWithAI(
@@ -551,29 +610,32 @@ async function processImagesWithAI(
         (sum, summary) => sum + (Number.parseFloat(summary.depositTotal || "0") || 0),
         0
       );
+      const expectedTotalValue = chooseCombinedExpectedTotal(mergedSummaries, mergedItemsTotal);
+      const payableTotalValue = chooseCombinedPayableAmount(mergedSummaries, expectedTotalValue);
 
       const singleSummary: ReceiptSummary = {
         receiptIndex: 0,
         receiptLabel,
-        totalAmount: mergedItemsTotal > 0 ? mergedItemsTotal.toFixed(2) : "",
-        payableAmount: "",
+        totalAmount: expectedTotalValue > 0 ? expectedTotalValue.toFixed(2) : "",
+        payableAmount: payableTotalValue > 0 ? payableTotalValue.toFixed(2) : "",
         depositTotal: depositTotalValue > 0 ? depositTotalValue.toFixed(2) : "",
         sourceImageIndex: null,
       };
+      const remappedItems = mergedItems.map((item) => ({
+        ...item,
+        receiptIndex: 0,
+        receiptLabel,
+      }));
 
       return {
-        items: mergedItems.map((item) => ({
-          ...item,
-          receiptIndex: 0,
-          receiptLabel,
-        })),
+        items: remappedItems,
         rawText: rawLabels.join(" | "),
         totalAmount: singleSummary.totalAmount,
-        payableAmount: "",
+        payableAmount: singleSummary.payableAmount,
         depositTotal: singleSummary.depositTotal,
         modelUsed: VISION_MODEL,
         receiptCount: 1,
-        receiptSummaries: enrichReceiptSummariesWithValidation([singleSummary], mergedItems),
+        receiptSummaries: enrichReceiptSummariesWithValidation([singleSummary], remappedItems),
         retryUsed,
       };
     }
@@ -603,7 +665,7 @@ async function processImagesWithAI(
     imageDataList.map((image, index) =>
       analyzeBatch([image], `ocr:image:${index + 1}`, {
         // Disable recovery passes for simple single-image cases - faster
-        enableRecoveryPasses: imageDataList.length <= 1,
+        enableRecoveryPasses: false,
       })
         .then((result) => ({ status: "fulfilled" as const, index, result }))
         .catch((error) => ({ status: "rejected" as const, index, error }))
@@ -636,17 +698,7 @@ async function processImagesWithAI(
       strategy: "all_failed",
       totalMs: Date.now() - pipelineStart,
     });
-    return {
-      items: [],
-      rawText: "",
-      totalAmount: "",
-      payableAmount: "",
-      depositTotal: "",
-      modelUsed: VISION_MODEL,
-      receiptCount: 0,
-      receiptSummaries: [],
-      retryUsed: false,
-    };
+    throw new Error("OCR nie zwrocil wyniku dla zadnego obrazu. Sprobuj ponownie za chwile albo dodaj wyrazniejsze zdjecie.");
   }
 
   // Merge results from all images
@@ -654,9 +706,8 @@ async function processImagesWithAI(
     combineIntoSingleReceipt: true,
   });
 
-  // Check if we need a recovery pass on merged results (for multi-image receipts with sum mismatch)
-  // Only for 2+ images where we have meaningful data
-  if (imageDataList.length >= 2 && merged.items.length > 0) {
+  // Check if we need a recovery pass on merged results (only when totals are materially off).
+  if (merged.items.length > 0) {
     const mismatchReceipts = merged.receiptSummaries.filter((receipt) => {
       const expected = Number.parseFloat(receipt.totalAmount || "0");
       const diff = Number.parseFloat(receipt.difference || "0");
@@ -679,6 +730,7 @@ async function processImagesWithAI(
       const recoveryStart = Date.now();
       const recoveryResult = await analyzeBatch(imageDataList, "ocr:recovery", {
         enableRecoveryPasses: true,
+        enableAuditPass: false,
       });
       
       const recoveryMs = Date.now() - recoveryStart;
@@ -753,13 +805,16 @@ async function auditReceiptWithAI(
   const response = await createVisionCompletionWithRetry({
     model: VISION_MODEL_SMART,
     temperature: 0.0,
-    max_tokens: 65536,
+    max_tokens: OCR_RECOVERY_MAX_TOKENS,
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: contentParts },
     ],
     response_format: { type: "json_object" },
-  }, `vision-audit:${imageDataList.length}`);
+  }, `vision-audit:${imageDataList.length}`, {
+    maxAttempts: 1,
+    timeoutMs: OCR_RECOVERY_TIMEOUT_MS,
+  });
   const visionMs = Date.now() - visionStart;
 
   const content = response.choices[0].message.content ?? "{}";
@@ -811,12 +866,15 @@ async function processTextWithAI(
   const response = await createVisionCompletionWithRetry({
     model: VISION_MODEL,
     temperature: 0.0,
-    max_tokens: 8192,
+    max_tokens: OCR_FAST_MAX_TOKENS,
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: prompt },
     ],
-  }, "text-ocr");
+  }, "text-ocr", {
+    maxAttempts: 1,
+    timeoutMs: OCR_FAST_TIMEOUT_MS,
+  });
   const visionMs = Date.now() - visionStart;
 
   const content = response.choices[0].message.content ?? "{}";
@@ -1101,7 +1159,7 @@ export const processEmailAttachments = internalAction({
       throw new Error("Brak kategorii dla gospodarstwa.");
     }
 
-    const compactCategories = buildCompactCategoryList(categoriesArray);
+    const compactCategories = "";
     const partialResults: ProcessReceiptResult[] = [];
     let receiptOffset = 0;
 
@@ -1187,7 +1245,7 @@ export const processEmailBodyText = internalAction({
       throw new Error("Brak kategorii dla gospodarstwa.");
     }
 
-    const compactCategories = buildCompactCategoryList(categoriesArray);
+    const compactCategories = "";
     return await processTextWithAI(ctx, args.householdId, args.text, compactCategories, categoriesArray);
   },
 });
@@ -1289,7 +1347,6 @@ export const optimizeReceiptUploads = action({
 export const processReceiptWithAI = action({
   args: {
     storageIds: v.array(v.id("_storage")),
-    categories: v.any(),
     householdId: v.id("households"),
     isPdf: v.optional(v.boolean()),
   },
@@ -1306,7 +1363,7 @@ export const processReceiptWithAI = action({
         throw new Error("Nie przesłano żadnych plików.");
       }
 
-      const categoriesArray = Array.isArray(args.categories) ? args.categories : [];
+      const categoriesArray = await listCategoriesForHouseholdInternal(ctx, args.householdId);
       if (categoriesArray.length === 0) {
         throw new Error("Brak kategorii.");
       }
@@ -1315,12 +1372,7 @@ export const processReceiptWithAI = action({
         elapsedMs: Date.now() - startTime,
       });
 
-      const compactCategoriesStart = Date.now();
-      const compactCategories = buildCompactCategoryList(categoriesArray);
-      logOcrTiming("ocr:action", "category_prompt_built", {
-        compactCategoriesLength: compactCategories.length,
-        buildMs: Date.now() - compactCategoriesStart,
-      });
+      const compactCategories = "";
       const imageLoadStart = Date.now();
 
       const imageLoadResults = await Promise.all(

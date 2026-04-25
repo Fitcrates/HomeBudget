@@ -12,12 +12,12 @@ import {
 
 export function isDiscountLikeDescription(description: string): boolean {
   const text = stripDiacritics(description);
-  return /(rabat|opust|promoc|kupon|coupon|bonifikat|znizk|obnizk|program|lojalnosc|aplikacj|karta|taniej|minus)/i.test(text);
+  return /(rabat|opust|kupon|coupon|bonifikat|znizk|obnizk|taniej|minus|przecen)/i.test(text);
 }
 
 export function isDepositLikeDescription(description: string): boolean {
   const text = stripDiacritics(description);
-  return /(kaucj|opakowan|zwrotn|butelk|puszk)/i.test(text);
+  return /(kaucj|opakowan(?:ie|ia)?\s+zwrotn|zwrotn(?:a|e)?\s+(?:butelk|puszk|opakowan))/i.test(text);
 }
 
 export function isTechnicalLine(description: string): boolean {

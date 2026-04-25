@@ -4,6 +4,20 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { assertMember } from "./households";
 import { internal } from "./_generated/api";
 
+function visibleSubcategoriesForHousehold(subcategories: any[], householdId: unknown) {
+  return subcategories
+    .filter((sub) => sub.isSystem || sub.householdId === householdId)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+function assertHouseholdOwned(record: { householdId?: unknown; isSystem?: boolean } | null, householdId: unknown) {
+  if (!record) throw new Error("Record not found");
+  if (record.isSystem) return;
+  if (record.householdId !== householdId) {
+    throw new Error("Record does not belong to this household");
+  }
+}
+
 export const listForHousehold = query({
   args: { householdId: v.id("households") },
   handler: async (ctx, args) => {
@@ -34,7 +48,7 @@ export const listForHousehold = query({
           .query("subcategories")
           .withIndex("by_category", (q) => q.eq("categoryId", cat._id))
           .collect();
-        return { ...cat, subcategories: subs.sort((a, b) => a.sortOrder - b.sortOrder) };
+        return { ...cat, subcategories: visibleSubcategoriesForHousehold(subs, args.householdId) };
       })
     );
   },
@@ -63,7 +77,7 @@ export const listForHouseholdInternal = internalQuery({
           .query("subcategories")
           .withIndex("by_category", (q) => q.eq("categoryId", cat._id))
           .collect();
-        return { ...cat, subcategories: subs.sort((a, b) => a.sortOrder - b.sortOrder) };
+        return { ...cat, subcategories: visibleSubcategoriesForHousehold(subs, args.householdId) };
       })
     );
   },
@@ -125,6 +139,7 @@ export const updateCategory = mutation({
     const cat = await ctx.db.get(args.categoryId);
     if (!cat) throw new Error("Category not found");
     if (cat.isSystem) throw new Error("Cannot edit system categories");
+    assertHouseholdOwned(cat, args.householdId);
 
     const { categoryId, householdId, ...updates } = args;
     await ctx.db.patch(args.categoryId, updates);
@@ -144,6 +159,7 @@ export const deleteCategory = mutation({
     const cat = await ctx.db.get(args.categoryId);
     if (!cat) throw new Error("Category not found");
     if (cat.isSystem) throw new Error("Cannot delete system categories");
+    assertHouseholdOwned(cat, args.householdId);
 
     // Delete subcategories
     const subs = await ctx.db
@@ -167,6 +183,10 @@ export const createSubcategory = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
     await assertMember(ctx, args.householdId, userId);
+
+    const category = await ctx.db.get(args.categoryId);
+    if (!category) throw new Error("Category not found");
+    assertHouseholdOwned(category, args.householdId);
 
     return await ctx.db.insert("subcategories", {
       categoryId: args.categoryId,
@@ -194,6 +214,7 @@ export const updateSubcategory = mutation({
     const sub = await ctx.db.get(args.subcategoryId);
     if (!sub) throw new Error("Subcategory not found");
     if (sub.isSystem) throw new Error("Cannot edit system subcategories");
+    assertHouseholdOwned(sub, args.householdId);
 
     const { subcategoryId, householdId, ...updates } = args;
     await ctx.db.patch(args.subcategoryId, updates);
@@ -213,6 +234,7 @@ export const deleteSubcategory = mutation({
     const sub = await ctx.db.get(args.subcategoryId);
     if (!sub) throw new Error("Subcategory not found");
     if (sub.isSystem) throw new Error("Cannot delete system subcategories");
+    assertHouseholdOwned(sub, args.householdId);
 
     await ctx.db.delete(args.subcategoryId);
   },

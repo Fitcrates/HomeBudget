@@ -99,7 +99,7 @@ interface ProcessReceiptResult {
 }
 
 const PDF_MIME = "application/pdf";
-const OCR_CACHE_VERSION = "v4";
+const OCR_CACHE_VERSION = "v5";
 const OCR_CACHE_PREFIX = `homebudget:ocr-cache:${OCR_CACHE_VERSION}:`;
 const OCR_CACHE_INDEX_KEY = `${OCR_CACHE_PREFIX}index`;
 const OCR_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
@@ -160,6 +160,9 @@ function readCachedOcrResult(cacheKey: string, now: number): ProcessReceiptResul
 }
 
 function writeCachedOcrResult(cacheKey: string, result: ProcessReceiptResult, now: number) {
+  const items = Array.isArray(result?.items) ? result.items : [];
+  if (items.length === 0) return;
+
   try {
     const payload: CachedOcrPayload = {
       createdAt: now,
@@ -215,7 +218,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
   const categories = useQuery(api.categories.listForHousehold, { householdId });
   const createExpensesMany = useMutation(api.expenses.createMany);
   const generateUploadUrl = useMutation(api.expenses.generateUploadUrl);
-  const upsertMapping = useMutation(api.productMappings.upsertMapping);
+  const upsertMappingsBatch = useMutation(api.productMappings.upsertMappingsBatch);
 
   const hasPdf = currentMimeTypes.some((t) => t === PDF_MIME) ||
     previewTypes.some((t) => t === PDF_MIME);
@@ -379,13 +382,17 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
       setProcessingStage("ai");
       const result = (await processAI({
         storageIds: currentStorageIds,
-        categories,
         householdId,
         isPdf: false,
       })) as ProcessReceiptResult;
 
       setProcessingStage("categorizing");
-      writeCachedOcrResult(cacheKey, result, now);
+      const resultHasMismatch = Array.isArray(result?.receiptSummaries)
+        ? result.receiptSummaries.some((receipt) => receipt.mismatchType && receipt.mismatchType !== "ok")
+        : false;
+      if (!resultHasMismatch) {
+        writeCachedOcrResult(cacheKey, result, now);
+      }
       setProcessingStage("done");
       applyOcrResult(result, false);
     } catch (err: any) {
@@ -482,18 +489,17 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
         items: payloadItems,
       });
 
-      for (const item of sortedItems) {
-        // Loop: Save user corrections for future auto-mapping
-        if (item.originalRawDescription) {
-          await upsertMapping({
-            householdId,
-            rawDescription: item.originalRawDescription,
+      await upsertMappingsBatch({
+        householdId,
+        items: sortedItems
+          .filter((item) => Boolean(item.originalRawDescription))
+          .map((item) => ({
+            rawDescription: item.originalRawDescription!,
             correctedDescription: item.description,
             categoryId: item.categoryId!,
-            subcategoryId: item.subcategoryId!
-          });
-        }
-      }
+            subcategoryId: item.subcategoryId!,
+          })),
+      });
 
       const receiptLabel = processedReceipts > 1
         ? `${processedReceipts} paragonów`

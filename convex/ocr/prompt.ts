@@ -1,17 +1,17 @@
 "use node";
 
-// Tier 1: Szybki model do ekstrakcji OCR (wizja → JSON). Używany w ~80-90% scanów.
+// Tier 1: fast, low-cost vision extraction model.
 export const VISION_MODEL = "gemini-2.5-flash-lite";
-// Tier 2: Model z myśleniem do korekty i audytu. Używany TYLKO gdy Tier 1 wykryje rozbieżności.
+// Tier 2: stronger model used only for targeted recovery when totals are materially wrong.
 export const VISION_MODEL_SMART = "gemini-2.5-pro";
 
 export const SYSTEM_PROMPT = `You are an expert OCR for reading receipts and invoices.
 Extract EVERY product. Never skip items. Return valid JSON only.`;
 
-// Uproszczony prompt ekstrakcyjny - tylko ekstrakcja, bez kategoryzacji
-// Kategoryzacja odbywa się w kodzie (parser.ts + categories.ts)
+// Extraction only. Category assignment is done locally in parser.ts using
+// user mappings, deterministic heuristics, and a final local fallback.
 export const EXTRACTION_PROMPT = `Extract ALL items from receipt image(s).
-For each item provide: description, amount (TOTAL price, not unit price), category, subcategory.
+For each item provide: description and amount (TOTAL line price, not unit price).
 
 RULES:
 - If "2 x 4.99" then amount = "9.98" (multiply)
@@ -22,8 +22,6 @@ RULES:
 - totalAmount = sum of items (including negative discounts)
 - payableAmount = final amount to pay (may include deposits)
 - depositTotal = sum of deposits/kaucja
-- category and subcategory MUST be chosen from the CATEGORIES list below
-- Match the EXACT category and subcategory names from the list
 
 Works in: Polish, English, German, Czech, Slovak.
 
@@ -32,7 +30,7 @@ Return ONLY valid JSON:
   "rawText": "Store name and date",
   "currency": "PLN",
   "totalAmount": "83.99",
-  "payableAmount": "84.99", 
+  "payableAmount": "84.99",
   "depositTotal": "1.00",
   "receiptCount": 1,
   "receipts": [{
@@ -44,31 +42,24 @@ Return ONLY valid JSON:
     "depositTotal": "1.00",
     "items": [{
       "description": "Product name",
-      "amount": "9.99",
-      "category": "Żywność i napoje",
-      "subcategory": "Supermarket"
+      "amount": "9.99"
     }]
   }]
 }`;
 
-export function buildPrompt(compactCategories: string, documentText?: string): string {
-  const categoryBlock = compactCategories
-    ? `\n\nCATEGORIES:\n${compactCategories}`
-    : '';
-
+export function buildPrompt(_compactCategories: string, documentText?: string): string {
   if (documentText) {
     return `Extract ALL items from the following receipt text.
-    
+
 ${documentText}
 
-${EXTRACTION_PROMPT}${categoryBlock}`;
+${EXTRACTION_PROMPT}`;
   }
-  return `${EXTRACTION_PROMPT}${categoryBlock}`;
+  return EXTRACTION_PROMPT;
 }
 
-
 export function buildAuditPrompt(
-  compactCategories: string,
+  _compactCategories: string,
   previousJson: string,
   suspiciousDuplicateReceipts: number[]
 ): string {
@@ -84,24 +75,17 @@ export function buildAuditPrompt(
     "ZASADY KRYTYCZNE:",
     "1. RABATY: Rabat musi byc ZAWSZE oddzielna pozycja z minusem (amount: \"-X.XX\").",
     "2. NIE ODEJMUJ rabatu od produktu. Produkt zawsze ma swoja pierwotna, pelna cene.",
-    "3. CENA PO RABACIE: W sklepach typu Biedronka pod kwota rabatu bywa nadrukowana 'cena po rabacie'. ZIGNORUJ JA CALKOWICIE. Nie wpisuj jej jako produktu ani nie podmieniaj ceny bazowej.",
+    "3. CENA PO RABACIE: W sklepach typu Biedronka pod kwota rabatu bywa nadrukowana 'cena po rabacie'. ZIGNORUJ JA CALKOWICIE.",
     "4. DUPLIKATY: Jesli na paragonie widzisz dwa osobne, fizyczne wiersze z tym samym produktem, zwroc 2 oddzielne obiekty. Nie lacz ich w jeden.",
     "5. OCZYSZCZANIE NAZW: Usun z nazw produktow litery VAT (A, B, C, D) i dopiski ilosciowe (np. 1x, 0.405 kg x).",
-    "Nie wolno zgadywac nazw z innych domen. Jesli to rachunek za serwery (np. AWS, Vercel), mapuj Memory/Network do Praca i biznes -> Narzedzia / SaaS. Nie myl z paliwem.",
-    "Krzew/roslina/kwiat ma byc kategoryzowany do Dom i mieszkanie -> Ogrod i balkon lub zblizonej podkategorii domowej, a nie do zywnosci.",
-    "Jesli wystawca to usluga cloud/backend/SaaS (np. Railway, Vercel, AWS, Supabase), to pozycje typu Memory, vCPU, Disk, Network, Pro plan, requests, seats maja trafic do Praca i biznes -> Narzedzia / SaaS.",
-    "Nie wolno klasyfikowac oplat cloudowych do Transport/Paliwo przez skojarzenie ze slowem Railway albo Network.",
+    "Nie wolno zgadywac nazw z innych domen.",
     "W polu audit.productLines zwroc KAZDA linie produktowa w KOLEJNOSCI z paragonu, przed kategoryzacja. To pole jest wazniejsze niz zwykle items.",
-    "Dla kazdej linii produktowej podaj co najmniej description i total. Przyklad: Nep. 04'2026 piwo -> 19.98, Surowka 300g -> 6.98, Calcium Wit. D tabl. -> 5.59.",
     "",
     `Podejrzane paragony (indeksy 1-based): ${suspiciousDuplicateReceipts.length > 0 ? suspiciousDuplicateReceipts.map((idx) => idx + 1).join(", ") : "brak, ale suma nadal sie nie zgadza"}.`,
     "Poprzedni JSON do korekty:",
     previousJson,
     "",
     "Zwroc TYLKO poprawny JSON zgodny z glownym schematem oraz dodatkowo pole audit:",
-    `{ "audit": { "transcribedLines": ["doslowna linia 1", "doslowna linia 2"], "productLines": [{ "description": "Nep. 04'2026 piwo", "quantityText": "2 x 9,99", "total": "19.98" }, { "description": "Surowka 300g", "quantityText": "2 x 3,49", "total": "6.98" }] }, "rawText": "Lidl 2026-04-11", "currency": "PLN", "totalAmount": "83.99", "payableAmount": "84.99", "depositTotal": "1.00", "receiptCount": 1, "receipts": [] }`,
-    "",
-    "KATEGORIE:",
-    compactCategories,
+    `{ "audit": { "transcribedLines": ["doslowna linia 1", "doslowna linia 2"], "productLines": [{ "description": "Nep. 04'2026 piwo", "quantityText": "2 x 9,99", "total": "19.98" }] }, "rawText": "Lidl 2026-04-11", "currency": "PLN", "totalAmount": "83.99", "payableAmount": "84.99", "depositTotal": "1.00", "receiptCount": 1, "receipts": [] }`,
   ].join("\n");
 }
