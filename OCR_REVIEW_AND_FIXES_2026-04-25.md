@@ -31,6 +31,7 @@ Po polaczeniu wynikow z wielu obrazow kod ustawial `totalAmount` na sume rozpozn
 Naprawa:
 - merge zachowuje odczytane sumy z paragonow,
 - fallback do sumy pozycji jest uzywany tylko wtedy, gdy model nie odczytal zadnej sumy,
+- dla wielu zdjec jednego paragonu finalna suma jest wybierana jako najwyzsza dodatnia suma widoczna na stronach, a nie suma subtotalow z kolejnych zdjec,
 - recovery odpala sie, gdy realna suma z paragonu rozjezdza sie z suma pozycji.
 
 Plik:
@@ -63,6 +64,31 @@ Naprawa:
 Pliki:
 - `convex/ocr.ts`
 - `src/components/screens/OcrScreen.tsx`
+
+### 4a. Recovery AI moglo wywalic caly skan
+
+Przy paragonie podzielonym na 2 zdjecia szybki OCR zwrocil uzyteczny wynik, ale recovery eskalowane do `gemini-2.5-pro` timeoutnelo. Blad z recovery przerywal cala akcje.
+
+Naprawa:
+- recovery jest teraz best-effort,
+- timeout lub blad modelu smart nie przerywa procesu,
+- jesli recovery sie nie uda, zwracany jest najlepszy wynik z rownoleglego szybkiego OCR wraz z informacja o mismatch w `receiptSummaries`.
+
+Plik:
+- `convex/ocr.ts`
+
+### 4b. Overlap zdjec nie byl deduplikowany po merge
+
+Dlugie paragony sa robione jako 2-3 nachodzace na siebie zdjecia. Wczesniej deduplikacja dzialala glownie w obrebie pojedynczej odpowiedzi AI, ale po scaleniu wynikow ze zdjec nie byla odpalana ponownie.
+
+Naprawa:
+- po merge wielu zdjec jednego paragonu uruchamiany jest `collapseLikelyDuplicateItems`,
+- deduplikacja usuwa tylko tyle identycznych pozycji, ile faktycznie przybliza sume pozycji do finalnej sumy paragonu,
+- przy wyborze duplikatu do usuniecia preferowane sa pozycje z pozniejszych zdjec, czyli typowy overlap dol/gora.
+
+Pliki:
+- `convex/ocr.ts`
+- `convex/ocr/normalization.ts`
 
 ### 5. Kategorie byly przekazywane z klienta
 
@@ -150,6 +176,7 @@ Sprawdzone ryzyka:
 - Pusty OCR nie jest zwracany jako sukces.
 - Cache nie zapisuje pustych ani rozjechanych wynikow.
 - Merge nie ustawia juz `totalAmount` na sume rozpoznanych pozycji, jesli model odczytal sume paragonu.
+- Overlap miedzy zdjeciami jest deduplikowany po scaleniu wynikow.
 - Kazda pozycja powinna miec kategorie dzieki lokalnemu fallbackowi.
 - Mutacje kategorii i zapis wydatkow waliduja wlasnosc kategorii/podkategorii.
 - Mappingi produktu sa zapisywane batchowo i walidowane.

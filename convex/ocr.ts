@@ -8,6 +8,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { createVisionCompletionWithRetry } from "./ocr/groq";
 import {
+  collapseLikelyDuplicateItems,
   enrichReceiptSummariesWithValidation,
   findSuspiciousDuplicateReceipts,
 } from "./ocr/normalization";
@@ -119,21 +120,10 @@ function chooseCombinedExpectedTotal(summaries: ReceiptSummary[], fallbackItemsT
     return fallbackItemsTotal > 0 ? fallbackItemsTotal : 0;
   }
 
-  if (totals.length === 1) {
-    return totals[0];
-  }
-
-  const sum = totals.reduce((accumulator, amount) => accumulator + amount, 0);
-  const max = Math.max(...totals);
-
-  // Split photos of one long receipt often repeat the final receipt total on one
-  // image, while separate receipts usually have different labels/totals. If the
-  // summed expected total is wildly above extracted items, prefer the max total.
-  if (fallbackItemsTotal > 0 && sum > fallbackItemsTotal * 1.35 && max <= fallbackItemsTotal * 1.15) {
-    return max;
-  }
-
-  return sum;
+  // combineIntoSingleReceipt is used for multiple photos of one receipt. Each
+  // photo can contain a subtotal or final total; the final total is usually the
+  // highest positive total visible across pages.
+  return Math.max(...totals);
 }
 
 function chooseCombinedPayableAmount(summaries: ReceiptSummary[], expectedTotal: number) {
@@ -142,12 +132,7 @@ function chooseCombinedPayableAmount(summaries: ReceiptSummary[], expectedTotal:
     .filter((amount) => amount > 0);
   if (payableAmounts.length === 0) return 0;
 
-  const sum = payableAmounts.reduce((accumulator, amount) => accumulator + amount, 0);
-  const max = Math.max(...payableAmounts);
-  if (expectedTotal > 0 && sum > expectedTotal * 1.35 && max <= expectedTotal * 1.15) {
-    return max;
-  }
-  return sum;
+  return Math.max(...payableAmounts);
 }
 
 const OCR_UPLOAD_MAX_DIMENSION = 1800;
@@ -436,50 +421,59 @@ async function processImagesWithAI(
       // Escalate to thinking model for recovery — needs reasoning about mismatches
       const retryVisionStart = Date.now();
       console.log(`[OCR] Recovery retry: escalating to ${VISION_MODEL_SMART} (thinking model)`);
-      response = await createVisionCompletionWithRetry({
-        model: VISION_MODEL_SMART,
-        temperature: 0.0,
-        max_tokens: OCR_RECOVERY_MAX_TOKENS,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: contentParts },
-          { role: "assistant", content },
-          {
-            role: "user",
-            content: `Wykryto rozbieznosci per paragon: ${mismatchHint}.${duplicateHint} Sprawdz osobne linie OPUST/RABAT/PRZECENA oraz KAUCJA/OPAKOWANIA ZWROTNE. Jesli rabat jest pokazany jako osobna linia, wolno zwrocic go jako osobna pozycje z UJEMNA kwota zamiast odejmowac od pierwszego produktu. Jedna linia z iloscia ma dawac jedna pozycje JSON z laczna kwota, a nie kilka duplikatow. Nie zmieniaj nazwy produktu na niepowiazany rzeczownik, jesli na paragonie widac np. piwo, nie wolno zwracac nawozu. totalAmount ma odpowiadac sumie items, a payableAmount moze byc wyzsze przez kaucje. Cena produktu = LACZNA cena do zaplaty, NIE cena za kg. Zwroc POPRAWIONY, PELNY JSON.`,
-          },
-        ],
-        response_format: { type: "json_object" },
-      }, `vision-retry:${batch.length}`, {
-        maxAttempts: 1,
-        timeoutMs: OCR_RECOVERY_TIMEOUT_MS,
-      });
-      const retryVisionMs = Date.now() - retryVisionStart;
+      try {
+        response = await createVisionCompletionWithRetry({
+          model: VISION_MODEL_SMART,
+          temperature: 0.0,
+          max_tokens: OCR_RECOVERY_MAX_TOKENS,
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: contentParts },
+            { role: "assistant", content },
+            {
+              role: "user",
+              content: `Wykryto rozbieznosci per paragon: ${mismatchHint}.${duplicateHint} Sprawdz osobne linie OPUST/RABAT/PRZECENA oraz KAUCJA/OPAKOWANIA ZWROTNE. Jesli rabat jest pokazany jako osobna linia, wolno zwrocic go jako osobna pozycje z UJEMNA kwota zamiast odejmowac od pierwszego produktu. Jedna linia z iloscia ma dawac jedna pozycje JSON z laczna kwota, a nie kilka duplikatow. Nie zmieniaj nazwy produktu na niepowiazany rzeczownik, jesli na paragonie widac np. piwo, nie wolno zwracac nawozu. totalAmount ma odpowiadac sumie items, a payableAmount moze byc wyzsze przez kaucje. Cena produktu = LACZNA cena do zaplaty, NIE cena za kg. Zwroc POPRAWIONY, PELNY JSON.`,
+            },
+          ],
+          response_format: { type: "json_object" },
+        }, `vision-retry:${batch.length}`, {
+          maxAttempts: 1,
+          timeoutMs: OCR_RECOVERY_TIMEOUT_MS,
+        });
+        const retryVisionMs = Date.now() - retryVisionStart;
 
-      content = response.choices[0].message.content ?? "{}";
-      const retryParseStart = Date.now();
-      const retryCandidate = await parseAndNormalizeResponse(
-        ctx,
-        householdId,
-        content,
-        categoriesArray,
-        VISION_MODEL_SMART,
-        `${traceLabel}:retry`
-      );
-      const retryParseMs = Date.now() - retryParseStart;
-      const retryPreferred = shouldPreferRecoveryCandidate(parsed, retryCandidate);
-      const retryQuality = summarizeResultQuality(retryCandidate);
-      if (retryPreferred) {
-        parsed = retryCandidate;
+        content = response.choices[0].message.content ?? "{}";
+        const retryParseStart = Date.now();
+        const retryCandidate = await parseAndNormalizeResponse(
+          ctx,
+          householdId,
+          content,
+          categoriesArray,
+          VISION_MODEL_SMART,
+          `${traceLabel}:retry`
+        );
+        const retryParseMs = Date.now() - retryParseStart;
+        const retryPreferred = shouldPreferRecoveryCandidate(parsed, retryCandidate);
+        const retryQuality = summarizeResultQuality(retryCandidate);
+        if (retryPreferred) {
+          parsed = retryCandidate;
+        }
+        logOcrTiming(traceLabel, "retry_completed", {
+          retryVisionMs,
+          retryParseMs,
+          retryPreferred,
+          items: parsed.items.length,
+          receiptGroups: parsed.receiptSummaries.length,
+          ...retryQuality,
+        });
+      } catch (error: any) {
+        logOcrTiming(traceLabel, "retry_failed_keep_initial", {
+          retryVisionMs: Date.now() - retryVisionStart,
+          message: String(error?.message || error),
+          items: parsed.items.length,
+          receiptGroups: parsed.receiptSummaries.length,
+        });
       }
-      logOcrTiming(traceLabel, "retry_completed", {
-        retryVisionMs,
-        retryParseMs,
-        retryPreferred,
-        items: parsed.items.length,
-        receiptGroups: parsed.receiptSummaries.length,
-        ...retryQuality,
-      });
     }
 
     const currentQualityForAudit = summarizeResultQuality(parsed);
@@ -626,16 +620,17 @@ async function processImagesWithAI(
         receiptIndex: 0,
         receiptLabel,
       }));
+      const dedupedItems = collapseLikelyDuplicateItems(remappedItems, [singleSummary]);
 
       return {
-        items: remappedItems,
+        items: dedupedItems,
         rawText: rawLabels.join(" | "),
         totalAmount: singleSummary.totalAmount,
         payableAmount: singleSummary.payableAmount,
         depositTotal: singleSummary.depositTotal,
         modelUsed: VISION_MODEL,
         receiptCount: 1,
-        receiptSummaries: enrichReceiptSummariesWithValidation([singleSummary], remappedItems),
+        receiptSummaries: enrichReceiptSummariesWithValidation([singleSummary], dedupedItems),
         retryUsed,
       };
     }
@@ -728,29 +723,38 @@ async function processImagesWithAI(
       
       // Retry with all images combined using smart model
       const recoveryStart = Date.now();
-      const recoveryResult = await analyzeBatch(imageDataList, "ocr:recovery", {
-        enableRecoveryPasses: true,
-        enableAuditPass: false,
-      });
-      
-      const recoveryMs = Date.now() - recoveryStart;
-      logOcrTiming("ocr:images", "recovery_completed", {
-        recoveryMs,
-        itemsBefore: merged.items.length,
-        itemsAfter: recoveryResult.items.length,
-      });
-
-      // Use recovery result if it's better
-      const recoveryQuality = summarizeResultQuality(recoveryResult);
-      if (recoveryQuality.totalMismatchAbs < mergedQuality.totalMismatchAbs ||
-          recoveryQuality.categorizedCount > mergedQuality.categorizedCount) {
-        logOcrTiming("ocr:images", "pipeline_completed", {
-          strategy: "parallel_with_recovery",
-          totalMs: Date.now() - pipelineStart,
-          items: recoveryResult.items.length,
-          receiptGroups: recoveryResult.receiptSummaries.length,
+      try {
+        const recoveryResult = await analyzeBatch(imageDataList, "ocr:recovery", {
+          enableRecoveryPasses: true,
+          enableAuditPass: false,
         });
-        return { ...recoveryResult, retryUsed: true };
+
+        const recoveryMs = Date.now() - recoveryStart;
+        logOcrTiming("ocr:images", "recovery_completed", {
+          recoveryMs,
+          itemsBefore: merged.items.length,
+          itemsAfter: recoveryResult.items.length,
+        });
+
+        // Use recovery result if it's better
+        const recoveryQuality = summarizeResultQuality(recoveryResult);
+        if (recoveryQuality.totalMismatchAbs < mergedQuality.totalMismatchAbs ||
+            recoveryQuality.categorizedCount > mergedQuality.categorizedCount) {
+          logOcrTiming("ocr:images", "pipeline_completed", {
+            strategy: "parallel_with_recovery",
+            totalMs: Date.now() - pipelineStart,
+            items: recoveryResult.items.length,
+            receiptGroups: recoveryResult.receiptSummaries.length,
+          });
+          return { ...recoveryResult, retryUsed: true };
+        }
+      } catch (error: any) {
+        logOcrTiming("ocr:images", "recovery_failed_keep_parallel", {
+          recoveryMs: Date.now() - recoveryStart,
+          message: String(error?.message || error),
+          items: merged.items.length,
+          receiptGroups: merged.receiptSummaries.length,
+        });
       }
     }
   }

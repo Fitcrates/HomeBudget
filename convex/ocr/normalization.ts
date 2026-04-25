@@ -156,25 +156,24 @@ export function collapseLikelyDuplicateItems(
       const amount = Number.parseFloat(group[0].amount || "0");
       if (!(amount > 0)) continue;
 
-      const candidateTotal = currentTotal - amount * (group.length - 1);
-      const candidateDiff = Math.abs(candidateTotal - expected);
-      if (candidateDiff + 0.01 >= currentDiff) continue;
-
-      const idsToRemove = new Set(
-        group.slice(1).map((item) =>
-          item.description + item.amount + item.receiptIndex + (item.originalRawDescription || "")
-        )
-      );
-
-      let removed = 0;
-      nextItems = nextItems.filter((item) => {
-        const id = item.description + item.amount + item.receiptIndex + (item.originalRawDescription || "");
-        if (item.receiptIndex === summary.receiptIndex && idsToRemove.has(id) && removed < group.length - 1) {
-          removed++;
-          return false;
+      let bestRemoveCount = 0;
+      let bestDiff = currentDiff;
+      for (let removeCount = 1; removeCount < group.length; removeCount++) {
+        const candidateTotal = currentTotal - amount * removeCount;
+        const candidateDiff = Math.abs(candidateTotal - expected);
+        if (candidateDiff + 0.01 < bestDiff) {
+          bestRemoveCount = removeCount;
+          bestDiff = candidateDiff;
         }
-        return true;
-      });
+      }
+      if (bestRemoveCount === 0) continue;
+
+      const removalCandidates = [...group].sort((left, right) =>
+        (right.sourceImageIndex ?? 0) - (left.sourceImageIndex ?? 0)
+      );
+      const itemsToRemove = new Set(removalCandidates.slice(0, bestRemoveCount));
+
+      nextItems = nextItems.filter((item) => !itemsToRemove.has(item));
 
       receiptItems = nextItems.filter((item) => item.receiptIndex === summary.receiptIndex);
       currentTotal = receiptItems.reduce((sum, item) => sum + Number.parseFloat(item.amount || "0"), 0);
