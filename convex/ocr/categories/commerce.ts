@@ -29,12 +29,13 @@ export function matchCommerce(text: string, combinedContext: string, issuers: Is
   }
 
   // ── Finance ──
-  if (isBankOrInsuranceIssuer || has(combinedContext, /\b(prowizja|oplata bankowa|ubezpieczenie|podatek|mandat skarbowy)\b/i)) {
-    if (has(combinedContext, /\b(podatek|pit|cit|vat|urzad skarbowy)\b/i)) return resolve(CATEGORY.FINANCE, SUB.podatki, categoriesArray);
-    if (has(combinedContext, /\b(rata|kredyt|pozyczka|leasing)\b/i)) return resolve(CATEGORY.FINANCE, SUB.kredyt, categoriesArray);
-    if (has(combinedContext, /\b(oszczednosci|lokata)\b/i)) return resolve(CATEGORY.FINANCE, SUB.oszczednosci, categoriesArray);
-    if (has(combinedContext, /\b(inwest|fundusz|broker)\b/i)) return resolve(CATEGORY.FINANCE, SUB.inwestycje, categoriesArray);
-    if (has(combinedContext, /\b(ubezpieczenie)\b/i)) return resolve(CATEGORY.FINANCE, SUB.ubezpieczenie, categoriesArray);
+  const looksLikeFinanceLine = has(text, /\b(prowizja|oplata bankowa|oplata za konto|ubezpieczenie|podatek|mandat skarbowy|rata|kredyt|pozyczka|leasing|skladka)\b/i);
+  if (looksLikeFinanceLine || (isBankOrInsuranceIssuer && has(text, /\b(oplata|prowizja|ubezpieczenie|podatek|rata|kredyt|pozyczka|leasing|skladka)\b/i))) {
+    if (has(text, /\b(podatek|pit|cit|vat|urzad skarbowy)\b/i)) return resolve(CATEGORY.FINANCE, SUB.podatki, categoriesArray);
+    if (has(text, /\b(rata|kredyt|pozyczka|leasing)\b/i)) return resolve(CATEGORY.FINANCE, SUB.kredyt, categoriesArray);
+    if (has(text, /\b(oszczednosci|lokata)\b/i)) return resolve(CATEGORY.FINANCE, SUB.oszczednosci, categoriesArray);
+    if (has(text, /\b(inwest|fundusz|broker)\b/i)) return resolve(CATEGORY.FINANCE, SUB.inwestycje, categoriesArray);
+    if (has(text, /\b(ubezpieczenie|skladka)\b/i)) return resolve(CATEGORY.FINANCE, SUB.ubezpieczenie, categoriesArray);
     return resolve(CATEGORY.FINANCE, SUB.bank, categoriesArray);
   }
 

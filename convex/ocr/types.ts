@@ -7,6 +7,7 @@ export interface ProcessedReceiptItem {
   categoryId: string | null;
   subcategoryId: string | null;
   fromMapping?: boolean;
+  categorySource?: "mapping" | "ai" | "heuristic" | "fallback" | "discount";
   receiptIndex: number;
   receiptLabel?: string;
   sourceImageIndex?: number | null;

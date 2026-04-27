@@ -43,18 +43,20 @@ export function resolveHeuristicCategory(
   const combinedContext = `${receiptContext} ${text}`.trim();
   const issuers = detectIssuers(receiptContext);
 
-  // Priority order matters — more specific matches first
+  // Priority order matters. Receipt context often contains payment terminal
+  // words like "Visa", "Mastercard" or "transaction", so grocery/domain
+  // matchers must get a chance before broad home/finance matchers.
   const matchers = [
     // 1. Store-based matchers (high specificity)
     () => matchTransport(text, combinedContext, issuers, categoriesArray),
-    () => matchHome(text, combinedContext, issuers, categoriesArray),
-    () => matchLifestyle(text, combinedContext, issuers, categoriesArray),
-    () => matchFamily(text, combinedContext, issuers, categoriesArray),
-    () => matchHealth(text, combinedContext, issuers, categoriesArray),
-    () => matchClothing(text, combinedContext, issuers, categoriesArray),
-    () => matchCommerce(text, combinedContext, issuers, categoriesArray),
     () => matchFood(text, combinedContext, issuers, categoriesArray),
     () => matchHousehold(text, combinedContext, issuers, categoriesArray),
+    () => matchHealth(text, combinedContext, issuers, categoriesArray),
+    () => matchClothing(text, combinedContext, issuers, categoriesArray),
+    () => matchLifestyle(text, combinedContext, issuers, categoriesArray),
+    () => matchFamily(text, combinedContext, issuers, categoriesArray),
+    () => matchCommerce(text, combinedContext, issuers, categoriesArray),
+    () => matchHome(text, combinedContext, issuers, categoriesArray),
     // 2. Standalone matchers (fallback — no store context needed)
     () => matchFoodStandalone(text, categoriesArray),
     () => matchHouseholdStandalone(text, categoriesArray),

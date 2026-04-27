@@ -6,7 +6,7 @@ export const VISION_MODEL = "gemini-2.5-flash-lite";
 export const VISION_MODEL_SMART = "gemini-2.5-pro";
 
 export const SYSTEM_PROMPT = `You are an expert OCR for reading receipts and invoices.
-Extract EVERY product. Never skip items. Return valid JSON only.`;
+Extract EVERY visible product line. Never skip items. Return valid JSON only.`;
 
 // Extraction only. Category assignment is done locally in parser.ts using
 // user mappings, deterministic heuristics, and a final local fallback.
@@ -19,9 +19,11 @@ RULES:
 - Discounts as separate line with NEGATIVE amount (e.g., "OPUST -2.00" -> amount: "-2.00")
 - Deposits/kaucja as depositTotal, NOT as item
 - Clean names: remove quantity (2x, 1.5kg x), unit prices, VAT letters (A,B,C,D)
-- totalAmount = sum of items (including negative discounts)
-- payableAmount = final amount to pay (may include deposits)
-- depositTotal = sum of deposits/kaucja
+- totalAmount = value printed on receipt as goods total / SUMA PLN / RAZEM. Do NOT invent it from recognized items.
+- If the image is only a fragment and no printed goods total is visible, set totalAmount = "".
+- payableAmount = final amount to pay printed on receipt (may include deposits). Leave empty if not visible.
+- depositTotal = printed sum of deposits/kaucja. Leave empty if not visible.
+- For multiple images of the same long receipt, use all images together and return one receipt with sourceImageIndex per item when possible.
 
 Works in: Polish, English, German, Czech, Slovak.
 

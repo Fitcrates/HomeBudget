@@ -652,6 +652,18 @@ async function processImagesWithAI(
     imageCount: imageDataList.length,
   });
 
+  // For multi-photo long receipts, run a combined read in parallel with the
+  // per-image cross-check. This keeps latency near the slowest fast call
+  // instead of doing per-image first and then a sequential recovery pass.
+  const combinedResultPromise = imageDataList.length > 1
+    ? analyzeBatch(imageDataList, "ocr:combined", {
+        enableRecoveryPasses: false,
+        enableAuditPass: false,
+      })
+        .then((result) => ({ status: "fulfilled" as const, result }))
+        .catch((error) => ({ status: "rejected" as const, error }))
+    : null;
+
   // NEW ARCHITECTURE: Parallel per-image processing from the start
   // This replaces the old "combined batch" approach that caused 40-80s for 2 images
   const parallelStart = Date.now();
@@ -701,61 +713,31 @@ async function processImagesWithAI(
     combineIntoSingleReceipt: true,
   });
 
-  // Check if we need a recovery pass on merged results (only when totals are materially off).
-  if (merged.items.length > 0) {
-    const mismatchReceipts = merged.receiptSummaries.filter((receipt) => {
-      const expected = Number.parseFloat(receipt.totalAmount || "0");
-      const diff = Number.parseFloat(receipt.difference || "0");
-      return expected > 0 && Math.abs(diff) > 0.05;
-    });
+  if (combinedResultPromise) {
+    const combinedResult = await combinedResultPromise;
+    if (combinedResult.status === "fulfilled" && combinedResult.result.items.length > 0) {
+      const combinedPreferred = shouldPreferRecoveryCandidate(merged, combinedResult.result);
+      logOcrTiming("ocr:images", "combined_crosscheck_completed", {
+        combinedPreferred,
+        mergedItems: merged.items.length,
+        combinedItems: combinedResult.result.items.length,
+        mergedMismatchAbs: summarizeResultQuality(merged).totalMismatchAbs,
+        combinedMismatchAbs: summarizeResultQuality(combinedResult.result).totalMismatchAbs,
+      });
 
-    const totalExpected = merged.receiptSummaries.reduce((sum, r) => {
-      const expected = Number.parseFloat(r.totalAmount || "0");
-      return expected > 0 ? sum + expected : sum;
-    }, 0);
-    
-    const mergedQuality = summarizeResultQuality(merged);
-    const mismatchRatio = totalExpected > 0 ? mergedQuality.totalMismatchAbs / totalExpected : 0;
-
-    // Only retry if mismatch is significant (>10%) and we have 2 images max
-    if (mismatchRatio > 0.1 && imageDataList.length <= 2) {
-      console.log(`[OCR] Merged result has mismatch ratio ${mismatchRatio.toFixed(2)}, attempting recovery...`);
-      
-      // Retry with all images combined using smart model
-      const recoveryStart = Date.now();
-      try {
-        const recoveryResult = await analyzeBatch(imageDataList, "ocr:recovery", {
-          enableRecoveryPasses: true,
-          enableAuditPass: false,
+      if (combinedPreferred) {
+        logOcrTiming("ocr:images", "pipeline_completed", {
+          strategy: "parallel_with_combined_crosscheck",
+          totalMs: Date.now() - pipelineStart,
+          items: combinedResult.result.items.length,
+          receiptGroups: combinedResult.result.receiptSummaries.length,
         });
-
-        const recoveryMs = Date.now() - recoveryStart;
-        logOcrTiming("ocr:images", "recovery_completed", {
-          recoveryMs,
-          itemsBefore: merged.items.length,
-          itemsAfter: recoveryResult.items.length,
-        });
-
-        // Use recovery result if it's better
-        const recoveryQuality = summarizeResultQuality(recoveryResult);
-        if (recoveryQuality.totalMismatchAbs < mergedQuality.totalMismatchAbs ||
-            recoveryQuality.categorizedCount > mergedQuality.categorizedCount) {
-          logOcrTiming("ocr:images", "pipeline_completed", {
-            strategy: "parallel_with_recovery",
-            totalMs: Date.now() - pipelineStart,
-            items: recoveryResult.items.length,
-            receiptGroups: recoveryResult.receiptSummaries.length,
-          });
-          return { ...recoveryResult, retryUsed: true };
-        }
-      } catch (error: any) {
-        logOcrTiming("ocr:images", "recovery_failed_keep_parallel", {
-          recoveryMs: Date.now() - recoveryStart,
-          message: String(error?.message || error),
-          items: merged.items.length,
-          receiptGroups: merged.receiptSummaries.length,
-        });
+        return { ...combinedResult.result, retryUsed: false };
       }
+    } else if (combinedResult.status === "rejected") {
+      logOcrTiming("ocr:images", "combined_crosscheck_failed", {
+        message: String(combinedResult.error?.message || combinedResult.error),
+      });
     }
   }
 
@@ -1261,6 +1243,30 @@ export const getFileUrl = action({
   },
 });
 
+export const discardReceiptUploads = action({
+  args: {
+    storageIds: v.array(v.id("_storage")),
+  },
+  handler: async (ctx, args) => {
+    const uniqueStorageIds = [...new Set(args.storageIds)];
+    let deletedCount = 0;
+
+    for (const storageId of uniqueStorageIds) {
+      try {
+        await ctx.storage.delete(storageId);
+        deletedCount++;
+      } catch (error: any) {
+        console.warn("OCR discard skipped storage item:", {
+          storageId,
+          message: String(error?.message || error),
+        });
+      }
+    }
+
+    return { deletedCount };
+  },
+});
+
 export const optimizeReceiptUploads = action({
   args: {
     storageIds: v.array(v.id("_storage")),
@@ -1435,10 +1441,12 @@ export const processReceiptWithAI = action({
         ? result.receiptSummaries.every((receipt) => receipt.mismatchType === "ok")
         : false;
 
-      await ctx.runMutation(internal.ocrLogs.logScan, {
+      // Do not persist scan analytics here. If the user abandons the OCR flow,
+      // the operation should be discarded instead of becoming app data.
+      console.log("[OCR] scan summary", {
         householdId: args.householdId,
         imageCount: args.storageIds.length,
-        modelUsed: VISION_MODEL,
+        modelUsed: result.modelUsed || VISION_MODEL,
         itemCount: result.items.length,
         totalAmount: result.totalAmount,
         sumMatchedTotal,

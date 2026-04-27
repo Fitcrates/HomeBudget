@@ -60,6 +60,10 @@ interface ParsedItem {
   categoryId: Id<"categories"> | null;
   subcategoryId: Id<"subcategories"> | null;
   fromMapping?: boolean;
+  categorySource?: "mapping" | "ai" | "heuristic" | "fallback" | "discount";
+  initialDescription: string;
+  initialCategoryId: Id<"categories"> | null;
+  initialSubcategoryId: Id<"subcategories"> | null;
   receiptIndex: number;
   receiptLabel?: string;
   sourceImageIndex?: number | null;
@@ -85,6 +89,7 @@ interface ProcessReceiptResult {
     categoryId?: Id<"categories"> | null;
     subcategoryId?: Id<"subcategories"> | null;
     fromMapping?: boolean;
+    categorySource?: "mapping" | "ai" | "heuristic" | "fallback" | "discount";
     receiptIndex?: number;
     receiptLabel?: string;
     sourceImageIndex?: number | null;
@@ -99,7 +104,7 @@ interface ProcessReceiptResult {
 }
 
 const PDF_MIME = "application/pdf";
-const OCR_CACHE_VERSION = "v5";
+const OCR_CACHE_VERSION = "v6";
 const OCR_CACHE_PREFIX = `homebudget:ocr-cache:${OCR_CACHE_VERSION}:`;
 const OCR_CACHE_INDEX_KEY = `${OCR_CACHE_PREFIX}index`;
 const OCR_CACHE_TTL_MS = 1000 * 60 * 60 * 24;
@@ -214,11 +219,13 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processAI = useAction(api.ocr.processReceiptWithAI);
+  const discardReceiptUploads = useAction(api.ocr.discardReceiptUploads);
   const getFileUrl = useAction(api.ocr.getFileUrl);
   const categories = useQuery(api.categories.listForHousehold, { householdId });
   const createExpensesMany = useMutation(api.expenses.createMany);
   const generateUploadUrl = useMutation(api.expenses.generateUploadUrl);
   const upsertMappingsBatch = useMutation(api.productMappings.upsertMappingsBatch);
+  const hasSavedRef = useRef(false);
 
   const hasPdf = currentMimeTypes.some((t) => t === PDF_MIME) ||
     previewTypes.some((t) => t === PDF_MIME);
@@ -263,6 +270,9 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           amount: "",
           categoryId: null,
           subcategoryId: null,
+          initialDescription: "Nieznany koszt",
+          initialCategoryId: null,
+          initialSubcategoryId: null,
           receiptIndex: 0,
         },
       ]);
@@ -277,6 +287,10 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
       categoryId: row.categoryId || null,
       subcategoryId: row.subcategoryId || null,
       fromMapping: row.fromMapping,
+      categorySource: row.categorySource,
+      initialDescription: row.description || "Brak nazwy",
+      initialCategoryId: row.categoryId || null,
+      initialSubcategoryId: row.subcategoryId || null,
       receiptIndex: Number.isFinite(row.receiptIndex) ? (row.receiptIndex as number) : 0,
       receiptLabel: row.receiptLabel,
       sourceImageIndex: row.sourceImageIndex ?? null,
@@ -355,6 +369,18 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
     }
   }
 
+  async function handleDiscardAndDone() {
+    if (!hasSavedRef.current && currentStorageIds.length > 0) {
+      try {
+        await discardReceiptUploads({ storageIds: currentStorageIds });
+      } catch (err) {
+        console.warn("OCR discard failed", err);
+      }
+    }
+
+    onDone();
+  }
+
   async function handleExtract() {
     if (!categories) {
       toast.error("Kategorie jeszcze się ładują. Spróbuj za chwilę.");
@@ -404,6 +430,9 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           amount: "",
           categoryId: null,
           subcategoryId: null,
+          initialDescription: "Błąd AI",
+          initialCategoryId: null,
+          initialSubcategoryId: null,
           receiptIndex: 0,
         },
       ]);
@@ -489,10 +518,20 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
         items: payloadItems,
       });
 
+      const correctedMappingItems = sortedItems.filter((item) =>
+        Boolean(item.originalRawDescription) &&
+        Boolean(item.categoryId) &&
+        Boolean(item.subcategoryId) &&
+        (
+          item.description.trim() !== item.initialDescription.trim() ||
+          item.categoryId !== item.initialCategoryId ||
+          item.subcategoryId !== item.initialSubcategoryId
+        )
+      );
+
       await upsertMappingsBatch({
         householdId,
-        items: sortedItems
-          .filter((item) => Boolean(item.originalRawDescription))
+        items: correctedMappingItems
           .map((item) => ({
             rawDescription: item.originalRawDescription!,
             correctedDescription: item.description,
@@ -501,6 +540,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
           })),
       });
 
+      hasSavedRef.current = true;
       const receiptLabel = processedReceipts > 1
         ? `${processedReceipts} paragonów`
         : "paragonu";
@@ -588,7 +628,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
         icon={<ScannerIcon className="w-8 h-8 text-[#c76823]" />}
         title="Skaner Paragonów"
         subtitle="Jeden prosty flow: dodaj plik, uruchom OCR i popraw wynik przed zapisem."
-        onBack={onDone}
+        onBack={handleDiscardAndDone}
       />
 
       <AppCard padding="md">
@@ -1040,6 +1080,9 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                       amount: "",
                       categoryId: null,
                       subcategoryId: null,
+                      initialDescription: "",
+                      initialCategoryId: null,
+                      initialSubcategoryId: null,
                       receiptIndex: 0,
                     },
                   ])

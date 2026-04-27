@@ -286,6 +286,7 @@ export async function parseAndNormalizeResponse(
         categoryId: null,
         subcategoryId: null,
         fromMapping: false,
+        categorySource: undefined,
         receiptIndex: entry.receiptIndex,
         receiptLabel: entry.receiptLabel,
         sourceImageIndex: entry.sourceImageIndex,
@@ -339,6 +340,7 @@ export async function parseAndNormalizeResponse(
               item.description = mapping.correctedDescription;
             }
             item.fromMapping = true;
+            item.categorySource = "mapping";
             mappedFromHistoryCount++;
             continue; // mapping has highest priority, skip other resolution
           }
@@ -359,6 +361,7 @@ export async function parseAndNormalizeResponse(
             item.categoryId = resolved.categoryId;
             item.subcategoryId = resolved.subcategoryId;
             if (resolved.categoryId && resolved.subcategoryId) {
+              item.categorySource = "ai";
               resolvedFromAiCategoryCount++;
             }
           }
@@ -383,6 +386,7 @@ export async function parseAndNormalizeResponse(
             if (!hasExistingResolution || currentIsGeneric) {
               item.categoryId = heuristicCategory.categoryId;
               item.subcategoryId = heuristicCategory.subcategoryId;
+              item.categorySource = "heuristic";
               resolvedByHeuristicCount++;
             }
           }
@@ -391,6 +395,7 @@ export async function parseAndNormalizeResponse(
             const fallback = findFallbackCategory(categoriesArray);
             item.categoryId = fallback.categoryId;
             item.subcategoryId = fallback.subcategoryId;
+            item.categorySource = "fallback";
           }
         } catch {
           // Ignore mapping lookup failures and keep OCR result usable.
@@ -420,6 +425,7 @@ export async function parseAndNormalizeResponse(
         if (linkedCandidate?.categoryId) {
           item.categoryId = linkedCandidate.categoryId;
           item.subcategoryId = linkedCandidate.subcategoryId;
+          item.categorySource = "discount";
           continue;
         }
 
@@ -433,12 +439,14 @@ export async function parseAndNormalizeResponse(
         if (previousPositive?.categoryId) {
           item.categoryId = previousPositive.categoryId;
           item.subcategoryId = previousPositive.subcategoryId;
+          item.categorySource = "discount";
         }
 
         if (!item.categoryId || !item.subcategoryId) {
           const fallback = findFallbackCategory(categoriesArray);
           item.categoryId = fallback.categoryId;
           item.subcategoryId = fallback.subcategoryId;
+          item.categorySource = "fallback";
         }
       }
     };

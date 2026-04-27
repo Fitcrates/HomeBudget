@@ -61,7 +61,7 @@ export function detectIssuers(receiptContext: string): IssuerFlags {
     isDrugstoreIssuer: has(receiptContext, /(rossmann|hebe|super.?pharm|douglas|sephora)/i),
     isPharmacyIssuer: has(receiptContext, /(apteka|doz|ziko|gemini|cefarm|dr\.?\s?max)/i),
     isPetIssuer: has(receiptContext, /(zoo|pet|kakadu|maxi zoo|weteryn)/i),
-    isHomeIssuer: has(receiptContext, /(castorama|leroy|obi|ikea|jysk|agata|mebl|ogrodnicz|bricomarche|pepco|action|homla|home&you)/i),
+    isHomeIssuer: has(receiptContext, /\b(castorama|leroy(?:\s+merlin)?|obi|ikea|jysk|agata|bricomarche|pepco|action|homla|home&you)\b|mebl|ogrodnicz/i),
     isClothingIssuer: has(receiptContext, /(hm\b|h&m|reserved|cropp|house\b|sinsay|zara|mohito|ccc|deichmann|halfprice|tk maxx|answear|zalando|eobuwie|modivo)/i),
     isUsedClothing: has(receiptContext, /\b(uzyw|used|second.?hand|outlet|stock|deca)\b/i),
     isBookIssuer: has(receiptContext, /(empik|matras|swiat ksiazki|bookstore|ksiegarnia)/i),
@@ -81,7 +81,7 @@ export function detectIssuers(receiptContext: string): IssuerFlags {
     isSchoolIssuer: has(receiptContext, /(szkola|uczelnia|uniwersytet|udemy|coursera|edx|language school|novakid|preply)/i),
     isTelcoIssuer: has(receiptContext, /(orange|play\b|plus\b|tmobile|t-mobile|vectra|inea|upc|netia)/i),
     isUtilityIssuer: has(receiptContext, /(tauron|enea|energa|pge|pgnig|veolia|mpwik|wodociagi|czynsz|spoldzielnia|wspolnota)/i),
-    isBankOrInsuranceIssuer: has(receiptContext, /(pzu|allianz|warta|generali|link4|ergo hestia|bank|mbank|ing\b|santander|pekao|millennium|revolut|visa|mastercard|ubezpieczenie)/i),
+    isBankOrInsuranceIssuer: has(receiptContext, /\b(pzu|allianz|warta|generali|link4|ergo hestia|mbank|ing|santander|pekao|millennium|revolut)\b|\bbank\b|ubezpieczenie/i),
     isBusinessIssuer: isCloudOrBusinessSaaSIssuer(receiptContext) || has(receiptContext, /(biuro|ksiegow|faktura|delegacja|hotel firmowy|drukarnia|papierniczy)/i),
   };
 }
