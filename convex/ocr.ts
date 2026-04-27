@@ -12,6 +12,7 @@ import {
   enrichReceiptSummariesWithValidation,
   findSuspiciousDuplicateReceipts,
 } from "./ocr/normalization";
+import { buildCompactCategoryList } from "./ocr/categories";
 import { parseAndNormalizeResponse } from "./ocr/parser";
 import { buildAuditPrompt, buildPrompt, SYSTEM_PROMPT, VISION_MODEL, VISION_MODEL_SMART } from "./ocr/prompt";
 import { ProcessReceiptResult, ProcessedReceiptItem, ReceiptSummary } from "./ocr/types";
@@ -142,6 +143,7 @@ const OCR_UPLOAD_MAX_INPUT_PIXELS = 40_000_000;
 const OCR_FAST_MAX_TOKENS = 8192;
 const OCR_RECOVERY_MAX_TOKENS = 16384;
 const OCR_FAST_TIMEOUT_MS = 9000;
+const OCR_FAST_MULTI_IMAGE_TIMEOUT_MS = 12000;
 const OCR_RECOVERY_TIMEOUT_MS = 16000;
 const require = createRequire(import.meta.url);
 
@@ -296,7 +298,7 @@ async function processImagesWithAI(
       response_format: { type: "json_object" },
     }, `vision-batch:${batch.length}`, {
       maxAttempts: 1,
-      timeoutMs: OCR_FAST_TIMEOUT_MS,
+      timeoutMs: batch.length > 1 ? OCR_FAST_MULTI_IMAGE_TIMEOUT_MS : OCR_FAST_TIMEOUT_MS,
     });
     const initialVisionMs = Date.now() - initialVisionStart;
 
@@ -1145,7 +1147,7 @@ export const processEmailAttachments = internalAction({
       throw new Error("Brak kategorii dla gospodarstwa.");
     }
 
-    const compactCategories = "";
+    const compactCategories = buildCompactCategoryList(categoriesArray);
     const partialResults: ProcessReceiptResult[] = [];
     let receiptOffset = 0;
 
@@ -1231,7 +1233,7 @@ export const processEmailBodyText = internalAction({
       throw new Error("Brak kategorii dla gospodarstwa.");
     }
 
-    const compactCategories = "";
+    const compactCategories = buildCompactCategoryList(categoriesArray);
     return await processTextWithAI(ctx, args.householdId, args.text, compactCategories, categoriesArray);
   },
 });
@@ -1382,7 +1384,7 @@ export const processReceiptWithAI = action({
         elapsedMs: Date.now() - startTime,
       });
 
-      const compactCategories = "";
+      const compactCategories = buildCompactCategoryList(categoriesArray);
       const imageLoadStart = Date.now();
 
       const imageLoadResults = await Promise.all(

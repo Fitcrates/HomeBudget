@@ -13,10 +13,10 @@ export function matchCommerce(text: string, combinedContext: string, issuers: Is
   // ── Online / Marketplace ──
   if (isMarketplaceIssuer || isElectronicsIssuer || has(combinedContext, /\b(kurier|przesylka|shipping|shipment|marketplace)\b/i)) {
     if (has(combinedContext, /\b(koszt dostawy|przesylka|dostawa|kurier|paczkomat)\b/i)) return resolve(CATEGORY.ONLINE, SUB.dostawa, categoriesArray);
-    if (isElectronicsIssuer || has(combinedContext, /\b(sluchawki|laptop|monitor|telefon komorkowy|tablet|klawiatura|myszka|drukarka)\b/i)) return resolve(CATEGORY.ONLINE, SUB.elektronika, categoriesArray);
-    if (has(combinedContext, /\b(ksiazka|ebook|film|plyta|gra)\b/i)) return resolve(CATEGORY.ONLINE, SUB.ksiazkiMedia, categoriesArray);
-    if (has(combinedContext, /\b(krem|kosmetyki|szampon|perfumy)\b/i)) return resolve(CATEGORY.ONLINE, SUB.urodaOnline, categoriesArray);
-    if (has(combinedContext, /\b(meble|garnek|posciel|narzedzia|doniczka|lampka)\b/i)) return resolve(CATEGORY.ONLINE, SUB.domOgrod, categoriesArray);
+    if (isElectronicsIssuer || has(combinedContext, /\b(sluchawki|laptop|monitor|telefon komorkowy|smartfon|tablet|klawiatura|myszka|drukarka|pendrive|kabel usb|ladowark|powerbank|smartwatch)\b/i)) return resolve(CATEGORY.ONLINE, SUB.elektronika, categoriesArray);
+    if (has(combinedContext, /\b(ksiazka|ebook|film|plyta|gra|komiks|audiobook)\b/i)) return resolve(CATEGORY.ONLINE, SUB.ksiazkiMedia, categoriesArray);
+    if (has(combinedContext, /\b(krem|kosmetyki|szampon|perfumy|serum|tonik|makijaz)\b/i)) return resolve(CATEGORY.ONLINE, SUB.urodaOnline, categoriesArray);
+    if (has(combinedContext, /\b(meble|garnek|posciel|narzedzia|doniczka|lampka|dywan|zaslona|ogrod)\b/i)) return resolve(CATEGORY.ONLINE, SUB.domOgrod, categoriesArray);
     return resolve(CATEGORY.ONLINE, SUB.marketplace, categoriesArray);
   }
 
@@ -48,6 +48,6 @@ export function matchCommerce(text: string, combinedContext: string, issuers: Is
 
 /** Standalone electronics matching */
 export function matchCommerceStandalone(text: string, categoriesArray: any[]): CategoryResolution | null {
-  if (has(text, /\b(sluchawk|laptop|monitor|telefon komork|tablet|klawiatur|myszk|drukark|pendrive|kabel usb|ladowark|powerbank|smartwatch)\b/i)) return resolve(CATEGORY.ONLINE, SUB.elektronika, categoriesArray);
+  if (has(text, /\b(sluchawk|laptop|monitor|telefon komork|smartfon|tablet|klawiatur|myszk|drukark|pendrive|kabel usb|ladowark|powerbank|smartwatch|router|dysk ssd|karta pamieci)\b/i)) return resolve(CATEGORY.ONLINE, SUB.elektronika, categoriesArray);
   return null;
 }

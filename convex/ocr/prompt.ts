@@ -11,7 +11,7 @@ Extract EVERY visible product line. Never skip items. Return valid JSON only.`;
 // Extraction only. Category assignment is done locally in parser.ts using
 // user mappings, deterministic heuristics, and a final local fallback.
 export const EXTRACTION_PROMPT = `Extract ALL items from receipt image(s).
-For each item provide: description and amount (TOTAL line price, not unit price).
+For each item provide: description, amount (TOTAL line price, not unit price), category and subcategory.
 
 RULES:
 - If "2 x 4.99" then amount = "9.98" (multiply)
@@ -24,6 +24,7 @@ RULES:
 - payableAmount = final amount to pay printed on receipt (may include deposits). Leave empty if not visible.
 - depositTotal = printed sum of deposits/kaucja. Leave empty if not visible.
 - For multiple images of the same long receipt, use all images together and return one receipt with sourceImageIndex per item when possible.
+- For category/subcategory use ONLY exact names from CATEGORY LIST. If unsure, set both to "".
 
 Works in: Polish, English, German, Czech, Slovak.
 
@@ -44,20 +45,26 @@ Return ONLY valid JSON:
     "depositTotal": "1.00",
     "items": [{
       "description": "Product name",
-      "amount": "9.99"
+      "amount": "9.99",
+      "category": "Category name",
+      "subcategory": "Subcategory name"
     }]
   }]
 }`;
 
-export function buildPrompt(_compactCategories: string, documentText?: string): string {
+export function buildPrompt(compactCategories: string, documentText?: string): string {
+  const categorySection = compactCategories.trim()
+    ? `\n\nCATEGORY LIST:\n${compactCategories.trim()}`
+    : "";
+
   if (documentText) {
     return `Extract ALL items from the following receipt text.
 
 ${documentText}
 
-${EXTRACTION_PROMPT}`;
+${EXTRACTION_PROMPT}${categorySection}`;
   }
-  return EXTRACTION_PROMPT;
+  return `${EXTRACTION_PROMPT}${categorySection}`;
 }
 
 export function buildAuditPrompt(

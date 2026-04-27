@@ -13,14 +13,14 @@ export function matchClothing(text: string, combinedContext: string, issuers: Is
       : resolve(CATEGORY.CLOTHES, SUB.odziez, categoriesArray);
   }
 
-  if (isClothingIssuer || has(combinedContext, /\b(kurtka|bluza|spodnie|sukienka|koszula|t-shirt|sweter)\b/i)) {
-    if (has(combinedContext, /\b(legginsy sportowe|buty biegowe|dres|sport bra)\b/i)) return resolve(CATEGORY.CLOTHES, SUB.odziezSportowa, categoriesArray);
-    if (has(combinedContext, /\b(body|pajacyk|ubranka dzieciece|kurteczka dzieci)\b/i)) return resolve(CATEGORY.CLOTHES, SUB.odziezDziecieca, categoriesArray);
+  if (isClothingIssuer || has(combinedContext, /\b(kurtka|bluza|spodnie|sukienka|koszula|t-shirt|sweter|plaszcz|kamizelka|szorty|legginsy|koszulka)\b/i)) {
+    if (has(combinedContext, /\b(legginsy sportowe|buty biegowe|dres|sport bra|odziez sportowa|koszulka sportowa)\b/i)) return resolve(CATEGORY.CLOTHES, SUB.odziezSportowa, categoriesArray);
+    if (has(combinedContext, /\b(body|pajacyk|ubranka dzieciece|kurteczka dzieci|spodnie dzieci|koszulka dzieci)\b/i)) return resolve(CATEGORY.CLOTHES, SUB.odziezDziecieca, categoriesArray);
     return resolve(CATEGORY.CLOTHES, SUB.odziez, categoriesArray);
   }
-  if (isClothingIssuer && has(combinedContext, /\b(buty|trampki|adidasy|kozaki|sneakers|sandaly)\b/i)) return resolve(CATEGORY.CLOTHES, SUB.obuwie, categoriesArray);
-  if (has(combinedContext, /\b(torebka|plecak|czapka|rekawiczki|pasek|zegarek|okulary)\b/i)) return resolve(CATEGORY.CLOTHES, SUB.akcesoria, categoriesArray);
-  if (has(combinedContext, /\b(biustonosz|majtki|skarpety|rajstopy|piżama|pizama)\b/i)) return resolve(CATEGORY.CLOTHES, SUB.bielizna, categoriesArray);
+  if (isClothingIssuer && has(combinedContext, /\b(buty|trampki|adidasy|kozaki|sneakers|sandaly|klapki|polbuty|tenisowki|baleriny)\b/i)) return resolve(CATEGORY.CLOTHES, SUB.obuwie, categoriesArray);
+  if (has(combinedContext, /\b(torebka|plecak|czapka|rekawiczki|pasek|zegarek|okulary|szalik|portfel|parasol)\b/i)) return resolve(CATEGORY.CLOTHES, SUB.akcesoria, categoriesArray);
+  if (has(combinedContext, /\b(biustonosz|majtki|skarpety|rajstopy|piżama|pizama|bokserki|slip|bielizna)\b/i)) return resolve(CATEGORY.CLOTHES, SUB.bielizna, categoriesArray);
 
   return null;
 }
