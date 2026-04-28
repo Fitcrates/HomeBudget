@@ -258,9 +258,9 @@ const OCR_UPLOAD_WEBP_EFFORT = 4;
 const OCR_UPLOAD_MAX_INPUT_PIXELS = 40_000_000;
 const OCR_FAST_MAX_TOKENS = 8192;
 const OCR_RECOVERY_MAX_TOKENS = 16384;
-const OCR_FAST_TIMEOUT_MS = 9000;
-const OCR_FAST_MULTI_IMAGE_TIMEOUT_MS = 12000;
-const OCR_RECOVERY_TIMEOUT_MS = 16000;
+const OCR_FAST_TIMEOUT_MS = 18000;
+const OCR_FAST_MULTI_IMAGE_TIMEOUT_MS = 25000;
+const OCR_RECOVERY_TIMEOUT_MS = 30000;
 const require = createRequire(import.meta.url);
 
 let sharpFactory: typeof import("sharp") | null = null;
@@ -810,6 +810,8 @@ async function processImagesWithAI(
   }
 
   const parallelMs = Date.now() - parallelStart;
+  const missingSomeImages = successfulResults.length < perImageResults.length;
+
   logOcrTiming("ocr:images", "parallel_completed", {
     imageCount: imageDataList.length,
     successfulImages: successfulResults.length,
@@ -836,7 +838,7 @@ async function processImagesWithAI(
     const combinedResult = await combinedResultPromise;
     if (combinedResult.status === "fulfilled" && combinedResult.result.items.length > 0) {
       const upgradedFromCombined = upgradeFallbackCategoriesFromCandidate(merged, combinedResult.result);
-      const combinedPreferred = shouldPreferRecoveryCandidate(merged, combinedResult.result);
+      const combinedPreferred = missingSomeImages || shouldPreferRecoveryCandidate(merged, combinedResult.result);
       logOcrTiming("ocr:images", "combined_crosscheck_completed", {
         combinedPreferred,
         upgradedWithCombinedContext,
@@ -863,6 +865,10 @@ async function processImagesWithAI(
         message: String(combinedResult.error?.message || combinedResult.error),
       });
     }
+  }
+
+  if (missingSomeImages) {
+    throw new Error("OCR nie powiódł się dla części zdjęć. Spróbuj ponownie za chwilę.");
   }
 
   logOcrTiming("ocr:images", "pipeline_completed", {

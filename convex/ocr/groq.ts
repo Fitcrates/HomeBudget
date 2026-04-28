@@ -5,8 +5,8 @@ import { sleep } from "./utils";
 
 // Keep OCR responsive. A timed out vision call is already too slow for the scan flow,
 // so callers can opt into a retry only where the extra latency is worth it.
-const AI_CALL_TIMEOUT_MS = 12000;
-const AI_CLIENT_TIMEOUT_MS = 20000;
+const AI_CALL_TIMEOUT_MS = 25000;
+const AI_CLIENT_TIMEOUT_MS = 35000;
 const DEFAULT_MAX_ATTEMPTS = 2;
 
 let cachedGeminiClient: OpenAI | null = null;
