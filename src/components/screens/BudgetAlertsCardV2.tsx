@@ -46,8 +46,8 @@ export function BudgetAlertsCard({ householdId, currency, dateFrom, dateTo }: Pr
 
   if (categoryAlerts.length === 0 && personalAlerts.length === 0) {
     return (
-      <div className="app-card">
-        <div className="flex items-center justify-between mb-3">
+      <div className="app-card ">
+        <div className="flex items-center justify-between mb-3 ">
           <div className="flex items-center gap-2 drop-shadow-sm">
             <Target className="w-6 h-6 text-[#c76823]" />
             <h3 className="text-[15px] font-medium text-[#2b180a]">Budżety</h3>
@@ -128,9 +128,8 @@ export function BudgetAlertsCard({ householdId, currency, dateFrom, dateTo }: Pr
                     </span>
                   </div>
                   <span
-                    className={`text-[10px] font-bold ${
-                      isOver ? "text-red-500" : isWarning ? "text-yellow-600" : "text-[#46825d]"
-                    }`}
+                    className={`text-[10px] font-bold ${isOver ? "text-red-500" : isWarning ? "text-yellow-600" : "text-[#46825d]"
+                      }`}
                   >
                     {isOver
                       ? `Przekroczono o ${formatAmount(Math.abs(member.personalBudgetRemaining ?? 0), currency)}`

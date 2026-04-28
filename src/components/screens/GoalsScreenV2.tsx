@@ -10,7 +10,6 @@ import {
   PiggyBank,
   Plus,
   Sparkles,
-  Star,
   Target,
   TrendingUp,
   X,
@@ -173,19 +172,21 @@ export function GoalsScreen({ householdId, currency }: Props) {
       )}
 
       {summary && (
-       <AppCard padding="md" className="flex divide-x divide-[#f2d6bf]">
-  {[
-    { label: "Do odłożenia", value: formatAmount(summary.remainingTotal, currency) },
-    { label: "Tempo 30 dni", value: formatAmount(summary.monthlyPace, currency), sub: "na wszystkich skarbonkach" },
-    { label: "Aktywne cele", value: summary.activePlans },
-  ].map(({ label, value, sub }) => (
-    <div key={label} className="flex-1 px-2">
-      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#b89b87]">{label}</p>
-      <p className="mt-2 text-lg font-semibold text-[#2b180a]">{value}</p>
-      {sub && <p className="mt-1 text-xs font-medium text-[#8a7262]">{sub}</p>}
-    </div>
-  ))}
-</AppCard>
+        <AppCard padding="md" className="flex divide-x divide-[#f2d6bf]">
+          {[
+            { label: "Do odłożenia", value: formatAmount(summary.remainingTotal, currency) },
+            { label: "Tempo 30 dni", value: formatAmount(summary.monthlyPace, currency), sub: "na wszystkich skarbonkach" },
+            { label: "Aktywne cele", value: summary.activePlans },
+          ].map(({ label, value, sub }) => (
+            <div key={label} className="flex-1 px-2 flex flex-col">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] leading-tight text-[#b89b87] min-h-[28px]">{label}</p>
+              <div className="mt-auto">
+                <p className="text-lg font-semibold text-[#2b180a]">{value}</p>
+                {sub && <p className="mt-1 text-[10px] leading-tight font-medium text-[#8a7262]">{sub}</p>}
+              </div>
+            </div>
+          ))}
+        </AppCard>
       )}
 
       {goals === undefined ? (
@@ -193,7 +194,7 @@ export function GoalsScreen({ householdId, currency }: Props) {
       ) : goals.length === 0 ? (
         <AppCard padding="md" className="flex flex-col items-center py-10 text-center opacity-90">
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-[#f5e5cf] bg-[#fcf4e4] shadow-sm">
-            <Star className="h-8 w-8 text-[#ca782a]" />
+            <PiggyBank className="h-8 w-8 text-[#ca782a]" strokeWidth={2.5} />
           </div>
           <h3 className="mb-2 text-lg font-medium text-[#3e2815]">Brak celów</h3>
           <p className="text-sm font-bold text-[#8a7262]">
@@ -476,19 +477,21 @@ function GoalCard({
     : { main: formatShortDate(goal.pace.projectedCompletionDate), sub: "bazując na obecnym tempie" };
 
   return (
-    <div className="relative z-10 mt-3 overflow-hidden rounded-xl border border-[#f2dfcb] bg-white/60 sm:flex sm:divide-x sm:divide-[#f2dfcb]">
+    <div className="relative z-10 mt-3 overflow-hidden rounded-xl border border-[#f2dfcb] bg-white/60 flex divide-x divide-[#f2dfcb]">
       {[
         { icon: PiggyBank, label: "Do celu", main: formatAmount(goal.remainingAmount, currency) },
         { icon: TrendingUp, label: "Tempo 30 dni", main: formatAmount(goal.pace.projectedMonthlyAmount, currency), sub: `${formatAmount(goal.pace.averageDailyAmount, currency)} dziennie` },
         { icon: CalendarDays, label: goal.plan.mode === "deadline" ? "Plan do terminu" : "Szacowany finisz", ...thirdValue },
       ].map(({ icon: Icon, label, main, sub }) => (
-        <div key={label} className="flex-1 border-t border-[#f2dfcb] px-3 py-2.5 first:border-t-0 sm:border-t-0">
-          <div className="flex items-center gap-2 text-[#8a7262]">
-            <Icon className="h-4 w-4" />
-            <span className="text-[11px] font-bold uppercase tracking-[0.15em]">{label}</span>
+        <div key={label} className="flex-1 px-2 py-2.5 flex flex-col">
+          <div className="flex items-start gap-1.5 text-[#8a7262] min-h-[32px]">
+            <Icon className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            <span className="text-[9px] font-bold uppercase tracking-[0.15em] leading-tight">{label}</span>
           </div>
-          <p className="mt-2 text-sm font-semibold text-[#2b180a]">{main}</p>
-          {sub && <p className="mt-1 text-[11px] font-medium text-[#8a7262]">{sub}</p>}
+          <div className="mt-auto">
+            <p className="text-[13px] font-semibold text-[#2b180a]">{main}</p>
+            {sub && <p className="mt-1 text-[10px] leading-tight font-medium text-[#8a7262]">{sub}</p>}
+          </div>
         </div>
       ))}
     </div>

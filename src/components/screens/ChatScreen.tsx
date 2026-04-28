@@ -2,13 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { Bot, ShoppingCart, Send, Plus, Check, Square, X } from "lucide-react";
+import { Bot, ShoppingCart, Send, Plus, Check, Square, X, MessageCircle, Trash2, Loader2, Menu } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
-import { ScreenHeader } from "../ui/ScreenHeader";
-import { TabBar } from "../ui/TabBar";
-import { AppCard } from "../ui/AppCard";
 
 interface Props {
   householdId: Id<"households">;
@@ -18,30 +15,106 @@ type ChatTab = "chat" | "shopping";
 
 export function ChatScreen({ householdId }: Props) {
   const [tab, setTab] = useState<ChatTab>("chat");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const shoppingList = useQuery(api.shopping.listForHousehold, { householdId }) ?? [];
   const unboughtCount = shoppingList.filter(i => !i.isBought).length;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] pb-2 relative">
-      <div className="pt-2 pb-4 flex-shrink-0">
-        <ScreenHeader icon={<Bot className="w-9 h-9" />} title="Agent" />
-        <TabBar
-          tabs={[
-            { key: "chat", label: "Rozmowa", icon: Bot },
-            { 
-               key: "shopping", 
-               label: "Lista zakupów", 
-               icon: ShoppingCart,
-               badge: unboughtCount > 0 ? unboughtCount : undefined 
-            },
-          ]}
-          value={tab}
-          onChange={setTab}
-        />
+    <div className="flex h-[calc(100vh-80px)] w-full overflow-hidden rounded-xl bg-gradient-to-br from-[#fef8f0] to-[#f9ede0]">
+      {/* SIDEBAR - Historia czatów / Lista zakupów */}
+      <div
+        className={`flex-shrink-0 border-r border-[#e8d5c4] bg-white/60 backdrop-blur-sm transition-all duration-300 ${sidebarOpen ? 'w-72' : 'w-0'
+          } overflow-hidden`}
+      >
+        <div className="flex h-full w-72 flex-col">
+          {/* Sidebar Header */}
+          <div className="border-b border-[#e8d5c4] p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-black text-[#2b180a]">
+                {tab === "chat" ? "Rozmowy" : "Zakupy"}
+              </h2>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="rounded-xl p-1.5 text-[#8a7262] hover:bg-[#f5e5cf]/50"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Sidebar Content */}
+          <div className="flex-1 overflow-y-auto">
+            {tab === "chat" ? (
+              <ChatSidebar householdId={householdId} />
+            ) : (
+              <ShoppingSidebar householdId={householdId} items={shoppingList} />
+            )}
+          </div>
+        </div>
       </div>
 
-      {tab === "chat" ? <ChatView householdId={householdId} /> : <ShoppingListView householdId={householdId} items={shoppingList} />}
+      {/* MAIN CONTENT AREA */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Top Bar */}
+        <div className="border-b border-[#e8d5c4] bg-white/40 px-4 py-3 backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="rounded-xl p-2 text-[#8a7262] hover:bg-[#f5e5cf]/50"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+            )}
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#de9241] to-[#ca782a] shadow-sm">
+              <Bot className="h-5 w-5 text-white" />
+            </div>
+            <div className="flex-1">
+              <h1 className="text-base font-black text-[#2b180a]">Agent Domowy</h1>
+              <p className="text-xs font-semibold text-[#8a7262]">Twój asystent rodzinny</p>
+            </div>
+          </div>
+
+          {/* Tab Switcher */}
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => setTab("chat")}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-bold transition-all ${tab === "chat"
+                  ? "bg-[#cf833f] text-white shadow-sm"
+                  : "bg-[#f5e5cf]/40 text-[#8a7262] hover:bg-[#f5e5cf]/70"
+                }`}
+            >
+              <Bot className="h-4 w-4" />
+              Czat
+            </button>
+            <button
+              onClick={() => setTab("shopping")}
+              className={`relative flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-bold transition-all ${tab === "shopping"
+                  ? "bg-[#cf833f] text-white shadow-sm"
+                  : "bg-[#f5e5cf]/40 text-[#8a7262] hover:bg-[#f5e5cf]/70"
+                }`}
+            >
+              <ShoppingCart className="h-4 w-4" />
+              Lista
+              {unboughtCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white">
+                  {unboughtCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Main View */}
+        <div className="flex-1 overflow-hidden">
+          {tab === "chat" ? (
+            <ChatMainView householdId={householdId} />
+          ) : (
+            <ShoppingMainView householdId={householdId} items={shoppingList} />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -49,9 +122,9 @@ export function ChatScreen({ householdId }: Props) {
 function InteractiveListItem({ children, ...props }: any) {
   const [done, setDone] = useState(false);
   return (
-    <li 
-      {...props} 
-      onClick={() => setDone(!done)} 
+    <li
+      {...props}
+      onClick={() => setDone(!done)}
       className={`cursor-pointer transition-all hover:bg-[#cf833f]/10 p-1.5 rounded-xl list-none flex items-start gap-2.5 -ml-4 mb-1.5 ${done ? 'opacity-40' : ''} border border-transparent hover:border-[#cf833f]/20 active:scale-[0.98] select-none touch-manipulation`}
     >
       <span className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded-full border-[2px] transition-all flex items-center justify-center ${done ? 'bg-[#cf833f] border-[#cf833f]' : 'border-[#cf833f]/40'}`}>
@@ -64,92 +137,100 @@ function InteractiveListItem({ children, ...props }: any) {
   );
 }
 
+// Funkcja generująca tytuł czatu na podstawie pierwszej wiadomości użytkownika
+function generateChatTitle(firstMessage: string): string {
+  const text = firstMessage.trim().toLowerCase();
 
+  if (/przepis|gotowa[ćc]|ugotowa[ćc]|zrobi[ćc]|przygotowa[ćc]|upiec|usma[żz]y[ćc]/.test(text)) {
+    return "🍳 Przepis";
+  }
+  if (/zakup|kupi[ćc]|sklep|list[aę]|produkt|potrzeb/.test(text)) {
+    return "🛒 Zakupy";
+  }
+  if (/bud[żz]et|wydatk|oszcz[ęe]dno[śs][ćc]|pieni[ąa]dz|koszt|p[łl]aci[ćc]|zap[łl]aci[ćc]/.test(text)) {
+    return "💰 Budżet";
+  }
+  if (/posi[łl]|obiad|[śs]niadanie|kolacj|lunch|jedzenie|menu/.test(text)) {
+    return "🍽️ Posiłki";
+  }
+  if (/jak|co|dlaczego|kiedy|gdzie|czy|pomoc|porad|sugest/.test(text)) {
+    return "💡 Pytanie";
+  }
 
-function ChatView({ householdId }: { householdId: Id<"households"> }) {
+  const shortText = firstMessage.slice(0, 25);
+  return shortText.length < firstMessage.length ? `${shortText}...` : shortText;
+}
+
+// SIDEBAR - Historia czatów
+function ChatSidebar({ householdId }: { householdId: Id<"households"> }) {
   const sessions = useQuery(api.chat.listSessions, { householdId });
   const createSession = useMutation(api.chat.createSession);
   const deleteSession = useMutation(api.chat.deleteSession);
-  
-  const [activeSessionId, setActiveSessionId] = useState<Id<"chat_sessions"> | null>(null);
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<Id<"chat_sessions"> | null>(null);
 
-  useEffect(() => {
-    if (sessions && sessions.length > 0 && !activeSessionId) {
-      setActiveSessionId(sessions[0]._id);
-    }
-  }, [sessions, activeSessionId]);
-
   async function handleNewChat() {
-    const id = await createSession({ householdId, title: "Nowa rozmowa" });
-    setActiveSessionId(id);
+    await createSession({ householdId, title: "Nowa rozmowa" });
   }
 
   async function handleDeleteSession(sessionId: Id<"chat_sessions">) {
     try {
       await deleteSession({ householdId, sessionId });
-      if (activeSessionId === sessionId) {
-        setActiveSessionId(null);
-      }
-      toast.success("Czat usunięty.");
+      toast.success("Czat usunięty");
     } catch (err: any) {
-      toast.error(err?.message || "Nie udało się usunąć czatu.");
+      toast.error("Nie udało się usunąć");
     }
   }
 
   return (
-    <div className="flex-1 overflow-hidden flex flex-col gap-3">
-      {/* Sessions Bar */}
-      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide shrink-0 px-1 py-0.5">
+    <div className="flex h-full flex-col">
+      <div className="p-3">
         <button
           onClick={handleNewChat}
-          className="flex-shrink-0 flex items-center justify-center gap-1 bg-[#c76823] text-white text-[12px] font-bold px-3 py-1.5 rounded-full shadow-sm hover:bg-[#a6561d] transition-colors"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#de9241] to-[#ca782a] px-4 py-3 text-sm font-black text-white shadow-md transition-all hover:shadow-lg active:scale-95"
         >
-          <Plus className="w-3.5 h-3.5" /> Nowy Czat
+          <Plus className="h-4 w-4" />
+          Nowa rozmowa
         </button>
+      </div>
+
+      <div className="flex-1 space-y-1 overflow-y-auto px-3 pb-3">
+        {sessions?.length === 0 && (
+          <div className="py-8 text-center">
+            <p className="text-sm font-semibold text-[#b89b87]">Brak rozmów</p>
+            <p className="mt-1 text-xs text-[#d8bda6]">Rozpocznij nową</p>
+          </div>
+        )}
+
         {sessions?.map((session) => (
-          <div key={session._id} className="relative group flex-shrink-0">
-             <button
-                onClick={() => setActiveSessionId(session._id)}
-                className={`text-[12px] font-bold px-4 py-1.5 rounded-full transition-colors flex items-center gap-1 border ${
-                  activeSessionId === session._id
-                    ? "bg-white text-[#c76823] border-[#f5e5cf] shadow-sm"
-                    : "bg-white/40 text-[#8a7262] border-transparent hover:bg-white/60"
-                }`}
-              >
+          <div
+            key={session._id}
+            className="group relative rounded-xl border border-transparent bg-white/40 transition-all hover:bg-white/70"
+          >
+            <div className="px-3 py-2.5">
+              <p className="truncate text-sm font-bold text-[#2b180a]">
                 {session.title}
-             </button>
-             <button
-               type="button"
-               onClick={(e) => {
-                 e.stopPropagation();
-                 setPendingDeleteSessionId(session._id);
-               }}
-               title="Usuń czat"
-               aria-label="Usuń czat"
-               className={`absolute -top-1 -right-1 h-5 w-5 rounded-full border border-red-200 bg-red-100 text-red-500 shadow-sm opacity-0 transition-opacity hover:bg-red-200 group-hover:opacity-100 ${activeSessionId === session._id ? "opacity-100" : ""}`}
-             >
-               <X className="mx-auto h-3 w-3" />
-             </button>
+              </p>
+              <p className="mt-0.5 text-xs text-[#8a7262]">
+                {new Date(session.updatedAt).toLocaleDateString('pl-PL', {
+                  day: 'numeric',
+                  month: 'short'
+                })}
+              </p>
+            </div>
+            <button
+              onClick={() => setPendingDeleteSessionId(session._id)}
+              className="absolute right-2 top-2 rounded-md p-1 text-[#8a7262] opacity-0 transition-opacity hover:bg-red-100 hover:text-red-500 group-hover:opacity-100"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
           </div>
         ))}
       </div>
 
-      {/* Active Session View */}
-      {activeSessionId ? (
-        <ActiveChatSession householdId={householdId} sessionId={activeSessionId} />
-      ) : (
-        <div className="flex-1 flex flex-col items-center justify-center text-center opacity-50 px-6">
-          <Bot className="w-12 h-12 text-[#c76823] mb-4" />
-          <p className="text-[14px] font-bold text-[#8a7262]">Nie masz jeszcze żadnych rozmów.</p>
-          <p className="text-[12px] text-[#b89b87] mt-1">Zacznij nową rozmowę aby zapytać Agenta o przepis z listy zakupów, albo poradę dotyczącą Twoich wydatków.</p>
-        </div>
-      )}
-
       <ConfirmDialog
         open={Boolean(pendingDeleteSessionId)}
-        title="Usunąć czat?"
-        description="Wiadomości z tej sesji zostaną trwale usunięte."
+        title="Usunąć rozmowę?"
+        description="Wszystkie wiadomości zostaną trwale usunięte."
         confirmLabel="Usuń"
         onCancel={() => setPendingDeleteSessionId(null)}
         onConfirm={() => {
@@ -162,183 +243,130 @@ function ChatView({ householdId }: { householdId: Id<"households"> }) {
   );
 }
 
-function ActiveChatSession({ householdId, sessionId }: { householdId: Id<"households">; sessionId: Id<"chat_sessions"> }) {
-  const messages = useQuery(api.chat.listSessionMessages, { householdId, sessionId });
-  const sendMessage = useAction(api.chatNode.sendMessage);
-  const resolveAction = useMutation(api.chat.resolvePendingAction);
-  
-  const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const endRef = useRef<HTMLDivElement>(null);
-  const addItem = useMutation(api.shopping.add);
+// SIDEBAR - Lista zakupów (kompaktowa)
+function ShoppingSidebar({ householdId, items }: { householdId: Id<"households">; items: any[] }) {
+  const toggle = useMutation(api.shopping.toggleBuy);
+  const clearBought = useMutation(api.shopping.clearBought);
 
-  const isLimitReached = (messages?.length ?? 0) >= 30;
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
-
-  async function handleSend(e: React.FormEvent) {
-    e.preventDefault();
-    if (!input.trim() || isTyping || isLimitReached) return;
-    
-    const text = input;
-    setInput("");
-    setIsTyping(true);
-
-    try {
-       await sendMessage({ householdId, sessionId, text });
-    } catch(err) {
-       toast.error("Błąd podczas wysyłania wiadomości.");
-    } finally {
-       setIsTyping(false);
-    }
-  }
+  const unbought = items.filter(i => !i.isBought);
+  const bought = items.filter(i => i.isBought);
 
   return (
-    <AppCard padding="none" className="flex-1 overflow-hidden flex flex-col relative w-full h-full">
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
-        {messages?.map((msg) => {
-          const isMe = msg.role === "user";
-          return (
-            <div key={msg._id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-              <div className="flex flex-col gap-1.5 items-start">
-                <div
-                  className={`max-w-[85%] rounded-xl px-4 py-3 shadow-sm ${
-                    isMe
-                      ? "bg-[#cf833f] text-white rounded-br-sm self-end"
-                      : "bg-white text-[#2b180a] border border-[#f5e5cf] rounded-bl-sm"
-                  }`}
-                >
-                  {isMe ? (
-                    <span className="text-[13px] font-medium block leading-relaxed">{msg.text}</span>
-                  ) : (
-                    <div className="text-[14px] font-medium leading-relaxed prose prose-sm prose-orange max-w-none text-[#2b180a]">
-                      <ReactMarkdown
-                        components={{
-                          li: InteractiveListItem
-                        }}
-                      >{msg.text}</ReactMarkdown>
-                    </div>
-                  )}
-                </div>
-                
-                {msg.pendingAction && (
-                  <div className="ml-2 bg-[#fdf9f1] border border-[#f5e5cf] rounded-xl p-3 shadow-sm flex flex-col gap-2 max-w-[85%]">
-                    <div className="flex items-center gap-1.5 text-[12px] font-bold text-[#8a7262]">
-                      <ShoppingCart className="w-4 h-4 text-[#c76823]" />
-                      {msg.pendingAction.type === "clear_shopping_list" && (
-                        <>
-                          <p className="text-xs font-bold text-[#cf833f] text-center w-full mb-1">
-                            Agent proponuje WYCZYSZCZENIE listy zakupów. Zgadzasz się?
-                          </p>
-                          <div className="flex gap-2 w-full mt-2">
-                            <button
-                              onClick={() => resolveAction({ householdId, messageId: msg._id, status: "approved" })}
-                              className="flex-1 bg-gradient-to-r from-red-400 to-red-500 text-white rounded-xl py-2 font-black text-[13px]"
-                            >
-                              Wyczyść
-                            </button>
-                            <button
-                              onClick={() => resolveAction({ householdId, messageId: msg._id, status: "rejected" })}
-                              className="flex-1 bg-black/5 text-[#8a7262] rounded-xl py-2 font-black text-[13px]"
-                            >
-                              Odrzuć
-                            </button>
-                          </div>
-                        </>
-                      )}
-                      {msg.pendingAction.type === "add_shopping_list" && (
-                        <>
-                          <p className="text-xs font-bold text-[#cf833f] text-center w-full mb-1">
-                            Agent proponuje dodanie {msg.pendingAction.data?.items?.length} produktów do listy.
-                          </p>
-                          <div className="flex gap-2 w-full mt-2">
-                            <button
-                              onClick={async () => {
-                                 for (const item of msg.pendingAction?.data?.items || []) {
-                                   await addItem({ householdId, name: String(item), addedByAction: "AI_Agent" });
-                                 }
-                                 await resolveAction({ householdId, messageId: msg._id, status: "approved" });
-                                 toast.success("Produkty dodane na listę.");
-                              }}
-                              className="flex-1 bg-gradient-to-r from-orange-400 to-orange-500 text-white rounded-xl py-2 font-black text-[13px]"
-                            >
-                              Zgoda
-                            </button>
-                            <button
-                              onClick={() => resolveAction({ householdId, messageId: msg._id, status: "rejected" })}
-                              className="flex-1 bg-black/5 text-[#8a7262] rounded-xl py-2 font-black text-[13px]"
-                            >
-                              Odrzuć
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    {msg.pendingAction.status === "approved" && (
-                      <div className="text-[11px] font-medium text-[#4aad6f] flex items-center gap-1 bg-[#dcfce7]/50 px-2 py-1 rounded w-max">
-                        <Check className="w-3 h-3" /> Zgoda wydana
-                      </div>
-                    )}
-                    {msg.pendingAction.status === "rejected" && (
-                      <div className="text-[11px] font-medium text-red-400 flex items-center gap-1 bg-red-50 px-2 py-1 rounded w-max">
-                        <X className="w-3 h-3" /> Odrzucono
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-        {isTyping && (
-           <div className="flex justify-start">
-             <div className="bg-white text-[#8a7262] border border-[#f5e5cf] rounded-xl rounded-bl-sm px-4 py-3 shadow-sm flex items-center gap-1">
-               <div className="w-1.5 h-1.5 bg-[#cf833f] rounded-full animate-bounce"></div>
-               <div className="w-1.5 h-1.5 bg-[#cf833f] rounded-full animate-bounce delay-100"></div>
-               <div className="w-1.5 h-1.5 bg-[#cf833f] rounded-full animate-bounce delay-200"></div>
-             </div>
-           </div>
-        )}
-        <div ref={endRef} className="h-2" />
-      </div>
-
-      <div className="p-3 bg-white/60 border-t border-white/50">
-        <form onSubmit={handleSend} className="flex items-center gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Zapytaj o przepis..."
-            className="flex-1 bg-white border border-[#f5e5cf] rounded-full px-4 py-3 text-sm font-medium outline-none focus:border-[#cf833f] text-[#2b180a] shadow-inner"
-            disabled={isTyping || isLimitReached}
-          />
+    <div className="flex h-full flex-col">
+      {bought.length > 0 && (
+        <div className="border-b border-[#e8d5c4] p-3">
           <button
-            type="submit"
-            disabled={!input.trim() || isTyping || isLimitReached}
-            className="w-12 h-12 bg-gradient-to-br from-[#de9241] to-[#ca782a] text-white rounded-full flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 transition-all flex-shrink-0"
+            onClick={() => clearBought({ householdId })}
+            className="w-full rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-500 transition-colors hover:bg-red-100"
           >
-            <Send className="w-5 h-5 ml-0.5" />
+            Wyczyść kupione ({bought.length})
           </button>
-        </form>
-        {isLimitReached && (
-           <p className="text-[10px] font-bold text-red-400 mt-2 text-center">
-             Osiągnięto limit 30 wiadomości na ten czat. Rozpocznij nowy, aby kontynuować rozmowę oszczędzając pamięć agenta.
-           </p>
+        </div>
+      )}
+
+      <div className="flex-1 space-y-4 overflow-y-auto p-3">
+        {unbought.length === 0 && bought.length === 0 && (
+          <div className="py-8 text-center">
+            <ShoppingCart className="mx-auto h-12 w-12 text-[#d8bda6]" />
+            <p className="mt-3 text-sm font-semibold text-[#b89b87]">Lista pusta</p>
+          </div>
+        )}
+
+        {unbought.length > 0 && (
+          <div>
+            <h4 className="mb-2 text-xs font-black uppercase tracking-wider text-[#8a7262]">
+              Do kupienia ({unbought.length})
+            </h4>
+            <div className="space-y-1">
+              {unbought.map(item => (
+                <button
+                  key={item._id}
+                  onClick={() => toggle({ householdId, itemId: item._id, isBought: true })}
+                  className="flex w-full items-center gap-2 rounded-xl bg-white/60 p-2 text-left transition-all hover:bg-white"
+                >
+                  <Square className="h-4 w-4 flex-shrink-0 text-[#cf833f]" />
+                  <span className="truncate text-sm font-semibold text-[#2b180a]">
+                    {item.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {bought.length > 0 && (
+          <div>
+            <h4 className="mb-2 text-xs font-black uppercase tracking-wider text-[#8a7262]">
+              Kupione ({bought.length})
+            </h4>
+            <div className="space-y-1">
+              {bought.map(item => (
+                <button
+                  key={item._id}
+                  onClick={() => toggle({ householdId, itemId: item._id, isBought: false })}
+                  className="flex w-full items-center gap-2 rounded-xl bg-white/30 p-2 text-left opacity-60 transition-all hover:opacity-100"
+                >
+                  <Check className="h-4 w-4 flex-shrink-0 text-green-600" />
+                  <span className="truncate text-sm font-semibold text-[#2b180a] line-through">
+                    {item.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
-    </AppCard>
+    </div>
   );
 }
 
-function ShoppingListView({ householdId, items }: { householdId: Id<"households">; items: any[] }) {
+// MAIN VIEW - Czat
+function ChatMainView({ householdId }: { householdId: Id<"households"> }) {
+  const sessions = useQuery(api.chat.listSessions, { householdId });
+  const updateSessionTitle = useMutation(api.chat.updateSessionTitle);
+  const [activeSessionId, setActiveSessionId] = useState<Id<"chat_sessions"> | null>(null);
+
+  useEffect(() => {
+    if (sessions && sessions.length > 0 && !activeSessionId) {
+      setActiveSessionId(sessions[0]._id);
+    }
+  }, [sessions, activeSessionId]);
+
+  if (!activeSessionId || !sessions || sessions.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center p-8">
+        <div className="max-w-md text-center">
+          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-xl bg-gradient-to-br from-[#fff4df] to-[#f5c48e]">
+            <MessageCircle className="h-10 w-10 text-[#cf833f]" />
+          </div>
+          <h3 className="text-xl font-black text-[#2b180a]">Witaj w Agencie Domowym!</h3>
+          <p className="mt-2 text-sm leading-relaxed text-[#8a7262]">
+            Rozpocznij rozmowę, aby zapytać o przepisy, zaplanować posiłki lub zarządzać listą zakupów.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <ActiveChatSession
+      householdId={householdId}
+      sessionId={activeSessionId}
+      onFirstMessage={(text) => {
+        const title = generateChatTitle(text);
+        updateSessionTitle({ householdId, sessionId: activeSessionId, title });
+      }}
+    />
+  );
+}
+
+// MAIN VIEW - Lista zakupów
+function ShoppingMainView({ householdId, items }: { householdId: Id<"households">; items: any[] }) {
   const [newItem, setNewItem] = useState("");
   const [pendingDeleteItemId, setPendingDeleteItemId] = useState<Id<"shopping_items"> | null>(null);
   const add = useMutation(api.shopping.add);
   const toggle = useMutation(api.shopping.toggleBuy);
   const remove = useMutation(api.shopping.remove);
-  const clearBought = useMutation(api.shopping.clearBought);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -346,7 +374,7 @@ function ShoppingListView({ householdId, items }: { householdId: Id<"households"
     try {
       await add({ householdId, name: newItem.trim(), addedByAction: "User" });
       setNewItem("");
-    } catch(err) {} 
+    } catch (err) { }
   }
 
   const unbought = items.filter(i => !i.isBought);
@@ -355,50 +383,68 @@ function ShoppingListView({ householdId, items }: { householdId: Id<"households"
   async function handleDeleteItem(itemId: Id<"shopping_items">) {
     try {
       await remove({ householdId, itemId });
-      toast.success("Produkt usunięty.");
+      toast.success("Produkt usunięty");
     } catch (err: any) {
-      toast.error(err?.message || "Nie udało się usunąć produktu.");
+      toast.error("Nie udało się usunąć");
     }
   }
 
   return (
-    <AppCard padding="none" className="flex-1 overflow-hidden flex flex-col relative w-full h-full">
-      <div className="p-4 bg-white/60 border-b border-white/50">
+    <div className="flex h-full flex-col bg-white/30">
+      {/* Add Item Form */}
+      <div className="border-b border-[#e8d5c4] bg-white/50 p-4">
         <form onSubmit={handleAdd} className="flex gap-2">
-           <input 
-             type="text" 
-             value={newItem}
-             onChange={e => setNewItem(e.target.value)}
-             placeholder="Dodaj ręcznie np. Mleko" 
-             className="flex-1 bg-white border border-[#f5e5cf] rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-[#cf833f] shadow-inner"
-           />
-           <button type="submit" disabled={!newItem.trim()} className="px-4 bg-[#cf833f] text-white rounded-xl shadow-sm hover:bg-[#c76823] disabled:opacity-50 font-bold">
-             <Plus className="w-5 h-5" />
-           </button>
+          <input
+            type="text"
+            value={newItem}
+            onChange={e => setNewItem(e.target.value)}
+            placeholder="Dodaj produkt..."
+            className="flex-1 rounded-xl border border-[#e8d5c4] bg-white px-4 py-2.5 text-sm font-semibold text-[#2b180a] outline-none transition-all placeholder:text-[#d8bda6] focus:border-[#cf833f]"
+          />
+          <button
+            type="submit"
+            disabled={!newItem.trim()}
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#de9241] to-[#ca782a] text-white shadow-md transition-all hover:shadow-lg active:scale-95 disabled:opacity-50"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
         </form>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 scrollbar-hide space-y-6">
+      {/* Items List */}
+      <div className="flex-1 space-y-6 overflow-y-auto p-4">
         {unbought.length === 0 && bought.length === 0 && (
-           <div className="text-center py-10 opacity-70">
-             <ShoppingCart className="w-12 h-12 text-[#c76823] mx-auto mb-2 opacity-50" />
-             <p className="text-sm font-bold text-[#8a7262]">Lista zakupów jest pusta</p>
-             <p className="text-xs font-medium text-[#b89b87] mt-1">Sztuczna Inteligencja może ją dla Ciebie wypełnić!</p>
-           </div>
+          <div className="flex h-full min-h-[300px] flex-col items-center justify-center text-center">
+            <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-xl bg-gradient-to-br from-[#fff4df] to-[#f5c48e]">
+              <ShoppingCart className="h-10 w-10 text-[#cf833f]" />
+            </div>
+            <p className="text-lg font-black text-[#2b180a]">Lista jest pusta</p>
+            <p className="mt-2 max-w-xs text-sm leading-relaxed text-[#8a7262]">
+              Dodaj produkty ręcznie lub poproś Agenta o przygotowanie listy.
+            </p>
+          </div>
         )}
 
         {unbought.length > 0 && (
           <div className="space-y-2">
-            <h4 className="text-[11px] font-bold text-[#b89b87] uppercase tracking-wider mb-2 ml-1">Do kupienia</h4>
+            <h4 className="text-xs font-black uppercase tracking-wider text-[#8a7262]">
+              Do kupienia ({unbought.length})
+            </h4>
             {unbought.map(item => (
-              <div key={item._id} className="group flex items-center justify-between p-3 bg-white border border-[#f5e5cf] rounded-xl shadow-sm">
-                 <div className="flex items-center gap-3 cursor-pointer" onClick={() => toggle({ householdId, itemId: item._id, isBought: true })}>
-                   <div className="w-6 h-6 border-2 border-[#cf833f] rounded-xl flex items-center justify-center as transition-all group-hover:bg-[#fcf4e4]">
-                      <Square className="w-4 h-4 text-transparent" />
-                   </div>
-                   <span className="text-sm font-medium text-[#2b180a]">{item.name}</span>
-                 </div>
-                 <button type="button" onClick={() => setPendingDeleteItemId(item._id)} title="Usuń produkt" aria-label="Usuń produkt" className="h-7 w-7 rounded-full text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-400"><X className="mx-auto h-4 w-4" /></button>
+              <div key={item._id} className="group flex items-center justify-between rounded-xl border border-[#e8d5c4] bg-white p-3 transition-all hover:shadow-sm">
+                <div className="flex min-w-0 flex-1 cursor-pointer items-center gap-3" onClick={() => toggle({ householdId, itemId: item._id, isBought: true })}>
+                  <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-xl border-2 border-[#cf833f]">
+                    <Square className="h-4 w-4 text-transparent" />
+                  </div>
+                  <span className="truncate text-sm font-bold text-[#2b180a]">{item.name}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPendingDeleteItemId(item._id)}
+                  className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl text-[#d8bda6] transition-colors hover:bg-red-50 hover:text-red-400"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             ))}
           </div>
@@ -406,18 +452,17 @@ function ShoppingListView({ householdId, items }: { householdId: Id<"households"
 
         {bought.length > 0 && (
           <div className="space-y-2">
-            <div className="flex items-center justify-between mt-6 mb-2">
-              <h4 className="text-[11px] font-bold text-[#b89b87] uppercase tracking-wider ml-1">Kupione</h4>
-              <button onClick={() => clearBought({ householdId })} className="text-[10px] font-medium text-red-400 hover:underline">Wyczyść kupione</button>
-            </div>
+            <h4 className="text-xs font-black uppercase tracking-wider text-[#8a7262]">
+              Kupione ({bought.length})
+            </h4>
             {bought.map(item => (
-              <div key={item._id} className="flex items-center justify-between p-3 bg-white/50 border border-[#f5e5cf]/50 rounded-xl">
-                 <div className="flex items-center gap-3 cursor-pointer opacity-50" onClick={() => toggle({ householdId, itemId: item._id, isBought: false })}>
-                   <div className="w-6 h-6 bg-[#4aad6f] border-2 border-[#4aad6f] rounded-xl flex items-center justify-center">
-                      <Check className="w-4 h-4 text-white" />
-                   </div>
-                   <span className="text-sm font-medium text-[#2b180a] line-through">{item.name}</span>
-                 </div>
+              <div key={item._id} className="flex items-center justify-between rounded-xl border border-[#e8d5c4]/50 bg-white/50 p-3 opacity-60">
+                <div className="flex min-w-0 flex-1 cursor-pointer items-center gap-3" onClick={() => toggle({ householdId, itemId: item._id, isBought: false })}>
+                  <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-xl bg-green-500">
+                    <Check className="h-4 w-4 text-white" />
+                  </div>
+                  <span className="truncate text-sm font-bold text-[#2b180a] line-through">{item.name}</span>
+                </div>
               </div>
             ))}
           </div>
@@ -436,8 +481,220 @@ function ShoppingListView({ householdId, items }: { householdId: Id<"households"
           setPendingDeleteItemId(null);
         }}
       />
-    </AppCard>
+    </div>
   );
 }
 
+// Aktywna sesja czatu
+function ActiveChatSession({
+  householdId,
+  sessionId,
+  onFirstMessage
+}: {
+  householdId: Id<"households">;
+  sessionId: Id<"chat_sessions">;
+  onFirstMessage?: (text: string) => void;
+}) {
+  const messages = useQuery(api.chat.listSessionMessages, { householdId, sessionId });
+  const sendMessage = useAction(api.chatNode.sendMessage);
+  const resolveAction = useMutation(api.chat.resolvePendingAction);
 
+  const [input, setInput] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [hasSetTitle, setHasSetTitle] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
+  const addItem = useMutation(api.shopping.add);
+
+  const isLimitReached = (messages?.length ?? 0) >= 30;
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isTyping]);
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    if (!input.trim() || isTyping || isLimitReached) return;
+
+    const text = input;
+    setInput("");
+    setIsTyping(true);
+
+    if (!hasSetTitle && messages?.length === 0 && onFirstMessage) {
+      onFirstMessage(text);
+      setHasSetTitle(true);
+    }
+
+    try {
+      await sendMessage({ householdId, sessionId, text });
+    } catch (err) {
+      toast.error("Błąd podczas wysyłania");
+    } finally {
+      setIsTyping(false);
+    }
+  }
+
+  return (
+    <div className="flex h-full flex-col bg-white/30">
+      {/* Messages Area */}
+      <div className="flex-1 space-y-4 overflow-y-auto p-4">
+        {messages?.length === 0 && !isTyping && (
+          <div className="flex h-full min-h-[300px] flex-col items-center justify-center text-center">
+            <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-xl bg-gradient-to-br from-[#fff4df] to-[#f5c48e]">
+              <MessageCircle className="h-10 w-10 text-[#cf833f]" />
+            </div>
+            <p className="text-lg font-black text-[#2b180a]">O co chcesz zapytać?</p>
+            <p className="mt-2 max-w-xs text-sm leading-relaxed text-[#8a7262]">
+              Możesz poprosić o przepis, plan posiłków lub pomoc z budżetem.
+            </p>
+          </div>
+        )}
+
+        {messages?.map((msg) => {
+          const isMe = msg.role === "user";
+          return (
+            <div key={msg._id} className={`flex gap-3 ${isMe ? "justify-end" : "justify-start"}`}>
+              {!isMe && (
+                <div className="mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#2b180a] to-[#7b4b28] shadow-sm">
+                  <Bot className="h-5 w-5 text-white" />
+                </div>
+              )}
+              <div className={`flex max-w-[75%] flex-col gap-2 ${isMe ? "items-end" : "items-start"}`}>
+                <div
+                  className={`rounded-xl px-4 py-3 shadow-sm ${isMe
+                      ? "rounded-br-sm bg-gradient-to-br from-[#de9241] to-[#ca782a] text-white"
+                      : "rounded-bl-sm border border-[#e8d5c4] bg-white text-[#2b180a]"
+                    }`}
+                >
+                  {isMe ? (
+                    <span className="text-sm font-medium leading-relaxed">{msg.text}</span>
+                  ) : (
+                    <div className="prose prose-sm max-w-none text-sm leading-relaxed text-[#2b180a]">
+                      <ReactMarkdown components={{ li: InteractiveListItem }}>
+                        {msg.text}
+                      </ReactMarkdown>
+                    </div>
+                  )}
+                </div>
+
+                {msg.pendingAction && (
+                  <div className="max-w-full rounded-xl border border-[#f5d1aa] bg-[#fffaf3] p-3 shadow-sm">
+                    <div className="flex flex-col gap-2">
+                      {msg.pendingAction.type === "clear_shopping_list" && (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                            <p className="text-xs font-bold text-[#cf833f]">
+                              Wyczyścić listę zakupów?
+                            </p>
+                          </div>
+                          <div className="mt-1 flex gap-2">
+                            <button
+                              onClick={() => resolveAction({ householdId, messageId: msg._id, status: "approved" })}
+                              className="flex-1 rounded-xl bg-red-500 py-2 text-xs font-bold text-white"
+                            >
+                              Wyczyść
+                            </button>
+                            <button
+                              onClick={() => resolveAction({ householdId, messageId: msg._id, status: "rejected" })}
+                              className="flex-1 rounded-xl bg-gray-100 py-2 text-xs font-bold text-[#8a7262]"
+                            >
+                              Odrzuć
+                            </button>
+                          </div>
+                        </>
+                      )}
+                      {msg.pendingAction.type === "add_shopping_list" && (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <ShoppingCart className="h-4 w-4 text-[#cf833f]" />
+                            <p className="text-xs font-bold text-[#cf833f]">
+                              Dodać {msg.pendingAction.data?.items?.length} produktów?
+                            </p>
+                          </div>
+                          <div className="mt-1 flex gap-2">
+                            <button
+                              onClick={async () => {
+                                for (const item of msg.pendingAction?.data?.items || []) {
+                                  await addItem({ householdId, name: String(item), addedByAction: "AI_Agent" });
+                                }
+                                await resolveAction({ householdId, messageId: msg._id, status: "approved" });
+                                toast.success("Produkty dodane");
+                              }}
+                              className="flex-1 rounded-xl bg-[#cf833f] py-2 text-xs font-bold text-white"
+                            >
+                              Dodaj
+                            </button>
+                            <button
+                              onClick={() => resolveAction({ householdId, messageId: msg._id, status: "rejected" })}
+                              className="flex-1 rounded-xl bg-gray-100 py-2 text-xs font-bold text-[#8a7262]"
+                            >
+                              Odrzuć
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {msg.pendingAction.status === "approved" && (
+                      <div className="mt-2 flex w-max items-center gap-1 rounded-xl bg-green-50 px-2 py-1 text-xs font-bold text-green-600">
+                        <Check className="h-3 w-3" /> Zaakceptowano
+                      </div>
+                    )}
+                    {msg.pendingAction.status === "rejected" && (
+                      <div className="mt-2 flex w-max items-center gap-1 rounded-xl bg-red-50 px-2 py-1 text-xs font-bold text-red-500">
+                        <X className="h-3 w-3" /> Odrzucono
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              {isMe && (
+                <div className="mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#f4c086] to-[#de9241] shadow-sm">
+                  <span className="text-xs font-black text-white">Ty</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {isTyping && (
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#2b180a] to-[#7b4b28] shadow-sm">
+              <Bot className="h-5 w-5 text-white" />
+            </div>
+            <div className="flex items-center gap-2 rounded-xl rounded-bl-sm border border-[#e8d5c4] bg-white px-4 py-3">
+              <Loader2 className="h-4 w-4 animate-spin text-[#cf833f]" />
+              <span className="text-xs font-semibold text-[#8a7262]">Myślę...</span>
+            </div>
+          </div>
+        )}
+        <div ref={endRef} className="h-2" />
+      </div>
+
+      {/* Input Area */}
+      <div className="border-t border-[#e8d5c4] bg-white/50 p-4">
+        <form onSubmit={handleSend} className="flex items-center gap-2">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Napisz wiadomość..."
+            className="flex-1 rounded-xl border border-[#e8d5c4] bg-white px-4 py-2.5 text-sm font-semibold text-[#2b180a] outline-none transition-all placeholder:text-[#d8bda6] focus:border-[#cf833f]"
+            disabled={isTyping || isLimitReached}
+          />
+          <button
+            type="submit"
+            disabled={!input.trim() || isTyping || isLimitReached}
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#de9241] to-[#ca782a] text-white shadow-md transition-all hover:shadow-lg active:scale-95 disabled:opacity-50"
+          >
+            <Send className="ml-0.5 h-5 w-5" />
+          </button>
+        </form>
+        {isLimitReached && (
+          <p className="mt-2 text-center text-xs font-semibold text-red-500">
+            Limit 30 wiadomości. Rozpocznij nowy czat.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}

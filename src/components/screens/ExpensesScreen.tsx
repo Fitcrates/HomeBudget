@@ -5,9 +5,7 @@ import { useState, useMemo } from "react";
 import { PeriodSelector, getPeriodRange } from "../ui/PeriodSelector";
 import { formatAmount } from "../../lib/format";
 import { toast } from "sonner";
-import { ExpensesIcon } from "../ui/icons/ExpensesIcon";
-import { CalendarIcon } from "../ui/icons/CalendarIcon";
-import { ChevronDown, Search, X } from "lucide-react";
+import { Receipt, Calendar, ChevronDown, Search, X } from "lucide-react";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { IconTrashButton } from "../ui/IconTrashButton";
 import { FilterChip } from "../ui/FilterChip";
@@ -84,7 +82,7 @@ export function ExpensesScreen({ householdId, currency }: Props) {
   return (
     <div className="space-y-5 pb-8">
       <ScreenHeader
-        icon={<ExpensesIcon className="h-9 w-9 text-[#c76823]" />}
+        icon={<Receipt className="h-9 w-9 text-[#c76823]" strokeWidth={2.5} />}
         title="Wszystkie wydatki"
       />
 
@@ -102,7 +100,7 @@ export function ExpensesScreen({ householdId, currency }: Props) {
           />
 
           <div className="flex items-center justify-center gap-3 rounded-xl border border-[#ebd8c8]/40 bg-white/60 px-4 py-2.5">
-            <CalendarIcon className="h-5 w-5 text-[#c76823]" />
+            <Calendar className="h-5 w-5 text-[#c76823]" strokeWidth={2.5} />
             <span className="text-[13px] font-medium text-[#3e2815]">
               {new Date(from).toLocaleDateString("pl-PL")} - {new Date(to).toLocaleDateString("pl-PL")}
             </span>
@@ -151,7 +149,7 @@ export function ExpensesScreen({ householdId, currency }: Props) {
         <Spinner className="py-12" />
       ) : filteredExpenses.length === 0 ? (
         <AppCard padding="md" className="text-center">
-          <ExpensesIcon className="mx-auto mb-4 h-16 w-16 text-[#d8c5bc]" />
+          <Receipt className="mx-auto mb-4 h-16 w-16 text-[#d8c5bc]" strokeWidth={2} />
           <p className="font-bold text-[#8a7262]">
             {normalizedSearch ? "Brak wyników dla tej frazy" : "Brak wydatków w tym okresie"}
           </p>

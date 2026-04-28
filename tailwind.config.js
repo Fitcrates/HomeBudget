@@ -6,30 +6,53 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Inter var", ...fontFamily.sans],
-      },
-      borderRadius: {
-        DEFAULT: "8px",
-        secondary: "4px",
-        container: "12px",
-      },
-      boxShadow: {
-        DEFAULT: "0 1px 4px rgba(0, 0, 0, 0.1)",
-        hover: "0 2px 8px rgba(0, 0, 0, 0.12)",
+        sans: ["Nunito", ...fontFamily.sans],
+        heading: ["Poppins", ...fontFamily.sans],
       },
       colors: {
-        primary: {
-          DEFAULT: "#4F46E5",
-          hover: "#4338CA",
+        brand: {
+          light: "var(--color-light)",
+          top: "var(--color-app-top)",
+          dark: "var(--color-dark)",
+          accent: "var(--accent)",
+          "accent-dark": "var(--accent-dark)",
+          "accent-light": "var(--accent-light)",
         },
-        secondary: {
-          DEFAULT: "#6B7280",
-          hover: "#4B5563",
+        text: {
+          primary: "var(--text-primary)",
+          secondary: "var(--text-secondary)",
+          muted: "var(--text-muted)",
+          faint: "var(--text-faint)",
         },
-        accent: {
-          DEFAULT: "#8B5CF6",
-          hover: "#7C3AED",
+        surface: {
+          card: "var(--surface-card)",
+          "card-inner": "var(--surface-card-inner)",
+          input: "var(--surface-input)",
+          warm: "var(--surface-warm)",
         },
+        status: {
+          success: "var(--color-success)",
+          warning: "var(--color-warning)",
+          danger: "var(--color-danger)",
+        },
+      },
+      borderRadius: {
+        DEFAULT: "var(--radius-sm)",
+        sm: "var(--radius-sm)",
+        md: "var(--radius-md)",
+        lg: "var(--radius-lg)",
+        xl: "var(--radius-xl)",
+        "2xl": "var(--radius-2xl)",
+      },
+      boxShadow: {
+        card: "var(--shadow-card)",
+        "card-hover": "var(--shadow-card-hover)",
+        "card-sm": "var(--shadow-card-sm)",
+        cta: "var(--shadow-cta)",
+        "cta-hover": "var(--shadow-cta-hover)",
+        tab: "var(--shadow-tab)",
+        soft: "var(--shadow-soft)",
+        "input-focus": "var(--shadow-input-focus)",
       },
       spacing: {
         "form-field": "16px",
@@ -39,7 +62,7 @@ module.exports = {
   },
   variants: {
     extend: {
-      boxShadow: ["hover", "active"],
+      boxShadow: ["hover", "active", "focus"],
     },
   },
 };

@@ -106,6 +106,24 @@ export const resolvePendingAction = mutation({
   },
 });
 
+export const updateSessionTitle = mutation({
+  args: { 
+    householdId: v.id("households"), 
+    sessionId: v.id("chat_sessions"),
+    title: v.string()
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    await assertMember(ctx, args.householdId, userId);
+
+    await ctx.db.patch(args.sessionId, { 
+      title: args.title,
+      updatedAt: Date.now()
+    });
+  },
+});
+
 export const deleteSession = mutation({
   args: { householdId: v.id("households"), sessionId: v.id("chat_sessions") },
   handler: async (ctx, args) => {

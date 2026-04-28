@@ -9,9 +9,7 @@ import { formatAmount } from "../../lib/format";
 import { InsightsOverviewCard, InsightsScenariosCard } from "./DashboardInsightsPanels";
 import { BudgetAlertsCard } from "./BudgetAlertsCardV2";
 import { IncomeMonitorCard } from "./IncomeMonitorCard";
-import { HomeIcon } from "../ui/icons/HomeIcon";
-import { ExpensesIcon } from "../ui/icons/ExpensesIcon";
-import { BarChart3, WandSparkles } from "lucide-react";
+import { Home, Receipt, BarChart3, WandSparkles } from "lucide-react";
 import { AppCard } from "../ui/AppCard";
 import { TabBar } from "../ui/TabBar";
 import { CatLoader } from "../ui/CatLoader";
@@ -63,7 +61,7 @@ export function DashboardScreen({ householdId, currency }: Props) {
   return (
     <div className="space-y-6">
       <ScreenHeader
-        icon={<HomeIcon className="w-9 h-9" />}
+        icon={<Home className="w-9 h-9" strokeWidth={2.5} />}
         title="Cześć, Rodzinko!"
         subtitle="Dashboard"
       />
@@ -131,7 +129,7 @@ export function DashboardScreen({ householdId, currency }: Props) {
 
             {byCategory.length === 0 && (
               <AppCard className="text-center py-10 opacity-80">
-                <ExpensesIcon className="w-16 h-16 mx-auto mb-4 text-[#d8c5bc]" />
+                <Receipt className="w-16 h-16 mx-auto mb-4 text-[#d8c5bc]" strokeWidth={2} />
                 <p className="text-[#8a7262] font-bold">Brak wydatków w tym okresie</p>
               </AppCard>
             )}

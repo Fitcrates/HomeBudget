@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -9,19 +9,9 @@ type Intent = "create" | "join";
 
 const HOUSEHOLD_INTENT_KEY = "homebudget_household_intent";
 
-const MODES: { mode: AuthMode; intent: Intent; icon: typeof LogIn; label: string }[] = [
-  { mode: "signIn", intent: "create", icon: LogIn,    label: "Logowanie"   },
-  { mode: "signUp", intent: "create", icon: UserPlus, label: "Rejestracja" },
-];
-
 const SUBMIT_LABEL: Record<AuthMode, Record<Intent, string>> = {
   signIn: { create: "Zaloguj się",  join: "Zaloguj się"                    },
   signUp: { create: "Utwórz konto", join: "Utwórz konto i przejdź do kodu" },
-};
-
-const HINT: Record<AuthMode, Record<Intent, string>> = {
-  signIn: { create: "Masz już konto? Zaloguj się e-mailem i hasłem.", join: "Masz już konto? Zaloguj się, aby wpisać kod zaproszenia." },
-  signUp: { create: "Tworzysz konto, a potem założysz nowe domostwo.", join: "Tworzysz konto, aby dołączyć kodem zaproszenia."          },
 };
 
 export function SignInForm() {
@@ -80,46 +70,92 @@ export function SignInForm() {
   }
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full space-y-5">
 
-      {/* ── Join-with-code banner (dismissible) ─────────────────── */}
-      {isJoining ? (
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1a4fa3] via-[#2563eb] to-[#0ea5e9] p-4 shadow-lg shadow-blue-500/20">
-          {/* subtle grid texture */}
+      {/* ── Mode selector (segmented control) ───────────────── */}
+      {!isJoining && (
+        <div className="animate-fade-in">
           <div
-            className="pointer-events-none absolute inset-0 opacity-10"
+            className="relative flex rounded-[14px] p-1"
+            style={{ background: "rgba(207, 131, 63, 0.08)" }}
+          >
+            {/* Animated indicator */}
+            <div
+              className="absolute top-1 bottom-1 rounded-[11px] transition-all duration-300"
+              style={{
+                width: "calc(50% - 4px)",
+                left: mode === "signIn" ? "4px" : "calc(50% + 0px)",
+                background: "linear-gradient(135deg, var(--accent-light), var(--accent-dark))",
+                boxShadow: "var(--shadow-cta)",
+              }}
+            />
+            {(["signIn", "signUp"] as AuthMode[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setModeAndIntent(m, "create")}
+                className="relative z-10 flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold transition-colors duration-200"
+                style={{
+                  color: mode === m ? "white" : "var(--text-muted)",
+                }}
+              >
+                {m === "signIn" ? (
+                  <><LogIn className="h-3.5 w-3.5" /> Logowanie</>
+                ) : (
+                  <><UserPlus className="h-3.5 w-3.5" /> Rejestracja</>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Join-with-code banner ─────────────────────────── */}
+      {isJoining && (
+        <div
+          className="relative overflow-hidden rounded-[18px] p-4 animate-scale-in"
+          style={{
+            background: "linear-gradient(135deg, #1a4fa3 0%, #2563eb 50%, #0ea5e9 100%)",
+            boxShadow: "0 8px 32px rgba(37, 99, 235, 0.25)",
+          }}
+        >
+          <div
+            className="pointer-events-none absolute inset-0 opacity-[0.07]"
             style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "18px 18px" }}
           />
           <button
             type="button"
             onClick={() => setModeAndIntent("signIn", "create")}
-            className="absolute right-3 top-3 rounded-full p-1 text-white/60 transition hover:bg-white/15 hover:text-white"
+            className="absolute right-3 top-3 rounded-full p-1.5 text-white/50 transition-all hover:bg-white/15 hover:text-white"
           >
             <X className="h-4 w-4" />
           </button>
           <div className="relative flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
-              <KeyRound className="h-4 w-4 text-white" />
+            <div
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+              style={{ background: "rgba(255,255,255,0.15)", backdropFilter: "blur(8px)" }}
+            >
+              <KeyRound className="h-4.5 w-4.5 text-white" />
             </div>
             <div>
               <p className="text-sm font-bold text-white">Dołączasz kodem zaproszenia</p>
-              <p className="mt-0.5 text-[12px] font-medium leading-relaxed text-blue-100">
+              <p className="mt-1 text-[12px] font-medium leading-relaxed text-blue-100/90">
                 {mode === "signIn"
                   ? "Zaloguj się poniżej — od razu przejdziesz do wpisania kodu."
                   : "Utwórz konto poniżej — od razu przejdziesz do wpisania kodu."}
               </p>
-              {/* Toggle between signIn / signUp within join flow */}
               <div className="mt-3 flex gap-2">
                 {(["signIn", "signUp"] as AuthMode[]).map((m) => (
                   <button
                     key={m}
                     type="button"
                     onClick={() => setModeAndIntent(m, "join")}
-                    className={`rounded-lg px-3 py-1.5 text-[12px] font-bold transition-all ${
-                      mode === m
-                        ? "bg-white text-[#1a4fa3] shadow-sm"
-                        : "bg-white/15 text-white hover:bg-white/25"
-                    }`}
+                    className="rounded-xl px-3.5 py-2 text-[12px] font-bold transition-all"
+                    style={{
+                      background: mode === m ? "white" : "rgba(255,255,255,0.15)",
+                      color: mode === m ? "#1a4fa3" : "white",
+                      boxShadow: mode === m ? "0 2px 8px rgba(0,0,0,0.1)" : "none",
+                    }}
                   >
                     {m === "signIn" ? "Mam już konto" : "Nowe konto"}
                   </button>
@@ -128,99 +164,115 @@ export function SignInForm() {
             </div>
           </div>
         </div>
-      ) : (
-        /* ── Normal mode selector ─────────────────────────────── */
-        <div className="rounded-xl border border-[#f2dfcf] bg-white/55 p-3">
-          <p className="mb-2 text-[12px] font-bold text-[#8a7262]">Wybierz sposób wejścia</p>
-          <div className="grid grid-cols-2 gap-2">
-            {MODES.map(({ mode: m, intent: i, icon: Icon, label }) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setModeAndIntent(m, i)}
-                className={`flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-sm font-bold transition-all ${
-                  mode === m
-                    ? "bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white shadow-sm"
-                    : "border border-[#f2dfcf] bg-white text-[#8a7262]"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-2 text-[11px] font-medium text-[#8a7262]">{HINT[mode][intent]}</p>
-        </div>
       )}
 
-      {/* ── Shared credentials form ──────────────────────────────── */}
-      <form className="flex flex-col gap-3" onSubmit={handlePasswordAuth}>
-        <input
-          className="auth-input-field"
-          type="email"
-          name="email"
-          placeholder="Twój e-mail"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <input
-          className="auth-input-field"
-          type="password"
-          name="password"
-          placeholder={mode === "signUp" ? "Ustaw hasło (min. 8 znaków)" : "Twoje hasło"}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        {mode === "signUp" && (
+      {/* ── Credentials form ──────────────────────────────── */}
+      <form className="flex flex-col gap-3.5 animate-fade-in-up stagger-1" onSubmit={handlePasswordAuth}>
+        {/* Email */}
+        <div className="relative">
           <input
-            className="auth-input-field"
-            type="password"
-            name="confirmPassword"
-            placeholder="Powtórz hasło"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="auth-input-field peer"
+            id="auth-email"
+            type="email"
+            name="email"
+            placeholder="Twój e-mail"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             required
           />
+        </div>
+
+        {/* Password */}
+        <div className="relative">
+          <input
+            className="auth-input-field peer"
+            id="auth-password"
+            type="password"
+            name="password"
+            placeholder={mode === "signUp" ? "Ustaw hasło (min. 8 znaków)" : "Twoje hasło"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </div>
+
+        {/* Confirm password (sign up only) */}
+        {mode === "signUp" && (
+          <div className="relative animate-slide-down">
+            <input
+              className="auth-input-field peer"
+              id="auth-confirm-password"
+              type="password"
+              name="confirmPassword"
+              placeholder="Powtórz hasło"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+            />
+          </div>
         )}
+
+        {/* Submit */}
         <button
-          className="auth-button flex items-center justify-center gap-2"
+          className="auth-button flex items-center justify-center gap-2 stagger-2"
+          id="auth-submit"
           type="submit"
           disabled={submitting}
         >
-          <span>{SUBMIT_LABEL[mode][intent]}</span>
-          <ArrowRight className="h-4 w-4" />
+          {submitting ? (
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+          ) : (
+            <>
+              <span>{SUBMIT_LABEL[mode][intent]}</span>
+              <ArrowRight className="h-4 w-4" />
+            </>
+          )}
         </button>
       </form>
 
-      {/* ── Invite-code entry point (only when NOT already joining) ─ */}
+      {/* ── Invite-code entry point ───────────────────────── */}
       {!isJoining && (
         <>
-          <div className="my-1 flex items-center">
-            <hr className="grow border-[#ead8c8]" />
-            <span className="mx-3 text-xs font-bold uppercase tracking-wider text-[#b89b87]">lub</span>
-            <hr className="grow border-[#ead8c8]" />
+          <div className="flex items-center gap-3 animate-fade-in stagger-3">
+            <div className="flex-1 h-px" style={{ background: "var(--border-divider)" }} />
+            <span
+              className="text-[11px] font-bold uppercase tracking-[0.15em]"
+              style={{ color: "var(--text-faint)" }}
+            >
+              lub
+            </span>
+            <div className="flex-1 h-px" style={{ background: "var(--border-divider)" }} />
           </div>
 
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1a4fa3] via-[#2563eb] to-[#0ea5e9] p-4 shadow-lg shadow-blue-500/20">
+          <div
+            className="relative overflow-hidden rounded-[18px] p-4 animate-fade-in-up stagger-4"
+            style={{
+              background: "linear-gradient(135deg, #1a4fa3 0%, #2563eb 50%, #0ea5e9 100%)",
+              boxShadow: "0 8px 32px rgba(37, 99, 235, 0.2)",
+            }}
+          >
             <div
-              className="pointer-events-none absolute inset-0 opacity-10"
+              className="pointer-events-none absolute inset-0 opacity-[0.07]"
               style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "18px 18px" }}
             />
             <div className="relative flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
-                <KeyRound className="h-4 w-4 text-white" />
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                style={{ background: "rgba(255,255,255,0.15)", backdropFilter: "blur(8px)" }}
+              >
+                <KeyRound className="h-4.5 w-4.5 text-white" />
               </div>
               <div className="flex-1">
                 <p className="text-sm font-bold text-white">Mam kod zaproszenia</p>
-                <p className="mt-0.5 text-[12px] font-medium leading-relaxed text-blue-100">
+                <p className="mt-1 text-[12px] font-medium leading-relaxed text-blue-100/90">
                   Najpierw zaloguj się lub utwórz konto — od razu przejdziesz do wpisania kodu.
                 </p>
                 <button
                   type="button"
+                  id="auth-join-code"
                   onClick={() => setModeAndIntent("signUp", "join")}
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-white py-2.5 text-sm font-bold text-[#1a4fa3] shadow-sm transition hover:bg-blue-50"
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-white py-2.5 text-sm font-bold text-[#1a4fa3] transition-all hover:bg-blue-50"
+                  style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}
                 >
                   <KeyRound className="h-4 w-4" />
                   Chcę dołączyć kodem

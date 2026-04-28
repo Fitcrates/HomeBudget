@@ -503,7 +503,12 @@ export async function parseAndNormalizeResponse(
     const receiptSummaries = enrichReceiptSummariesWithValidation(receiptSummariesBase, dedupedItems);
     const dedupeValidationMs = Date.now() - dedupeStart;
     const totalParseMs = Date.now() - parseStart;
-    const categorizedCount = dedupedItems.filter((item) => item.categoryId && item.subcategoryId).length;
+    const categorizedCount = dedupedItems.filter((item) =>
+      item.categoryId && item.subcategoryId && item.categorySource !== "fallback"
+    ).length;
+    const fallbackCount = dedupedItems.filter((item) =>
+      item.categorySource === "fallback" || !item.categoryId || !item.subcategoryId
+    ).length;
 
     console.log(
       `Normalized: ${dedupedItems.length} items in ${receiptSummaries.length} receipt group(s) (model: ${modelUsed})`
@@ -522,7 +527,8 @@ export async function parseAndNormalizeResponse(
       normalizedItems: normalizedItems.length,
       finalItems: dedupedItems.length,
       categorizedCount,
-      unresolvedCount: Math.max(dedupedItems.length - categorizedCount, 0),
+      fallbackCount,
+      unresolvedCount: fallbackCount,
       mappedFromHistoryCount,
       resolvedFromAiCategoryCount,
       resolvedByHeuristicCount,

@@ -10,7 +10,7 @@ import { HomeIcon } from "./components/ui/icons/HomeIcon";
 
 export default function App() {
   return (
-    <div className="min-h-dvh w-full overflow-x-hidden flex flex-col bg-gradient-to-b from-[#f7e6cf] to-[#fcf4e4]">
+    <div className="min-h-dvh w-full overflow-x-hidden flex flex-col">
       <Toaster position="top-center" richColors />
       <Authenticated>
         <div className="w-full mx-auto">
@@ -18,33 +18,98 @@ export default function App() {
         </div>
       </Authenticated>
       <Unauthenticated>
-        <div className="flex-1 flex items-center justify-center p-4">
-          <div className="w-full max-w-sm">
-            <div className="text-center pt-8 mb-6">
-              <div className="flex justify-center mb-4">
-                <HomeIcon className="w-16 h-16 text-[#c76823]" />
-              </div>
-              <h1 className="text-3xl font-medium text-[#2b180a] tracking-tight drop-shadow-sm">Domowe Gniazdo</h1>
-              <p className="text-[#6d4d38] mt-2 font-bold drop-shadow-sm">Zarządzaj budżetem domowym</p>
-            </div>
-            <div className="bg-white/40 backdrop-blur-xl border border-white/50 rounded-xl shadow-[0_8px_32px_rgba(180,120,80,0.15)] overflow-hidden p-6">
-              <SignInForm />
-            </div>
-          </div>
-        </div>
+        <AuthScreen />
       </Unauthenticated>
     </div>
   );
 }
 
+/* ── Auth / Login Screen ─────────────────────────────────── */
+function AuthScreen() {
+  return (
+    <div className="flex-1 flex items-center justify-center p-5 min-h-dvh">
+      {/* Decorative background blobs */}
+      <div
+        className="pointer-events-none fixed inset-0 overflow-hidden"
+        aria-hidden="true"
+      >
+        <div
+          className="absolute -top-[30%] -right-[20%] w-[60vw] h-[60vw] rounded-full opacity-[0.12]"
+          style={{
+            background: "radial-gradient(circle, var(--accent-light), transparent 70%)",
+            filter: "blur(60px)",
+          }}
+        />
+        <div
+          className="absolute -bottom-[20%] -left-[15%] w-[50vw] h-[50vw] rounded-full opacity-[0.08]"
+          style={{
+            background: "radial-gradient(circle, var(--accent), transparent 70%)",
+            filter: "blur(60px)",
+          }}
+        />
+      </div>
+
+      <div className="w-full max-w-sm relative z-10">
+        {/* ── Logo & Branding ────────────────────────────── */}
+        <div className="text-center mb-8 animate-fade-in-up">
+          <div className="flex justify-center mb-5">
+            <div
+              className="relative flex items-center justify-center w-20 h-20 rounded-[22px]"
+              style={{
+                background: "linear-gradient(145deg, rgba(255,255,255,0.6), rgba(255,255,255,0.25))",
+                boxShadow: "var(--shadow-card), inset 0 1px 0 rgba(255,255,255,0.5)",
+                border: "1px solid rgba(255,255,255,0.45)",
+                backdropFilter: "blur(20px)",
+              }}
+            >
+              <HomeIcon className="w-11 h-11 text-[#c76823]" />
+            </div>
+          </div>
+          <h1
+            className="text-3xl font-medium tracking-tight"
+            style={{ color: "var(--text-primary)" }}
+          >
+            Domowe Gniazdo
+          </h1>
+          <p
+            className="mt-2 text-[15px] font-semibold"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            Zarządzaj budżetem domowym
+          </p>
+        </div>
+
+        {/* ── Auth Card ──────────────────────────────────── */}
+        <div
+          className="app-card p-6 animate-fade-in-up stagger-2"
+        >
+          <SignInForm />
+        </div>
+
+        {/* ── Footer note ────────────────────────────────── */}
+        <p
+          className="text-center mt-6 text-[11px] font-medium animate-fade-in stagger-4"
+          style={{ color: "var(--text-faint)" }}
+        >
+          Twoje dane są bezpieczne i szyfrowane
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ── Authenticated App (household routing) ───────────────── */
 function AuthenticatedApp() {
   const households = useQuery(api.households.listMine);
   const [activeHouseholdId, setActiveHouseholdId] = useState<string | null>(null);
 
   if (households === undefined) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600" />
+      <div className="flex-1 flex items-center justify-center min-h-dvh">
+        <div
+          className="h-10 w-10 animate-spin rounded-full border-2 border-transparent"
+          style={{ borderTopColor: "var(--accent)" }}
+        />
       </div>
     );
   }

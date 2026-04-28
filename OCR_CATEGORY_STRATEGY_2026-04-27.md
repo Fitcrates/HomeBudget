@@ -1,4 +1,4 @@
-# OCR category strategy - 2026-04-27
+# OCR category and multi-image strategy - 2026-04-27/28
 
 ## Pytanie
 
@@ -69,6 +69,63 @@ Najwazniejsze metryki z runtime logow:
 - liczba pozycji z `categorySource: "fallback"` - powinna spadac.
 - `promptLength` - kontrola kosztu tokenow po dodaniu katalogu kategorii.
 
+## Update 2026-04-28 - multi-image i fallbacki
+
+Po testach na paragonach dzielonych na 2 zdjecia okazalo sie, ze single-image potrafi kategoryzowac dobrze, ale multi-image nadal zostawia duzo pozycji jako fallback. Problem nie byl tylko w promptcie, ale w sposobie oceny jakosci wyniku.
+
+### Diagnoza
+
+1. `fallback` ma technicznie `categoryId` i `subcategoryId`, zwykle `Inne / Rozne`.
+2. W metrykach jakosci taki item byl liczony jako "skategoryzowany", bo sprawdzano glownie istnienie ID.
+3. Przez to wynik `combined` z dwoch zdjec nie byl preferowany tylko dlatego, ze mial mniej fallbackow.
+4. Per-image OCR moze tracic kontekst sklepu na drugim zdjeciu dlugiego paragonu, wiec heurystyki mialy mniej informacji niz przy pojedynczym pelnym zdjeciu.
+
+### Zmiany w kodzie
+
+W `convex/ocr.ts`:
+
+1. `summarizeResultQuality` nie liczy juz `categorySource: "fallback"` jako dobrej kategorii.
+2. Dodano `fallbackCount` i `categoryQualityScore`.
+3. `shouldPreferRecoveryCandidate` preferuje teraz wynik z mniejsza liczba fallbackow albo lepszym score kategorii, o ile nie pogarsza rozliczenia sum.
+4. Po scaleniu per-image wynikow `upgradeFallbackCategoriesWithCombinedContext` ponownie uruchamia lokalne heurystyki dla fallbackow, ale juz z pelnym kontekstem scalonego paragonu.
+5. Jesli istnieje wynik `combined`, `upgradeFallbackCategoriesFromCandidate` przepisuje kategorie z combined do per-image merge tylko wtedy, gdy pozycja pasuje jednoznacznie po `normalized description + amount` i zrodlo kategorii nie jest fallbackiem.
+
+W `convex/ocr/parser.ts`:
+
+1. `categorizedCount` oznacza teraz pozycje z realnym zrodlem kategorii: `mapping`, `ai`, `heuristic` albo `discount`.
+2. `fallbackCount` i `unresolvedCount` pokazuja realna liczbe pozycji wymagajacych poprawy.
+
+### Wplyw na koszt AI
+
+Zmiana nie dodaje nowego wywolania AI. Wykorzystuje:
+
+1. juz istniejacy rownolegly `combined` cross-check dla wielu zdjec,
+2. lokalne heurystyki,
+3. bezpieczne przepisywanie kategorii z lepszego kandydata.
+
+To jest zgodne z kierunkiem optymalizacji kosztow: wiecej deterministycznej logiki, mniej dodatkowych requestow AI.
+
+### Nowe metryki do obserwacji
+
+W logach warto szczegolnie patrzec na:
+
+- `fallbackCount`,
+- `categoryQualityScore`,
+- `upgradedWithCombinedContext`,
+- `upgradedFromCombined`,
+- `mergedFallbackCount`,
+- `combinedFallbackCount`.
+
+### Weryfikacja 2026-04-28
+
+Po zmianach przeszly:
+
+- `npm exec tsc -- -p convex --noEmit --pretty false`,
+- `npm exec tsc -- -p . --noEmit --pretty false`,
+- `node scripts/ocr-regression-check.mjs`.
+
 ## Wniosek
 
 Tak, lista kategorii w promptcie kosztuje dodatkowe tokeny. Zostala przywrocona jako szybka poprawa jakosci bez dokladania kolejnego calla AI. Dlugofalowo nalezy rozwijac heurystyki i baze mappingow, bo to one sa najtanszym sposobem ograniczania fallbackow.
+
+Dla wielu zdjec jednego paragonu dodatkowo trzeba pilnowac, zeby `fallback` nie byl traktowany jako sukces kategoryzacji. Multi-image powinien wykorzystywac combined context i combined cross-check do naprawy kategorii, ale bez podmieniania calego OCR, jesli bezpieczniej jest poprawic tylko fallbacki.

@@ -12,10 +12,11 @@ import {
   enrichReceiptSummariesWithValidation,
   findSuspiciousDuplicateReceipts,
 } from "./ocr/normalization";
-import { buildCompactCategoryList } from "./ocr/categories";
+import { buildCompactCategoryList, resolveHeuristicCategory } from "./ocr/categories";
 import { parseAndNormalizeResponse } from "./ocr/parser";
 import { buildAuditPrompt, buildPrompt, SYSTEM_PROMPT, VISION_MODEL, VISION_MODEL_SMART } from "./ocr/prompt";
 import { ProcessReceiptResult, ProcessedReceiptItem, ReceiptSummary } from "./ocr/types";
+import { normalizeDescriptionKey } from "./ocr/utils";
 
 type ImageInput = {
   base64: string;
@@ -27,8 +28,20 @@ function logOcrTiming(traceLabel: string, stage: string, details: Record<string,
 }
 
 function summarizeResultQuality(result: ProcessReceiptResult) {
-  const categorizedCount = result.items.filter((item) => item.categoryId && item.subcategoryId).length;
-  const unresolvedCount = Math.max(result.items.length - categorizedCount, 0);
+  const categorizedCount = result.items.filter((item) =>
+    item.categoryId && item.subcategoryId && item.categorySource !== "fallback"
+  ).length;
+  const fallbackCount = result.items.filter((item) =>
+    item.categorySource === "fallback" || !item.categoryId || !item.subcategoryId
+  ).length;
+  const categoryQualityScore = result.items.reduce((sum, item) => {
+    if (!item.categoryId || !item.subcategoryId) return sum;
+    if (item.categorySource === "mapping") return sum + 4;
+    if (item.categorySource === "ai") return sum + 3;
+    if (item.categorySource === "heuristic" || item.categorySource === "discount") return sum + 2;
+    return sum;
+  }, 0);
+  const unresolvedCount = fallbackCount;
   const positiveItemCount = result.items.filter((item) => Number.parseFloat(item.amount || "0") > 0).length;
   const negativeItemCount = result.items.filter((item) => Number.parseFloat(item.amount || "0") < 0).length;
   const itemsTotal = result.items.reduce((sum, item) => sum + (Number.parseFloat(item.amount || "0") || 0), 0);
@@ -45,6 +58,8 @@ function summarizeResultQuality(result: ProcessReceiptResult) {
   return {
     itemCount: result.items.length,
     categorizedCount,
+    fallbackCount,
+    categoryQualityScore,
     unresolvedCount,
     positiveItemCount,
     negativeItemCount,
@@ -98,6 +113,22 @@ function shouldPreferRecoveryCandidate(current: ProcessReceiptResult, candidate:
   }
 
   if (
+    candidateQuality.itemCount >= currentQuality.itemCount &&
+    candidateQuality.totalMismatchAbs <= currentQuality.totalMismatchAbs + 0.05 &&
+    candidateQuality.fallbackCount + 1 < currentQuality.fallbackCount
+  ) {
+    return true;
+  }
+
+  if (
+    candidateQuality.itemCount >= currentQuality.itemCount &&
+    candidateQuality.totalMismatchAbs <= currentQuality.totalMismatchAbs + 0.05 &&
+    candidateQuality.categoryQualityScore > currentQuality.categoryQualityScore + 3
+  ) {
+    return true;
+  }
+
+  if (
     candidateQuality.totalMismatchAbs <= currentQuality.totalMismatchAbs + 0.05 &&
     candidateQuality.exactMatchCount > currentQuality.exactMatchCount
   ) {
@@ -105,6 +136,91 @@ function shouldPreferRecoveryCandidate(current: ProcessReceiptResult, candidate:
   }
 
   return false;
+}
+
+function isReliableCategorySource(item: ProcessedReceiptItem) {
+  return Boolean(
+    item.categoryId &&
+    item.subcategoryId &&
+    item.categorySource &&
+    item.categorySource !== "fallback"
+  );
+}
+
+function shouldUpgradeCategory(item: ProcessedReceiptItem) {
+  return !item.categoryId || !item.subcategoryId || item.categorySource === "fallback";
+}
+
+function buildCategoryMatchKey(item: ProcessedReceiptItem) {
+  const description = normalizeDescriptionKey(item.originalRawDescription || item.description);
+  const amount = Number.parseFloat(item.amount || "0");
+  if (!description || !Number.isFinite(amount)) return "";
+  return `${description}|${amount.toFixed(2)}`;
+}
+
+function upgradeFallbackCategoriesFromCandidate(
+  target: ProcessReceiptResult,
+  candidate: ProcessReceiptResult
+) {
+  const candidatesByKey = new Map<string, ProcessedReceiptItem[]>();
+
+  for (const item of candidate.items) {
+    if (!isReliableCategorySource(item)) continue;
+    const key = buildCategoryMatchKey(item);
+    if (!key) continue;
+    const entries = candidatesByKey.get(key) ?? [];
+    entries.push(item);
+    candidatesByKey.set(key, entries);
+  }
+
+  let upgradedCount = 0;
+  for (const item of target.items) {
+    if (!shouldUpgradeCategory(item)) continue;
+    const key = buildCategoryMatchKey(item);
+    if (!key) continue;
+    const matches = candidatesByKey.get(key) ?? [];
+    if (matches.length !== 1) continue;
+
+    const match = matches[0];
+    item.categoryId = match.categoryId;
+    item.subcategoryId = match.subcategoryId;
+    item.categorySource = match.categorySource;
+    item.fromMapping = match.fromMapping;
+    upgradedCount++;
+  }
+
+  return upgradedCount;
+}
+
+function upgradeFallbackCategoriesWithCombinedContext(
+  target: ProcessReceiptResult,
+  categoriesArray: any[]
+) {
+  let upgradedCount = 0;
+  const receiptContext = [
+    target.rawText,
+    ...target.receiptSummaries.map((summary) => summary.receiptLabel),
+  ].filter(Boolean).join(" ");
+
+  for (const item of target.items) {
+    if (!shouldUpgradeCategory(item)) continue;
+    if (Number.parseFloat(item.amount || "0") < 0) continue;
+
+    const heuristicCategory = resolveHeuristicCategory(
+      item.originalRawDescription || item.description,
+      categoriesArray,
+      receiptContext
+    );
+
+    if (!heuristicCategory?.categoryId || !heuristicCategory?.subcategoryId) continue;
+
+    item.categoryId = heuristicCategory.categoryId;
+    item.subcategoryId = heuristicCategory.subcategoryId;
+    item.categorySource = "heuristic";
+    upgradedCount++;
+  }
+
+  return upgradedCount;
 }
 
 function parsePositiveAmount(value: string | undefined) {
@@ -714,17 +830,23 @@ async function processImagesWithAI(
   const merged = mergeBatchResults(successfulResults, {
     combineIntoSingleReceipt: true,
   });
+  const upgradedWithCombinedContext = upgradeFallbackCategoriesWithCombinedContext(merged, categoriesArray);
 
   if (combinedResultPromise) {
     const combinedResult = await combinedResultPromise;
     if (combinedResult.status === "fulfilled" && combinedResult.result.items.length > 0) {
+      const upgradedFromCombined = upgradeFallbackCategoriesFromCandidate(merged, combinedResult.result);
       const combinedPreferred = shouldPreferRecoveryCandidate(merged, combinedResult.result);
       logOcrTiming("ocr:images", "combined_crosscheck_completed", {
         combinedPreferred,
+        upgradedWithCombinedContext,
+        upgradedFromCombined,
         mergedItems: merged.items.length,
         combinedItems: combinedResult.result.items.length,
         mergedMismatchAbs: summarizeResultQuality(merged).totalMismatchAbs,
         combinedMismatchAbs: summarizeResultQuality(combinedResult.result).totalMismatchAbs,
+        mergedFallbackCount: summarizeResultQuality(merged).fallbackCount,
+        combinedFallbackCount: summarizeResultQuality(combinedResult.result).fallbackCount,
       });
 
       if (combinedPreferred) {
@@ -748,6 +870,7 @@ async function processImagesWithAI(
     totalMs: Date.now() - pipelineStart,
     items: merged.items.length,
     receiptGroups: merged.receiptSummaries.length,
+    upgradedWithCombinedContext,
   });
 
   return merged;
