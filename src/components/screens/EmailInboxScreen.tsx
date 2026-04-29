@@ -7,10 +7,12 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   CheckCircle,
+  Download,
   FileImage,
   FileText,
   Inbox,
   Mail,
+  Plus,
   RefreshCw,
   XCircle,
 } from "lucide-react";
@@ -25,18 +27,21 @@ import { ButtonPrimary } from "../ui/ButtonPrimary";
 interface Props {
   householdId: Id<"households">;
   currency: string;
-  onBack: () => void;
+  onBack?: () => void;
+  hideHeader?: boolean;
 }
 
 interface ReviewItem {
   description: string;
   amount: number;
+  amountInput?: string;
   categoryId: Id<"categories"> | null;
   subcategoryId: Id<"subcategories"> | null;
+  confidence?: string;
   sourceStorageId?: Id<"_storage">;
 }
 
-export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
+export function EmailInboxScreen({ householdId, currency, onBack, hideHeader }: Props) {
   const pending = useQuery(api.pendingExpenses.listPending, { householdId });
   const categories = useQuery(api.categories.listForHousehold, { householdId });
   const approve = useMutation(api.pendingExpenses.approve);
@@ -55,8 +60,10 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
       [pendingId]: items.map((item: any) => ({
         description: item.description,
         amount: item.amount,
+        amountInput: amountToInput(item.amount),
         categoryId: item.categoryId || null,
         subcategoryId: item.subcategoryId || null,
+        confidence: item.confidence,
         sourceStorageId: item.sourceStorageId,
       })),
     }));
@@ -70,19 +77,89 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
   function updateReviewItem(pendingId: string, idx: number, updates: Partial<ReviewItem>) {
     setReviewItems((prev) => ({
       ...prev,
-      [pendingId]: prev[pendingId].map((item, itemIndex) =>
+      [pendingId]: (prev[pendingId] ?? []).map((item, itemIndex) =>
         itemIndex === idx ? { ...item, ...updates } : item
       ),
     }));
+  }
+
+  function addReviewItem(pendingId: string) {
+    setReviewItems((prev) => ({
+      ...prev,
+      [pendingId]: [
+        ...(prev[pendingId] ?? []),
+        {
+          description: "",
+          amount: 0,
+          amountInput: "",
+          categoryId: null,
+          subcategoryId: null,
+        },
+      ],
+    }));
+  }
+
+  function removeReviewItem(pendingId: string, idx: number) {
+    setReviewItems((prev) => ({
+      ...prev,
+      [pendingId]: (prev[pendingId] ?? []).filter((_, itemIndex) => itemIndex !== idx),
+    }));
+  }
+
+  function amountToInput(amount: number) {
+    return amount !== 0 ? (amount / 100).toFixed(2) : "";
+  }
+
+  function parseAmountInput(value: string) {
+    const parsed = Number.parseFloat(value.replace(/\s+/g, "").replace(",", "."));
+    return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
+  }
+
+  function downloadOcrDebugJson(item: any) {
+    const fallbackPayload = {
+      pendingId: item._id,
+      sourceSummary: item.sourceSummary,
+      scanStatus: item.scanStatus,
+      scanError: item.scanError,
+      ocrRawText: item.ocrRawText,
+      items: item.items,
+    };
+    const content = item.ocrDebugJson || JSON.stringify(fallbackPayload, null, 2);
+    const blob = new Blob([content], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `ocr-debug-${String(item._id)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   async function handleApprove(pendingId: Id<"pending_email_expenses">) {
     const items = reviewItems[pendingId];
     if (!items) return;
 
-    const invalid = items.find((item) => !item.categoryId || !item.subcategoryId || item.amount <= 0);
+    const normalizedItems = items.map((item, index) => ({
+      ...item,
+      rowNumber: index + 1,
+      parsedAmount: parseAmountInput(item.amountInput ?? amountToInput(item.amount)),
+    }));
+
+    const invalid = normalizedItems.find(
+      (item) =>
+        !item.description.trim() ||
+        !item.categoryId ||
+        !item.subcategoryId ||
+        item.parsedAmount === 0
+    );
     if (invalid) {
-      toast.error("Uzupełnij kategorie i dodatnie kwoty dla wszystkich pozycji.");
+      const reason = !invalid.description.trim()
+        ? "uzupelnij opis"
+        : !invalid.categoryId
+          ? "wybierz kategorie"
+          : !invalid.subcategoryId
+            ? "wybierz podkategorie"
+            : "kwota musi byc rozna od 0";
+      toast.error(`Pozycja #${invalid.rowNumber}: ${reason}.`);
       return;
     }
 
@@ -90,9 +167,9 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
     try {
       const result = await approve({
         pendingId,
-        items: items.map((item) => ({
-          description: item.description,
-          amount: item.amount,
+        items: normalizedItems.map((item) => ({
+          description: item.description.trim(),
+          amount: item.parsedAmount,
           categoryId: item.categoryId!,
           subcategoryId: item.subcategoryId!,
           sourceStorageId: item.sourceStorageId,
@@ -128,12 +205,14 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
 
   return (
     <div className="space-y-5 pb-6">
-      <ScreenHeader
-        icon={<Inbox />}
-        title="Kolejka maili"
-        subtitle="Rachunki wykryte z forwardowanych maili czekają tu na ostateczne zatwierdzenie."
-        onBack={onBack}
-      />
+      {!hideHeader && (
+        <ScreenHeader
+          icon={<Inbox />}
+          title="Kolejka do sprawdzenia"
+          subtitle="Rachunki wykryte z forwardowanych maili czekają tu na ostateczne zatwierdzenie."
+          onBack={onBack}
+        />
+      )}
 
       {pending === undefined ? (
         <Spinner className="py-12" />
@@ -150,6 +229,9 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
           {pending.map((item) => {
             const isExpanded = expandedId === item._id;
             const review = reviewItems[item._id];
+            const isManualScan = item.sourceType === "manual_ocr";
+            const isProcessing = item.scanStatus === "processing";
+            const isFailed = item.scanStatus === "failed";
             const totalAmount = item.items.reduce((sum: number, row: any) => sum + row.amount, 0);
 
             return (
@@ -173,9 +255,15 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <Mail className="h-5 w-5 shrink-0 text-[#c76823]" />
+                        {isProcessing ? (
+                          <RefreshCw className="h-5 w-5 shrink-0 animate-spin text-[#c76823]" />
+                        ) : isManualScan ? (
+                          <FileImage className="h-5 w-5 shrink-0 text-[#c76823]" />
+                        ) : (
+                          <Mail className="h-5 w-5 shrink-0 text-[#c76823]" />
+                        )}
                         <p className="truncate text-[15px] font-medium text-[#2b180a]">
-                          {item.emailSubject || "(bez tematu)"}
+                          {isManualScan ? "Skan paragonu" : item.emailSubject || "(bez tematu)"}
                         </p>
                       </div>
 
@@ -192,6 +280,11 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                         <span className="rounded-full bg-[#eef4ff] px-2.5 py-1 text-[10px] font-bold text-[#3856a8]">
                           {item.attachmentNames.length} załącznik(i)
                         </span>
+                        {isFailed && (
+                          <span className="rounded-full bg-[#fff0f0] px-2.5 py-1 text-[10px] font-bold text-[#c84f4f]">
+                            Do wpisania ręcznie
+                          </span>
+                        )}
                         <span className="rounded-full bg-[#f7f1ff] px-2.5 py-1 text-[10px] font-bold text-[#7b4bb3]">
                           {new Date(item.emailReceivedAt).toLocaleString("pl-PL")}
                         </span>
@@ -200,9 +293,9 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
 
                     <div className="shrink-0 text-right">
                       <p className="text-base font-medium text-[#cf833f]">
-                        {formatAmount(totalAmount, currency)}
+                        {isProcessing ? "W toku" : formatAmount(totalAmount, currency)}
                       </p>
-                      <p className="text-[10px] font-bold text-[#b89b87]">{item.items.length} pozycji</p>
+                      <p className="text-[10px] font-bold text-[#b89b87]">{isProcessing ? "przetwarzanie" : `${item.items.length} pozycji`}</p>
                     </div>
                   </div>
                 </button>
@@ -215,15 +308,26 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                       </div>
                     )}
 
-                    <div>
-                      <FormLabel>Data zakupu</FormLabel>
-                      <FormInput
-                        type="date"
-                        value={reviewDates[item._id] || ""}
-                        onChange={(event) =>
-                          setReviewDates((prev) => ({ ...prev, [item._id]: event.target.value }))
-                        }
-                      />
+                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                      <div>
+                        <FormLabel>Data zakupu</FormLabel>
+                        <FormInput
+                          type="date"
+                          value={reviewDates[item._id] || ""}
+                          onChange={(event) =>
+                            setReviewDates((prev) => ({ ...prev, [item._id]: event.target.value }))
+                          }
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => downloadOcrDebugJson(item)}
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#d8c4ff] bg-[#fbf8ff] px-4 text-sm font-bold text-[#6d44b8] transition-colors hover:bg-[#f4edff]"
+                      >
+                        <Download className="h-4 w-4" />
+                        Pobierz JSON OCR
+                      </button>
                     </div>
 
                     {item.storageUrls.length > 0 && (
@@ -250,92 +354,165 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
                       </div>
                     )}
 
-                    <div className="space-y-3">
+                    <div className="rounded-2xl border border-[#f2dfcb] bg-[#fffaf4]">
+                      <div className="flex items-center justify-between gap-3 border-b border-[#f2dfcb] px-4 py-3">
+                        <div>
+                          <p className="text-sm font-bold text-[#2b180a]">Pozycje do zatwierdzenia</p>
+                          <p className="text-[11px] font-medium text-[#8a7262]">Popraw nazwy, kwoty i kategorie przed zapisem.</p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-sm font-bold text-[#cf833f]">
+                            {formatAmount(review.reduce((sum, row) => sum + row.amount, 0), currency)}
+                          </p>
+                          <p className="text-[10px] font-bold text-[#b89b87]">{review.length} pozycji</p>
+                        </div>
+                      </div>
+
                       {review.map((reviewItem, index) => {
                         const selectedCategory = categories?.find((category) => category._id === reviewItem.categoryId);
+                        const rowAmount = parseAmountInput(reviewItem.amountInput ?? amountToInput(reviewItem.amount));
+                        const isDiscountRow = rowAmount < 0;
+                        const needsReview =
+                          reviewItem.confidence === "low" ||
+                          !reviewItem.categoryId ||
+                          !reviewItem.subcategoryId ||
+                          rowAmount === 0;
 
                         return (
                           <div
                             key={`${item._id}-${index}`}
-                            className="space-y-2 rounded-xl border border-[#f5e5cf] bg-white p-3.5"
+                            className="border-b border-[#ebd8c8]/60 px-4 py-4 last:border-0"
                           >
-                            <div className="flex gap-2">
-                              <FormInput
-                                type="text"
-                                value={reviewItem.description}
-                                onChange={(event) =>
-                                  updateReviewItem(item._id, index, { description: event.target.value })
-                                }
-                                placeholder="Opis"
-                                inputSize="sm"
-                              />
+                            <div className="mb-3 flex items-center justify-between gap-2">
+                              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                <span className="inline-flex h-8 items-center justify-center rounded-lg bg-[#f5e5cf]/80 px-2.5 text-xs font-bold text-[#8a7262]">
+                                  #{index + 1}
+                                </span>
+                                {isDiscountRow && (
+                                  <span className="rounded-lg border border-[#9bd1af] bg-[#e8f6ed] px-2 py-1 text-[10px] font-bold text-[#2c7a4b]">
+                                    Rabat / opust
+                                  </span>
+                                )}
+                                {needsReview && (
+                                  <span className="rounded-lg border border-[#f0c47f] bg-[#fff5df] px-2 py-1 text-[10px] font-bold text-[#a7651e]">
+                                    Do sprawdzenia
+                                  </span>
+                                )}
+                              </div>
 
-                              <div className="relative w-28">
+                              <button
+                                type="button"
+                                onClick={() => removeReviewItem(item._id, index)}
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-red-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                                aria-label="Usuń pozycję"
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-[minmax(0,1fr)_6.8rem] gap-2">
+                              <div>
+                                <FormLabel className="mb-1">Opis</FormLabel>
                                 <FormInput
-                                  type="number"
-                                  value={reviewItem.amount > 0 ? (reviewItem.amount / 100).toFixed(2) : ""}
+                                  type="text"
+                                  value={reviewItem.description}
+                                  onChange={(event) =>
+                                    updateReviewItem(item._id, index, { description: event.target.value })
+                                  }
+                                  placeholder="Opis produktu"
+                                  inputSize="sm"
+                                />
+                              </div>
+
+                              <div>
+                                <FormLabel className="mb-1">Kwota</FormLabel>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={reviewItem.amountInput ?? amountToInput(reviewItem.amount)}
                                   onChange={(event) => {
-                                    const value = parseFloat(event.target.value);
+                                    const nextValue = event.target.value;
                                     updateReviewItem(item._id, index, {
-                                      amount: Number.isFinite(value) ? Math.round(value * 100) : 0,
+                                      amountInput: nextValue,
+                                      amount: parseAmountInput(nextValue),
                                     });
                                   }}
+                                  onBlur={() =>
+                                    updateReviewItem(item._id, index, {
+                                      amountInput: amountToInput(reviewItem.amount),
+                                    })
+                                  }
                                   placeholder="0.00"
-                                  min="0"
-                                  step="0.01"
-                                  inputSize="sm"
-                                  className="text-right text-[#cf833f]"
+                                  className={`w-full rounded-xl border bg-white/60 px-3 py-2 text-right text-sm font-bold tabular-nums outline-none ${
+                                    isDiscountRow
+                                      ? "border-[#9bd1af] text-[#2c7a4b] focus:border-[#4f9a6e]"
+                                      : "border-[#f5e5cf] text-[#cf833f] focus:border-[#cf833f]"
+                                  }`}
                                 />
-                                <span className="pointer-events-none absolute right-3 top-2 text-xs font-bold text-[#b89b87]">
-                                  zł
-                                </span>
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-2">
-                              <FormSelect
-                                selectSize="sm"
-                                value={reviewItem.categoryId || ""}
-                                onChange={(event) =>
-                                  updateReviewItem(item._id, index, {
-                                    categoryId: event.target.value as Id<"categories">,
-                                    subcategoryId: null,
-                                  })
-                                }
-                              >
-                                <option value="" disabled>
-                                  Kategoria...
-                                </option>
-                                {categories?.map((category) => (
-                                  <option key={category._id} value={category._id}>
-                                    {category.name}
+                            <div className="mt-3 grid grid-cols-1 gap-2">
+                              <div>
+                                <FormLabel className="mb-1">Kategoria</FormLabel>
+                                <FormSelect
+                                  selectSize="sm"
+                                  value={reviewItem.categoryId || ""}
+                                  onChange={(event) =>
+                                    updateReviewItem(item._id, index, {
+                                      categoryId: event.target.value as Id<"categories">,
+                                      subcategoryId: null,
+                                    })
+                                  }
+                                >
+                                  <option value="" disabled>
+                                    Wybierz kategorię
                                   </option>
-                                ))}
-                              </FormSelect>
+                                  {categories?.map((category) => (
+                                    <option key={category._id} value={category._id}>
+                                      {category.name}
+                                    </option>
+                                  ))}
+                                </FormSelect>
+                              </div>
 
-                              <FormSelect
-                                selectSize="sm"
-                                value={reviewItem.subcategoryId || ""}
-                                onChange={(event) =>
-                                  updateReviewItem(item._id, index, {
-                                    subcategoryId: event.target.value as Id<"subcategories">,
-                                  })
-                                }
-                                disabled={!reviewItem.categoryId}
-                              >
-                                <option value="" disabled>
-                                  Podkategoria...
-                                </option>
-                                {selectedCategory?.subcategories.map((subcategory: any) => (
-                                  <option key={subcategory._id} value={subcategory._id}>
-                                    {subcategory.name}
+                              <div>
+                                <FormLabel className="mb-1">Podkategoria</FormLabel>
+                                <FormSelect
+                                  selectSize="sm"
+                                  value={reviewItem.subcategoryId || ""}
+                                  onChange={(event) =>
+                                    updateReviewItem(item._id, index, {
+                                      subcategoryId: event.target.value as Id<"subcategories">,
+                                    })
+                                  }
+                                  disabled={!reviewItem.categoryId}
+                                >
+                                  <option value="" disabled>
+                                    Wybierz podkategorię
                                   </option>
-                                ))}
-                              </FormSelect>
+                                  {selectedCategory?.subcategories.map((subcategory: any) => (
+                                    <option key={subcategory._id} value={subcategory._id}>
+                                      {subcategory.name}
+                                    </option>
+                                  ))}
+                                </FormSelect>
+                              </div>
                             </div>
                           </div>
                         );
                       })}
+
+                      <div className="border-t border-[#f2dfcb] p-4">
+                        <button
+                          type="button"
+                          onClick={() => addReviewItem(item._id)}
+                          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#cf833f]/60 bg-[#fffaf4] px-3 py-3 text-sm font-bold text-[#b86a28] transition-colors hover:bg-[#fff2e2]"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Dodaj kolejną pozycję ręcznie
+                        </button>
+                      </div>
                     </div>
 
                     {item.rawEmailText && (
@@ -366,7 +543,7 @@ export function EmailInboxScreen({ householdId, currency, onBack }: Props) {
 
                       <ButtonPrimary
                         onClick={() => handleApprove(item._id)}
-                        disabled={saving === item._id}
+                        disabled={saving === item._id || isProcessing || review.length === 0}
                         loading={saving === item._id}
                         icon={<CheckCircle className="h-4 w-4" />}
                         rounded="xl"

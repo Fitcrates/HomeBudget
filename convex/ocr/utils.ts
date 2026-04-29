@@ -137,12 +137,27 @@ export function parseAmountNumber(value: unknown): number | null {
   const raw = String(value).trim();
   if (!raw) return null;
 
-  const normalized = raw.replace(/\s+/g, "").replace(/,/g, ".");
-  const trailingMinus = normalized.endsWith("-");
-  const match = normalized.match(/-?\d+(?:\.\d+)?/);
+  const compact = raw.replace(/\s+/g, "");
+  const trailingMinus = compact.endsWith("-");
+  const match = compact.match(/-?[\d.,]+/);
   if (!match) return null;
 
-  let parsed = Number.parseFloat(match[0]);
+  let normalized = match[0];
+  const lastComma = normalized.lastIndexOf(",");
+  const lastDot = normalized.lastIndexOf(".");
+  if (lastComma >= 0 && lastDot >= 0) {
+    const decimalSeparator = lastComma > lastDot ? "," : ".";
+    const thousandsSeparator = decimalSeparator === "," ? "." : ",";
+    normalized = normalized
+      .replace(new RegExp(`\\${thousandsSeparator}`, "g"), "")
+      .replace(decimalSeparator, ".");
+  } else if (lastComma >= 0) {
+    normalized = normalized.replace(/\./g, "").replace(",", ".");
+  } else {
+    normalized = normalized.replace(/,/g, "");
+  }
+
+  let parsed = Number.parseFloat(normalized);
   if (trailingMinus && parsed > 0) {
     parsed = -parsed;
   }

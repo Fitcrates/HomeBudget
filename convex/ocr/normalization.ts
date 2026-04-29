@@ -22,7 +22,7 @@ export function isDepositLikeDescription(description: string): boolean {
 
 export function isTechnicalLine(description: string): boolean {
   const text = stripDiacritics(description);
-  return /(suma|podsuma|sprzedaz|sprzedaz opodatkowana|ptu|rozliczenie|platnosc|karta|gotowka|paragon|fiskalny|nip|adres)/i.test(text);
+  return /(suma|podsuma|sprzedaz|sprzedaz opodatkowana|ptu|rozliczenie|platnosc|karta|gotowka|paragon|fiskalny|nip|adres|zaoszczedzono|wykorzystane kupony|miejsce zakupu|dziekujemy)/i.test(text);
 }
 
 export function findBestDiscountCandidate(

@@ -6,6 +6,7 @@ import { v } from "convex/values";
 import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { createVisionCompletionWithRetry } from "./ocr/groq";
 import {
   collapseLikelyDuplicateItems,
@@ -259,7 +260,11 @@ const OCR_UPLOAD_MAX_INPUT_PIXELS = 40_000_000;
 const OCR_FAST_MAX_TOKENS = 8192;
 const OCR_RECOVERY_MAX_TOKENS = 16384;
 const OCR_FAST_TIMEOUT_MS = 18000;
+const OCR_FAST_PATH_TIMEOUT_MS = 10625;
+const OCR_FAST_PATH_MIN_TOTAL_MS = 10000;
+const OCR_FAST_PATH_MAX_ATTEMPTS = 2;
 const OCR_FAST_MULTI_IMAGE_TIMEOUT_MS = 25000;
+const OCR_FAST_PATH_MULTI_IMAGE_TIMEOUT_MS = 11875;
 const OCR_RECOVERY_TIMEOUT_MS = 30000;
 const require = createRequire(import.meta.url);
 
@@ -325,10 +330,19 @@ async function optimizeReceiptImageForStorage(inputBuffer: Buffer) {
 
 async function processImagesWithAI(
   ctx: any,
-  householdId: string,
+  householdId: Id<"households">,
   imageDataList: ImageInput[],
   compactCategories: string,
-  categoriesArray: any[]
+  categoriesArray: any[],
+  processOptions?: {
+    fastTimeoutMs?: number;
+    fastMultiImageTimeoutMs?: number;
+    fastMinTotalMs?: number;
+    fastMaxAttempts?: number;
+    allowProviderFallback?: boolean;
+    enablePerImageRecoveryPasses?: boolean;
+    enablePerImageAuditPass?: boolean;
+  }
 ): Promise<ProcessReceiptResult & { retryUsed: boolean }> {
   // Input validation
   if (!imageDataList || imageDataList.length === 0) {
@@ -391,7 +405,7 @@ async function processImagesWithAI(
       });
     }
 
-    console.log(`→ Groq vision (${VISION_MODEL}):`, {
+    console.log(`-> Gemini vision (${VISION_MODEL}):`, {
       imageCount: batch.length,
       promptLength: prompt.length,
     });
@@ -413,8 +427,12 @@ async function processImagesWithAI(
       ],
       response_format: { type: "json_object" },
     }, `vision-batch:${batch.length}`, {
-      maxAttempts: 1,
-      timeoutMs: batch.length > 1 ? OCR_FAST_MULTI_IMAGE_TIMEOUT_MS : OCR_FAST_TIMEOUT_MS,
+      maxAttempts: processOptions?.fastMaxAttempts ?? 1,
+      minTotalMs: processOptions?.fastMinTotalMs,
+      timeoutMs: batch.length > 1
+        ? processOptions?.fastMultiImageTimeoutMs ?? OCR_FAST_MULTI_IMAGE_TIMEOUT_MS
+        : processOptions?.fastTimeoutMs ?? OCR_FAST_TIMEOUT_MS,
+      allowProviderFallback: processOptions?.allowProviderFallback,
     });
     const initialVisionMs = Date.now() - initialVisionStart;
 
@@ -439,7 +457,7 @@ async function processImagesWithAI(
       householdId,
       content,
       categoriesArray,
-      VISION_MODEL,
+      response.model || VISION_MODEL,
       `${traceLabel}:initial`
     );
     const initialParseMs = Date.now() - initialParseStart;
@@ -463,6 +481,7 @@ async function processImagesWithAI(
       }, `vision-truncation-retry:${batch.length}`, {
         maxAttempts: 1,
         timeoutMs: OCR_RECOVERY_TIMEOUT_MS,
+        allowProviderFallback: processOptions?.allowProviderFallback,
       });
       content = response.choices[0].message.content ?? "{}";
       const truncRetryMs = Date.now() - truncRetryStart;
@@ -476,7 +495,7 @@ async function processImagesWithAI(
         householdId,
         content,
         categoriesArray,
-        VISION_MODEL,
+        response.model || VISION_MODEL,
         `${traceLabel}:truncation-retry`
       );
     }
@@ -550,13 +569,14 @@ async function processImagesWithAI(
             { role: "assistant", content },
             {
               role: "user",
-              content: `Wykryto rozbieznosci per paragon: ${mismatchHint}.${duplicateHint} Sprawdz osobne linie OPUST/RABAT/PRZECENA oraz KAUCJA/OPAKOWANIA ZWROTNE. Jesli rabat jest pokazany jako osobna linia, wolno zwrocic go jako osobna pozycje z UJEMNA kwota zamiast odejmowac od pierwszego produktu. Jedna linia z iloscia ma dawac jedna pozycje JSON z laczna kwota, a nie kilka duplikatow. Nie zmieniaj nazwy produktu na niepowiazany rzeczownik, jesli na paragonie widac np. piwo, nie wolno zwracac nawozu. totalAmount ma odpowiadac sumie items, a payableAmount moze byc wyzsze przez kaucje. Cena produktu = LACZNA cena do zaplaty, NIE cena za kg. Zwroc POPRAWIONY, PELNY JSON.`,
+              content: `Wykryto rozbieznosci per paragon: ${mismatchHint}.${duplicateHint} Sprawdz osobne linie OPUST/RABAT/PRZECENA oraz KAUCJA/OPAKOWANIA ZWROTNE. Jesli rabat jest pokazany jako osobna linia, zwroc go jako osobna pozycje z UJEMNA kwota zamiast odejmowac od produktu. Nie lacz kolejnych rabatow w jeden wiersz: np. "Rabat grupowy -11,19" oraz "Lidl Plus voucher -1,89" to dwa oddzielne obiekty JSON. Sekcje "Z Lidl Plus zaoszczedzono" i "Wykorzystane kupony" po platnosci sluza tylko do walidacji, nie sa pozycjami zakupow. Jedna linia z iloscia ma dawac jedna pozycje JSON z laczna kwota, a nie kilka duplikatow. Nie zmieniaj nazwy produktu na niepowiazany rzeczownik, jesli na paragonie widac np. piwo, nie wolno zwracac nawozu. totalAmount ma odpowiadac sumie items, a payableAmount moze byc wyzsze przez kaucje. Cena produktu = LACZNA cena do zaplaty, NIE cena za kg. Zwroc POPRAWIONY, PELNY JSON.`,
             },
           ],
           response_format: { type: "json_object" },
         }, `vision-retry:${batch.length}`, {
           maxAttempts: 1,
           timeoutMs: OCR_RECOVERY_TIMEOUT_MS,
+          allowProviderFallback: processOptions?.allowProviderFallback,
         });
         const retryVisionMs = Date.now() - retryVisionStart;
 
@@ -567,7 +587,7 @@ async function processImagesWithAI(
           householdId,
           content,
           categoriesArray,
-          VISION_MODEL_SMART,
+          response.model || VISION_MODEL_SMART,
           `${traceLabel}:retry`
         );
         const retryParseMs = Date.now() - retryParseStart;
@@ -609,6 +629,7 @@ async function processImagesWithAI(
       return expected > 0 && diff > 0.05;
     }) || postRetrySuspiciousDuplicates.length > 0;
     const stillNeedsAudit = rawStillNeedsAudit && (
+      enableAuditPass ||
       postRetrySuspiciousDuplicates.length > 0 ||
       currentMismatchRatioForAudit > 0.1 ||
       currentQualityForAudit.categorizedCount < currentQualityForAudit.itemCount
@@ -790,7 +811,8 @@ async function processImagesWithAI(
     imageDataList.map((image, index) =>
       analyzeBatch([image], `ocr:image:${index + 1}`, {
         // Disable recovery passes for simple single-image cases - faster
-        enableRecoveryPasses: false,
+        enableRecoveryPasses: processOptions?.enablePerImageRecoveryPasses ?? false,
+        enableAuditPass: processOptions?.enablePerImageAuditPass ?? false,
       })
         .then((result) => ({ status: "fulfilled" as const, index, result }))
         .catch((error) => ({ status: "rejected" as const, index, error }))
@@ -884,7 +906,7 @@ async function processImagesWithAI(
 
 async function auditReceiptWithAI(
   ctx: any,
-  householdId: string,
+  householdId: Id<"households">,
   imageDataList: ImageInput[],
   compactCategories: string,
   categoriesArray: any[],
@@ -965,13 +987,13 @@ async function auditReceiptWithAI(
 
 async function processTextWithAI(
   ctx: any,
-  householdId: string,
+  householdId: Id<"households">,
   text: string,
   compactCategories: string,
   categoriesArray: any[]
 ): Promise<ProcessReceiptResult & { retryUsed: boolean }> {
   const promptStart = Date.now();
-  const prompt = buildPrompt(compactCategories, text.slice(0, 8000));
+  const prompt = buildPrompt(compactCategories, text);
   const promptMs = Date.now() - promptStart;
   logOcrTiming("ocr:text", "prompt_ready", {
     promptLength: prompt.length,
@@ -1014,10 +1036,65 @@ async function processTextWithAI(
   return { ...parsed, retryUsed: false };
 }
 
-async function listCategoriesForHouseholdInternal(ctx: any, householdId: string) {
+async function listCategoriesForHouseholdInternal(ctx: any, householdId: Id<"households">) {
   return await ctx.runQuery(internal.categories.listForHouseholdInternal, {
     householdId,
   });
+}
+
+function buildRequiredCompactCategoryList(categoriesArray: any[]) {
+  if (!Array.isArray(categoriesArray) || categoriesArray.length === 0) {
+    throw new Error("Brak kategorii dla gospodarstwa.");
+  }
+
+  const compactCategories = buildCompactCategoryList(categoriesArray).trim();
+  if (!compactCategories) {
+    throw new Error("Katalog kategorii jest pusty. Uzupelnij kategorie przed OCR.");
+  }
+
+  return compactCategories;
+}
+
+async function loadReceiptImagesFromStorage(
+  ctx: any,
+  storageIds: Id<"_storage">[],
+  traceLabel = "ocr:action"
+) {
+  const imageLoadStart = Date.now();
+  const imageLoadResults = await Promise.all(
+    storageIds.map(async (storageId) => {
+      const fileStart = Date.now();
+      const url = await ctx.storage.getUrl(storageId);
+      if (!url) return null;
+
+      const fileResponse = await fetch(url);
+      if (!fileResponse.ok) return null;
+
+      const arrayBuffer = await fileResponse.arrayBuffer();
+      const base64 = Buffer.from(arrayBuffer).toString("base64");
+      const mimeType = (fileResponse.headers.get("content-type") || "image/jpeg").split(";")[0].trim();
+      logOcrTiming(traceLabel, "image_loaded", {
+        storageId,
+        mimeType,
+        bytes: arrayBuffer.byteLength,
+        loadMs: Date.now() - fileStart,
+      });
+      return { base64, mimeType } as ImageInput;
+    })
+  );
+
+  const imageDataList: ImageInput[] = imageLoadResults.filter(
+    (result): result is ImageInput => result !== null
+  );
+
+  if (imageDataList.length === 0) {
+    throw new Error("Nie udalo sie zaladowac obrazow.");
+  }
+
+  return {
+    imageDataList,
+    totalLoadMs: Date.now() - imageLoadStart,
+  };
 }
 
 function installPdfJsNodeShims() {
@@ -1272,11 +1349,7 @@ export const processEmailAttachments = internalAction({
   },
   handler: async (ctx, args): Promise<ProcessReceiptResult> => {
     const categoriesArray = await listCategoriesForHouseholdInternal(ctx, args.householdId);
-    if (categoriesArray.length === 0) {
-      throw new Error("Brak kategorii dla gospodarstwa.");
-    }
-
-    const compactCategories = buildCompactCategoryList(categoriesArray);
+    const compactCategories = buildRequiredCompactCategoryList(categoriesArray);
     const partialResults: ProcessReceiptResult[] = [];
     let receiptOffset = 0;
 
@@ -1358,11 +1431,7 @@ export const processEmailBodyText = internalAction({
   },
   handler: async (ctx, args): Promise<ProcessReceiptResult> => {
     const categoriesArray = await listCategoriesForHouseholdInternal(ctx, args.householdId);
-    if (categoriesArray.length === 0) {
-      throw new Error("Brak kategorii dla gospodarstwa.");
-    }
-
-    const compactCategories = buildCompactCategoryList(categoriesArray);
+    const compactCategories = buildRequiredCompactCategoryList(categoriesArray);
     return await processTextWithAI(ctx, args.householdId, args.text, compactCategories, categoriesArray);
   },
 });
@@ -1395,6 +1464,201 @@ export const discardReceiptUploads = action({
     }
 
     return { deletedCount };
+  },
+});
+
+function toPendingReviewItems(result: ProcessReceiptResult, storageIds: Id<"_storage">[]) {
+  return result.items
+    .filter((item) => Number.isFinite(Number.parseFloat(item.amount || "0")))
+    .map((item) => {
+      const sourceIndex = item.sourceImageIndex && item.sourceImageIndex > 0
+        ? item.sourceImageIndex - 1
+        : 0;
+      const amount = Number.parseFloat(item.amount || "0");
+
+      return {
+        description: item.description || "Pozycja z paragonu",
+        amount: Math.round(amount * 100),
+        categoryId: item.categoryId ? item.categoryId as Id<"categories"> : undefined,
+        subcategoryId: item.subcategoryId ? item.subcategoryId as Id<"subcategories"> : undefined,
+        confidence: item.categorySource === "fallback" || !item.categoryId || !item.subcategoryId ? "low" : "high",
+        sourceStorageId: storageIds[sourceIndex] ?? storageIds[0],
+      };
+    });
+}
+
+function buildQueuedScanSummary(result: ProcessReceiptResult) {
+  const mismatchedReceipts = result.receiptSummaries.filter((receipt) => receipt.mismatchType !== "ok");
+  const mismatchCount = mismatchedReceipts.length;
+  const total = result.totalAmount ? ` Suma z paragonu: ${result.totalAmount} PLN.` : "";
+  const adjustmentCount = result.items.filter((item) =>
+    item.originalRawDescription === "OCR_MISSING_DISCOUNT_ADJUSTMENT"
+  ).length;
+  const adjustmentNote = adjustmentCount > 0
+    ? " Dodano techniczna pozycje korekty brakujacego rabatu - sprawdz ja przed zatwierdzeniem."
+    : "";
+  const mismatchDetails = mismatchedReceipts
+    .slice(0, 2)
+    .map((receipt) => {
+      const itemsTotal = Number.parseFloat(receipt.itemsTotal || "0");
+      const expected = Number.parseFloat(receipt.totalAmount || "0");
+      const diff = Number.parseFloat(receipt.difference || "0");
+      if (!(expected > 0)) return null;
+      return ` suma pozycji ${itemsTotal.toFixed(2)} vs paragon ${expected.toFixed(2)} (roznica ${diff.toFixed(2)} PLN)`;
+    })
+    .filter(Boolean)
+    .join(";");
+  const mismatch = mismatchCount > 0
+    ? ` Wynik wymaga szczegolnego sprawdzenia, bo suma pozycji nie zgadza sie idealnie z paragonem.${mismatchDetails ? mismatchDetails + "." : ""}`
+    : "";
+
+  return `OCR zakonczyl przetwarzanie w tle.${total}${adjustmentNote}${mismatch} Zachowaj paragon do czasu zatwierdzenia wyniku.`;
+}
+
+function inferAdjustmentCategory(receiptItems: ProcessedReceiptItem[]) {
+  const candidates = receiptItems.filter((item) =>
+    Number.parseFloat(item.amount || "0") < 0 &&
+    item.categoryId &&
+    item.subcategoryId
+  );
+  const fallbackCandidates = candidates.length > 0
+    ? candidates
+    : receiptItems.filter((item) => item.categoryId && item.subcategoryId);
+  const ranked = new Map<string, { categoryId: string; subcategoryId: string; weight: number }>();
+
+  for (const item of fallbackCandidates) {
+    if (!item.categoryId || !item.subcategoryId) continue;
+    const key = `${item.categoryId}:${item.subcategoryId}`;
+    const previous = ranked.get(key);
+    const weight = Math.max(0.01, Math.abs(Number.parseFloat(item.amount || "0")) || 0);
+    ranked.set(key, {
+      categoryId: item.categoryId,
+      subcategoryId: item.subcategoryId,
+      weight: (previous?.weight ?? 0) + weight,
+    });
+  }
+
+  return [...ranked.values()].sort((left, right) => right.weight - left.weight)[0] ?? null;
+}
+
+function addMissingDiscountAdjustmentForQueuedReview(
+  result: ProcessReceiptResult & { retryUsed?: boolean }
+): ProcessReceiptResult & { retryUsed?: boolean } {
+  const adjustmentItems: ProcessedReceiptItem[] = [];
+
+  for (const receipt of result.receiptSummaries) {
+    const expected = Number.parseFloat(receipt.totalAmount || "0");
+    const diff = Number.parseFloat(receipt.difference || "0");
+    if (!(expected > 0) || !(diff > 0.05)) continue;
+    if (diff > Math.max(30, expected * 0.2)) continue;
+
+    const receiptItems = result.items.filter((item) => item.receiptIndex === receipt.receiptIndex);
+    const hasDiscounts = receiptItems.some((item) => Number.parseFloat(item.amount || "0") < 0);
+    if (!hasDiscounts) continue;
+    const inferredCategory = inferAdjustmentCategory(receiptItems);
+
+    adjustmentItems.push({
+      description: "Korekta OCR: brakujący rabat/opust",
+      originalRawDescription: "OCR_MISSING_DISCOUNT_ADJUSTMENT",
+      amount: (-diff).toFixed(2),
+      categoryId: inferredCategory?.categoryId ?? null,
+      subcategoryId: inferredCategory?.subcategoryId ?? null,
+      fromMapping: false,
+      categorySource: inferredCategory ? "fallback" : undefined,
+      receiptIndex: receipt.receiptIndex,
+      receiptLabel: receipt.receiptLabel,
+      sourceImageIndex: receipt.sourceImageIndex,
+    });
+  }
+
+  if (adjustmentItems.length === 0) {
+    return result;
+  }
+
+  const items = [...result.items, ...adjustmentItems];
+  return {
+    ...result,
+    items,
+    receiptSummaries: enrichReceiptSummariesWithValidation(result.receiptSummaries, items),
+  };
+}
+
+function buildQueuedScanDebugJson(
+  result: ProcessReceiptResult & { retryUsed?: boolean },
+  items: ReturnType<typeof toPendingReviewItems>,
+  originalResult?: ProcessReceiptResult & { retryUsed?: boolean }
+) {
+  return JSON.stringify(
+    {
+      generatedAt: new Date().toISOString(),
+      pipeline: "processQueuedReceiptScan",
+      retryUsed: result.retryUsed ?? false,
+      result,
+      originalResultBeforeQueuedAdjustments: originalResult,
+      pendingReviewItems: items,
+    },
+    null,
+    2
+  );
+}
+
+function hasReceiptTotalMismatch(result: ProcessReceiptResult) {
+  return result.receiptSummaries.some((receipt) => {
+    const expected = Number.parseFloat(receipt.totalAmount || "0");
+    const diff = Math.abs(Number.parseFloat(receipt.difference || "0"));
+    const materialTolerance = Math.max(1, expected * 0.01);
+    return expected > 0 && diff > materialTolerance;
+  });
+}
+
+export const processQueuedReceiptScan = internalAction({
+  args: {
+    pendingId: v.id("pending_email_expenses"),
+    householdId: v.id("households"),
+    storageIds: v.array(v.id("_storage")),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const categoriesArray = await listCategoriesForHouseholdInternal(ctx, args.householdId);
+      const compactCategories = buildRequiredCompactCategoryList(categoriesArray);
+      const { imageDataList, totalLoadMs } = await loadReceiptImagesFromStorage(ctx, args.storageIds, "ocr:queued");
+      logOcrTiming("ocr:queued", "images_ready", {
+        imageCount: imageDataList.length,
+        totalLoadMs,
+      });
+
+      const result = await processImagesWithAI(
+        ctx,
+        args.householdId,
+        imageDataList,
+        compactCategories,
+        categoriesArray,
+        {
+          allowProviderFallback: true,
+          enablePerImageRecoveryPasses: true,
+          enablePerImageAuditPass: true,
+        }
+      );
+      const queuedResult = addMissingDiscountAdjustmentForQueuedReview(result);
+      const items = toPendingReviewItems(queuedResult, args.storageIds);
+
+      if (items.length === 0) {
+        throw new Error("OCR nie zwrocil pozycji do sprawdzenia.");
+      }
+
+      await ctx.runMutation(internal.pendingExpenses.markManualReceiptScanReady, {
+        pendingId: args.pendingId,
+        ocrRawText: queuedResult.rawText || undefined,
+        ocrDebugJson: buildQueuedScanDebugJson(queuedResult, items, result),
+        sourceSummary: buildQueuedScanSummary(queuedResult),
+        items,
+      });
+    } catch (error: any) {
+      await ctx.runMutation(internal.pendingExpenses.markManualReceiptScanFailed, {
+        pendingId: args.pendingId,
+        error: String(error?.message || error),
+      });
+    }
   },
 });
 
@@ -1485,6 +1749,93 @@ export const optimizeReceiptUploads = action({
   },
 });
 
+export const processReceiptFastOrQueue = action({
+  args: {
+    storageIds: v.array(v.id("_storage")),
+    mimeTypes: v.optional(v.array(v.string())),
+    householdId: v.id("households"),
+    isPdf: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args): Promise<
+    | { status: "ready"; result: ProcessReceiptResult }
+    | { status: "queued"; pendingId: Id<"pending_email_expenses">; message: string }
+  > => {
+    const startTime = Date.now();
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    if (args.storageIds.length === 0) {
+      throw new Error("Nie przeslano zadnych plikow.");
+    }
+
+    const queueForBackground = async (reason: string) => {
+      const pendingId = await ctx.runMutation(internal.pendingExpenses.createManualReceiptScanPending, {
+        householdId: args.householdId,
+        userId,
+        storageIds: args.storageIds,
+        mimeTypes: args.mimeTypes ?? [],
+      });
+
+      await ctx.scheduler.runAfter(0, internal.ocr.processQueuedReceiptScan, {
+        pendingId,
+        householdId: args.householdId,
+        storageIds: args.storageIds,
+      });
+
+      logOcrTiming("ocr:fast-path", "queued_for_background", {
+        totalMs: Date.now() - startTime,
+        pendingId,
+        reason,
+      });
+
+      return {
+        status: "queued" as const,
+        pendingId,
+        message: "Paragon trafil do kolejki OCR. Zachowaj papierowy paragon do czasu sprawdzenia wyniku.",
+      };
+    };
+
+    try {
+      const categoriesArray = await listCategoriesForHouseholdInternal(ctx, args.householdId);
+      const compactCategories = buildRequiredCompactCategoryList(categoriesArray);
+      const { imageDataList, totalLoadMs } = await loadReceiptImagesFromStorage(ctx, args.storageIds, "ocr:fast-path");
+      logOcrTiming("ocr:fast-path", "images_ready", {
+        imageCount: imageDataList.length,
+        totalLoadMs,
+        elapsedMs: Date.now() - startTime,
+      });
+
+      const result = await processImagesWithAI(
+        ctx,
+        args.householdId,
+        imageDataList,
+        compactCategories,
+        categoriesArray,
+        {
+          fastTimeoutMs: OCR_FAST_PATH_TIMEOUT_MS,
+          fastMultiImageTimeoutMs: OCR_FAST_PATH_MULTI_IMAGE_TIMEOUT_MS,
+          fastMinTotalMs: OCR_FAST_PATH_MIN_TOTAL_MS,
+          fastMaxAttempts: OCR_FAST_PATH_MAX_ATTEMPTS,
+          allowProviderFallback: false,
+        }
+      );
+
+      if (hasReceiptTotalMismatch(result)) {
+        return await queueForBackground("fast_path_total_mismatch");
+      }
+
+      logOcrTiming("ocr:fast-path", "completed_ready", {
+        totalMs: Date.now() - startTime,
+        items: result.items.length,
+        receiptGroups: result.receiptSummaries.length,
+      });
+
+      return { status: "ready", result };
+    } catch (error: any) {
+      return await queueForBackground(String(error?.message || error));
+    }
+  },
+});
+
 export const processReceiptWithAI = action({
   args: {
     storageIds: v.array(v.id("_storage")),
@@ -1505,49 +1856,16 @@ export const processReceiptWithAI = action({
       }
 
       const categoriesArray = await listCategoriesForHouseholdInternal(ctx, args.householdId);
-      if (categoriesArray.length === 0) {
-        throw new Error("Brak kategorii.");
-      }
       logOcrTiming("ocr:action", "categories_ready", {
         categoryCount: categoriesArray.length,
         elapsedMs: Date.now() - startTime,
       });
 
-      const compactCategories = buildCompactCategoryList(categoriesArray);
-      const imageLoadStart = Date.now();
-
-      const imageLoadResults = await Promise.all(
-        args.storageIds.map(async (storageId) => {
-          const fileStart = Date.now();
-          const url = await ctx.storage.getUrl(storageId);
-          if (!url) return null;
-
-          const fileResponse = await fetch(url);
-          if (!fileResponse.ok) return null;
-
-          const arrayBuffer = await fileResponse.arrayBuffer();
-          const base64 = Buffer.from(arrayBuffer).toString("base64");
-          const mimeType = (fileResponse.headers.get("content-type") || "image/jpeg").split(";")[0].trim();
-          logOcrTiming("ocr:action", "image_loaded", {
-            storageId,
-            mimeType,
-            bytes: arrayBuffer.byteLength,
-            loadMs: Date.now() - fileStart,
-          });
-          return { base64, mimeType } as ImageInput;
-        })
-      );
-      const imageDataList: ImageInput[] = imageLoadResults.filter(
-        (result): result is ImageInput => result !== null
-      );
-
-      if (imageDataList.length === 0) {
-        throw new Error("Nie udało się załadować obrazów.");
-      }
-
+      const compactCategories = buildRequiredCompactCategoryList(categoriesArray);
+      const { imageDataList, totalLoadMs } = await loadReceiptImagesFromStorage(ctx, args.storageIds, "ocr:action");
       logOcrTiming("ocr:action", "images_ready", {
         imageCount: imageDataList.length,
-        totalLoadMs: Date.now() - imageLoadStart,
+        totalLoadMs,
         elapsedMs: Date.now() - startTime,
       });
 

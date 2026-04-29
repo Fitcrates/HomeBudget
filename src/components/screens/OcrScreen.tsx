@@ -41,6 +41,7 @@ interface Props {
   mimeTypes?: string[];
   householdId: Id<"households">;
   onDone: () => void;
+  onOpenReviewQueue?: () => void;
   onAddMoreImages?: (ids: Id<"_storage">[]) => void;
 }
 
@@ -197,9 +198,10 @@ const STAGE_LABELS: Record<ProcessingStage, string> = {
   done: "Gotowe!",
 };
 
-export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props) {
+export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenReviewQueue }: Props) {
   const [processing, setProcessing] = useState(false);
   const [processingStage, setProcessingStage] = useState<ProcessingStage>("idle");
+  const [queuedNotice, setQueuedNotice] = useState<string | null>(null);
   const [rawText, setRawText] = useState("");
   const [items, setItems] = useState<ParsedItem[] | null>(null);
   const [expectedTotal, setExpectedTotal] = useState<string>("");
@@ -218,7 +220,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
   const [openBulkMenuId, setOpenBulkMenuId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const processAI = useAction(api.ocr.processReceiptWithAI);
+  const processAI = useAction(api.ocr.processReceiptFastOrQueue);
   const discardReceiptUploads = useAction(api.ocr.discardReceiptUploads);
   const getFileUrl = useAction(api.ocr.getFileUrl);
   const categories = useQuery(api.categories.listForHousehold, { householdId });
@@ -387,6 +389,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
       return;
     }
     setProcessing(true);
+    setQueuedNotice(null);
     setProcessingStage("cache");
     try {
       const now = Date.now();
@@ -406,11 +409,23 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
       }
 
       setProcessingStage("ai");
-      const result = (await processAI({
+      const response = (await processAI({
         storageIds: currentStorageIds,
+        mimeTypes: currentMimeTypes,
         householdId,
         isPdf: false,
-      })) as ProcessReceiptResult;
+      })) as
+        | { status: "ready"; result: ProcessReceiptResult }
+        | { status: "queued"; pendingId: string; message: string };
+
+      if (response.status === "queued") {
+        hasSavedRef.current = true;
+        setQueuedNotice(response.message);
+        toast.info("Paragon przetwarza się w tle. Zachowaj papierowy paragon do czasu sprawdzenia wyniku.");
+        return;
+      }
+
+      const result = response.result;
 
       setProcessingStage("categorizing");
       const resultHasMismatch = Array.isArray(result?.receiptSummaries)
@@ -786,6 +801,27 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
                 AI spróbuje rozpoznać pozycje, kwoty i podpowiedzieć kategorie
               </div>
             </div>
+            {queuedNotice && (
+              <div className="mb-4 space-y-3 rounded-xl border border-[#dfead2] bg-[#f6fff1] p-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#46825d]" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-[#355f45]">Paragon trafil do kolejki</p>
+                    <p className="text-xs font-medium leading-relaxed text-[#4d6b3c]">
+                      {queuedNotice} Zachowaj papierowy paragon do czasu audytu wyniku. Gotowy skan znajdziesz w kolejce do sprawdzenia.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <ButtonSecondary onClick={onOpenReviewQueue ?? onDone} icon={<Search className="h-4 w-4" />}>
+                    Otworz kolejke
+                  </ButtonSecondary>
+                  <ButtonSecondary onClick={onDone} icon={<CheckCircle2 className="h-4 w-4" />}>
+                    Wroc do wydatkow
+                  </ButtonSecondary>
+                </div>
+              </div>
+            )}
             {processing && (
               <div className="mb-4 space-y-3">
                 <CatLoader message={STAGE_LABELS[processingStage] || "Przetwarzanie..."} />
@@ -826,7 +862,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone }: Props)
             )}
             <ButtonPrimary
               onClick={handleExtract}
-              disabled={processing || !categories || currentStorageIds.length === 0}
+              disabled={Boolean(queuedNotice) || processing || !categories || currentStorageIds.length === 0}
               loading={processing}
               icon={processing ? <Bot className="h-4 w-4" /> : <Search className="h-4 w-4" />}
             >

@@ -7,7 +7,6 @@ import { ProfileSettingsScreen } from "./ProfileSettingsScreen";
 import { BadgesScreen } from "./BadgesScreen";
 import { BudgetSettingsScreen } from "./BudgetSettingsScreenV2";
 import { EmailSetupCard } from "./EmailSetupCard";
-import { EmailInboxScreen } from "./EmailInboxScreen";
 import { FireIcon } from "../ui/icons/FireIcon";
 import { AvatarMaleIcon } from "../ui/icons/AvatarMaleIcon";
 import { AvatarFemaleIcon } from "../ui/icons/AvatarFemaleIcon";
@@ -35,13 +34,13 @@ interface Props {
   household: Household;
   households: Household[];
   onSwitchHousehold: (id: string) => void;
+  onOpenInbox: () => void;
 }
 
 type Tab = "household" | "budget" | "badges" | "profile";
 
-export function HouseholdScreen({ household, households, onSwitchHousehold }: Props) {
+export function HouseholdScreen({ household, households, onSwitchHousehold, onOpenInbox }: Props) {
   const [tab, setTab] = useState<Tab>("household");
-  const [householdSubscreen, setHouseholdSubscreen] = useState<"overview" | "emailInbox">("overview");
   const members = useQuery(api.households.getMembers, { householdId: household._id });
   const memberBudgetOverview = useQuery(api.analytics.memberBudgetOverview, { householdId: household._id });
   const myMembership = useQuery(api.households.getMyMembership, { householdId: household._id });
@@ -163,15 +162,7 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
         <BudgetSettingsScreen householdId={household._id} currency={household.currency} onBack={() => setTab("household")} />
       )}
 
-      {tab === "household" && householdSubscreen === "emailInbox" && (
-        <EmailInboxScreen
-          householdId={household._id}
-          currency={household.currency}
-          onBack={() => setHouseholdSubscreen("overview")}
-        />
-      )}
-
-      {tab === "household" && householdSubscreen === "overview" && (
+      {tab === "household" && (
         <div className="space-y-6">
           <AppCard padding="lg" className="!bg-[#fdf9f1] flex flex-col items-center relative overflow-hidden w-full pb-8">
             <h3 className="text-[1.1rem] font-bold text-[#3e2815] mb-6 relative z-10">Nasze gniazdo</h3>
@@ -479,7 +470,7 @@ export function HouseholdScreen({ household, households, onSwitchHousehold }: Pr
 
           <EmailSetupCard
             householdId={household._id}
-            onOpenInbox={() => setHouseholdSubscreen("emailInbox")}
+            onOpenInbox={onOpenInbox}
           />
         </div>
       )}

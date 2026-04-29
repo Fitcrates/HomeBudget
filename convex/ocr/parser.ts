@@ -1,6 +1,7 @@
 "use node";
 
 import { internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import { resolveCategoryNames, resolveHeuristicCategory } from "./categories";
 import {
   buildDiscountLineItem,
@@ -15,19 +16,42 @@ import {
 import { AuditedLineCandidate, ProcessReceiptResult, ProcessedReceiptItem, ReceiptSummary } from "./types";
 import { asString, extractJsonBlockWithMeta, normalizeExpectedTotals, parseAmountNumber, stripDiacritics } from "./utils";
 
+const EXCHANGE_RATE_TIMEOUT_MS = 2500;
+const EXCHANGE_RATE_CACHE_TTL_MS = 60 * 60 * 1000;
+const exchangeRateCache = new Map<string, { rate: number; expiresAt: number }>();
+
 async function fetchExchangeRate(currencyCode: string): Promise<number> {
   const code = currencyCode.toUpperCase();
   if (code === "PLN" || !code) return 1;
 
+  const cached = exchangeRateCache.get(code);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.rate;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), EXCHANGE_RATE_TIMEOUT_MS);
   try {
-    const response = await fetch(`https://api.nbp.pl/api/exchangerates/rates/a/${code}/?format=json`);
+    const response = await fetch(`https://api.nbp.pl/api/exchangerates/rates/a/${code}/?format=json`, {
+      signal: controller.signal,
+    });
     if (!response.ok) return 1;
 
     const data = await response.json();
-    return data?.rates?.[0]?.mid || 1;
+    const rate = Number(data?.rates?.[0]?.mid);
+    if (Number.isFinite(rate) && rate > 0) {
+      exchangeRateCache.set(code, {
+        rate,
+        expiresAt: Date.now() + EXCHANGE_RATE_CACHE_TTL_MS,
+      });
+      return rate;
+    }
+    return 1;
   } catch (error) {
     console.error(`Failed to fetch exchange rate for ${code}`, error);
     return 1;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -103,7 +127,7 @@ function isGenericHeuristicFallback(categoriesArray: any[], subcategoryId: strin
 
 export async function parseAndNormalizeResponse(
   ctx: any,
-  householdId: string,
+  householdId: Id<"households">,
   content: string,
   categoriesArray: any[],
   modelUsed: string,
@@ -308,7 +332,7 @@ export async function parseAndNormalizeResponse(
     ];
     const mappingResults = mappingRawDescriptions.length > 0
       ? await ctx.runQuery(internal.productMappings.lookupMappingsBatch, {
-          householdId: householdId as any,
+          householdId,
           rawDescriptions: mappingRawDescriptions,
         })
       : [];
@@ -381,9 +405,14 @@ export async function parseAndNormalizeResponse(
               categoriesArray,
               item.subcategoryId
             );
+            const heuristicIsGeneric = isGenericHeuristicFallback(
+              categoriesArray,
+              heuristicCategory.subcategoryId
+            );
 
-            // Apply heuristic if: no resolution yet OR current is generic fallback
-            if (!hasExistingResolution || currentIsGeneric) {
+            // Apply heuristic if it fills a gap, upgrades a generic category,
+            // or a specific deterministic rule can correct an AI guess.
+            if (!hasExistingResolution || currentIsGeneric || (item.categorySource === "ai" && !heuristicIsGeneric)) {
               item.categoryId = heuristicCategory.categoryId;
               item.subcategoryId = heuristicCategory.subcategoryId;
               item.categorySource = "heuristic";
@@ -409,12 +438,28 @@ export async function parseAndNormalizeResponse(
 
     const discountLinkingStart = Date.now();
     const assignDiscountCategories = (itemsToCategorize: ProcessedReceiptItem[]) => {
-      for (const item of itemsToCategorize) {
+      for (let itemIndex = 0; itemIndex < itemsToCategorize.length; itemIndex++) {
+        const item = itemsToCategorize[itemIndex];
         const amountValue = Number.parseFloat(item.amount || "0");
         if (!(amountValue < 0)) continue;
 
+        const previousItem = itemsToCategorize[itemIndex - 1];
+        if (
+          previousItem &&
+          previousItem.receiptIndex === item.receiptIndex &&
+          Number.parseFloat(previousItem.amount || "0") > 0 &&
+          previousItem.categoryId &&
+          previousItem.subcategoryId
+        ) {
+          item.categoryId = previousItem.categoryId;
+          item.subcategoryId = previousItem.subcategoryId;
+          item.categorySource = "discount";
+          continue;
+        }
+
+        const previousItems = itemsToCategorize.slice(0, itemIndex);
         const linkedCandidate = findBestDiscountCandidate(
-          itemsToCategorize.filter((candidate) =>
+          previousItems.filter((candidate) =>
             candidate.receiptIndex === item.receiptIndex && Number.parseFloat(candidate.amount || "0") > 0
           ),
           item.receiptIndex,
@@ -429,7 +474,7 @@ export async function parseAndNormalizeResponse(
           continue;
         }
 
-        const previousPositive = [...itemsToCategorize]
+        const previousPositive = [...previousItems]
           .reverse()
           .find((candidate) =>
             candidate.receiptIndex === item.receiptIndex &&

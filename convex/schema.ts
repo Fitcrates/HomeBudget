@@ -170,6 +170,8 @@ const applicationTables = {
   pending_email_expenses: defineTable({
     householdId: v.id("households"),
     providerMessageId: v.string(),
+    sourceType: v.optional(v.union(v.literal("email"), v.literal("manual_ocr"))),
+    createdByUserId: v.optional(v.id("users")),
     emailFrom: v.string(),
     emailTo: v.string(),
     emailSubject: v.string(),
@@ -177,11 +179,16 @@ const applicationTables = {
     rawEmailText: v.string(),
     rawEmailHtml: v.optional(v.string()),
     ocrRawText: v.optional(v.string()),
+    ocrDebugJson: v.optional(v.string()),
     matchedInboxAddress: v.string(),
     detectedBy: v.union(v.literal("ocr"), v.literal("text"), v.literal("fallback")),
     sourceSummary: v.optional(v.string()),
     attachmentNames: v.array(v.string()),
     storageIds: v.array(v.id("_storage")),
+    scanStatus: v.optional(v.union(v.literal("processing"), v.literal("ready"), v.literal("failed"))),
+    scanError: v.optional(v.string()),
+    queuedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
     items: v.array(
       v.object({
         description: v.string(),

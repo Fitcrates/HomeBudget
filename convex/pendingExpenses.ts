@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { assertMember } from "./households";
 import type { Id } from "./_generated/dataModel";
@@ -7,6 +7,9 @@ import {
   findLinkedExpenseIdsForPending,
   listEffectivelyPendingEmailExpenses,
 } from "./lib/pendingEmailExpenses";
+
+const MANUAL_SCAN_SENDER = "Skaner OCR";
+const MANUAL_SCAN_INBOX = "manual-ocr@homebudget.local";
 
 async function attachStorageUrls(ctx: any, rows: any[]) {
   return await Promise.all(
@@ -124,8 +127,13 @@ export const approve = mutation({
     }
 
     const insertedExpenseIds: Id<"expenses">[] = [];
+    const pendingStorageIds = new Set((pending.storageIds ?? []).map((storageId) => String(storageId)));
 
     for (const item of args.items) {
+      const receiptImageId = item.sourceStorageId && pendingStorageIds.has(String(item.sourceStorageId))
+        ? item.sourceStorageId
+        : pending.storageIds?.[0];
+
       const expenseId = await ctx.db.insert("expenses", {
         householdId: pending.householdId,
         userId,
@@ -134,7 +142,7 @@ export const approve = mutation({
         amount: item.amount,
         date: args.date,
         description: item.description,
-        receiptImageId: item.sourceStorageId ?? pending.storageIds?.[0],
+        receiptImageId,
         ocrRawText: pending.ocrRawText || pending.rawEmailText,
         tags: ["email", "forwarded"],
         sourcePendingEmailExpenseId: pending._id,
@@ -188,5 +196,111 @@ export const reject = mutation({
       reviewedAt: now,
       reviewedByUserId: userId,
     });
+  },
+});
+
+export const createManualReceiptScanPending = internalMutation({
+  args: {
+    householdId: v.id("households"),
+    userId: v.id("users"),
+    storageIds: v.array(v.id("_storage")),
+    mimeTypes: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await assertMember(ctx, args.householdId, args.userId);
+
+    const now = Date.now();
+    const providerMessageId = `manual-ocr:${String(args.storageIds[0] ?? "empty")}:${now}`;
+    const attachmentNames = args.storageIds.map((_, index) => {
+      const mimeType = args.mimeTypes[index] || "";
+      const extension = mimeType === "application/pdf"
+        ? "pdf"
+        : mimeType.includes("webp")
+          ? "webp"
+          : mimeType.includes("png")
+            ? "png"
+            : "jpg";
+      return `Paragon ${index + 1}.${extension}`;
+    });
+
+    return await ctx.db.insert("pending_email_expenses", {
+      householdId: args.householdId,
+      providerMessageId,
+      sourceType: "manual_ocr",
+      createdByUserId: args.userId,
+      emailFrom: MANUAL_SCAN_SENDER,
+      emailTo: MANUAL_SCAN_INBOX,
+      emailSubject: `Skan paragonu ${new Date(now).toLocaleString("pl-PL")}`,
+      emailReceivedAt: now,
+      rawEmailText: "Ręcznie dodany skan paragonu. Zachowaj oryginalny paragon do czasu zatwierdzenia wyniku OCR.",
+      matchedInboxAddress: MANUAL_SCAN_INBOX,
+      detectedBy: "ocr",
+      sourceSummary: "Przetwarzamy skan w tle. Zachowaj paragon do czasu sprawdzenia wyniku.",
+      attachmentNames,
+      storageIds: args.storageIds,
+      scanStatus: "processing",
+      queuedAt: now,
+      items: [],
+      status: "pending",
+      isProcessed: false,
+    });
+  },
+});
+
+export const markManualReceiptScanReady = internalMutation({
+  args: {
+    pendingId: v.id("pending_email_expenses"),
+    ocrRawText: v.optional(v.string()),
+    ocrDebugJson: v.optional(v.string()),
+    sourceSummary: v.optional(v.string()),
+    items: v.array(
+      v.object({
+        description: v.string(),
+        amount: v.number(),
+        categoryId: v.optional(v.id("categories")),
+        subcategoryId: v.optional(v.id("subcategories")),
+        confidence: v.optional(v.string()),
+        sourceStorageId: v.optional(v.id("_storage")),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const pending = await ctx.db.get(args.pendingId);
+    if (!pending || pending.status !== "pending" || pending.isProcessed === true) {
+      return null;
+    }
+
+    await ctx.db.patch(args.pendingId, {
+      ocrRawText: args.ocrRawText,
+      ocrDebugJson: args.ocrDebugJson,
+      sourceSummary: args.sourceSummary,
+      items: args.items,
+      scanStatus: "ready",
+      completedAt: Date.now(),
+    });
+
+    return args.pendingId;
+  },
+});
+
+export const markManualReceiptScanFailed = internalMutation({
+  args: {
+    pendingId: v.id("pending_email_expenses"),
+    error: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const pending = await ctx.db.get(args.pendingId);
+    if (!pending || pending.status !== "pending" || pending.isProcessed === true) {
+      return null;
+    }
+
+    await ctx.db.patch(args.pendingId, {
+      sourceSummary: "Nie udało się automatycznie odczytać skanu. Otwórz załącznik i przepisz pozycje ręcznie albo spróbuj ponownie z wyraźniejszym zdjęciem.",
+      scanStatus: "failed",
+      scanError: args.error.slice(0, 500),
+      completedAt: Date.now(),
+    });
+
+    return args.pendingId;
   },
 });

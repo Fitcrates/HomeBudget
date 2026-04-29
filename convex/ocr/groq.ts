@@ -8,8 +8,13 @@ import { sleep } from "./utils";
 const AI_CALL_TIMEOUT_MS = 25000;
 const AI_CLIENT_TIMEOUT_MS = 35000;
 const DEFAULT_MAX_ATTEMPTS = 2;
+const GROQ_FALLBACK_TIMEOUT_MS = 22000;
+const GROQ_FALLBACK_MAX_TOKENS = 8192;
+const GROQ_VISION_MODEL =
+  process.env.GROQ_VISION_MODEL || "meta-llama/llama-4-scout-17b-16e-instruct";
 
 let cachedGeminiClient: OpenAI | null = null;
+let cachedGroqClient: OpenAI | null = null;
 
 function getGemini() {
   if (cachedGeminiClient) return cachedGeminiClient;
@@ -18,17 +23,31 @@ function getGemini() {
   if (!apiKey) {
     throw new Error("Brak klucza API Gemini (GEMINI_API_KEY). Skonfiguruj go w ustawieniach Convex.");
   }
-  // Używamy warstwy kompatybilności OpenAI wdrożonej przez Google
+
   cachedGeminiClient = new OpenAI({
     baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
     apiKey,
     timeout: AI_CLIENT_TIMEOUT_MS,
-    maxRetries: 0, // We handle retries ourselves
+    maxRetries: 0,
   });
   return cachedGeminiClient;
 }
 
-// Wrapper to add timeout to any promise
+function getGroqFallback() {
+  if (cachedGroqClient) return cachedGroqClient;
+
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return null;
+
+  cachedGroqClient = new OpenAI({
+    baseURL: "https://api.groq.com/openai/v1",
+    apiKey,
+    timeout: AI_CLIENT_TIMEOUT_MS,
+    maxRetries: 0,
+  });
+  return cachedGroqClient;
+}
+
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
   return Promise.race([
     promise,
@@ -70,10 +89,29 @@ function isRetriableError(error: any): boolean {
   );
 }
 
+function buildGroqFallbackRequest(
+  request: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
+): OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming {
+  const requestedMaxTokens = typeof request.max_tokens === "number"
+    ? request.max_tokens
+    : GROQ_FALLBACK_MAX_TOKENS;
+
+  return {
+    ...request,
+    model: GROQ_VISION_MODEL,
+    max_tokens: Math.min(requestedMaxTokens, GROQ_FALLBACK_MAX_TOKENS),
+  };
+}
+
 export async function createVisionCompletionWithRetry(
   request: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
   label: string,
-  retryOptions: number | { maxAttempts?: number; timeoutMs?: number } = {}
+  retryOptions: number | {
+    maxAttempts?: number;
+    timeoutMs?: number;
+    minTotalMs?: number;
+    allowProviderFallback?: boolean;
+  } = {}
 ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
   const maxAttempts = typeof retryOptions === "number"
     ? retryOptions
@@ -81,11 +119,18 @@ export async function createVisionCompletionWithRetry(
   const timeoutMs = typeof retryOptions === "number"
     ? AI_CALL_TIMEOUT_MS
     : retryOptions.timeoutMs ?? AI_CALL_TIMEOUT_MS;
+  const minTotalMs = typeof retryOptions === "number"
+    ? 0
+    : retryOptions.minTotalMs ?? 0;
+  const allowProviderFallback = typeof retryOptions === "number"
+    ? true
+    : retryOptions.allowProviderFallback ?? true;
   let lastError: unknown = null;
+  const startedAt = Date.now();
+  let attempt = 1;
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  while (attempt <= maxAttempts || (Date.now() - startedAt < minTotalMs && isRetriableError(lastError))) {
     try {
-      // Add timeout wrapper for each attempt
       return await withTimeout(
         getGemini().chat.completions.create(request),
         timeoutMs,
@@ -104,7 +149,10 @@ export async function createVisionCompletionWithRetry(
         retriable,
       });
 
-      if (!retriable || attempt === maxAttempts) {
+      const elapsedMs = Date.now() - startedAt;
+      const shouldRetryForAttemptBudget = attempt < maxAttempts && (minTotalMs <= 0 || elapsedMs < minTotalMs);
+      const shouldExtendForMinimumWindow = elapsedMs < minTotalMs && isRetriableError(error);
+      if (!retriable || (!shouldRetryForAttemptBudget && !shouldExtendForMinimumWindow)) {
         break;
       }
 
@@ -112,19 +160,49 @@ export async function createVisionCompletionWithRetry(
       const match = String(error?.message || "").match(/try again in ([\d.]+)s/);
       if (match && match[1]) {
         const requestedWaitMs = Math.ceil(parseFloat(match[1]) * 1000) + 500;
-        if (!isNaN(requestedWaitMs) && requestedWaitMs > delayMs) {
+        if (!Number.isNaN(requestedWaitMs) && requestedWaitMs > delayMs) {
           delayMs = requestedWaitMs;
           console.log(`[OCR] Rate limit hit. Waiting ${delayMs}ms based on API hint.`);
         }
       }
-      
+      if (minTotalMs > 0) {
+        const remainingMinimumWindowMs = Math.max(minTotalMs - elapsedMs, 250);
+        delayMs = Math.min(delayMs, remainingMinimumWindowMs);
+      }
+
       await sleep(delayMs);
+      attempt += 1;
     }
   }
 
   const status = extractStatusCode(lastError);
   if (status === 503 || isRetriableError(lastError)) {
-    throw new Error("Model OCR jest chwilowo przeciążony. Spróbuj ponownie za kilkanaście sekund.");
+    const groqFallback = allowProviderFallback ? getGroqFallback() : null;
+    if (groqFallback) {
+      const fallbackRequest = buildGroqFallbackRequest(request);
+      const fallbackTimeoutMs = Math.min(Math.max(timeoutMs, 12000), GROQ_FALLBACK_TIMEOUT_MS);
+
+      console.warn(`Gemini unavailable for OCR (${label}); trying Groq fallback`, {
+        model: fallbackRequest.model,
+        timeoutMs: fallbackTimeoutMs,
+      });
+
+      try {
+        return await withTimeout(
+          groqFallback.chat.completions.create(fallbackRequest),
+          fallbackTimeoutMs,
+          `${label}:groq-fallback`
+        );
+      } catch (fallbackError: any) {
+        console.error(`Groq OCR fallback failed (${label})`, {
+          status: extractStatusCode(fallbackError),
+          message: String(fallbackError?.message || fallbackError),
+          retriable: isRetriableError(fallbackError),
+        });
+      }
+    }
+
+    throw new Error("Model OCR jest chwilowo przeciazony. Sprobuj ponownie za kilkanascie sekund.");
   }
 
   throw lastError;

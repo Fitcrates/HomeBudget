@@ -11,16 +11,22 @@ import { ButtonPrimary } from "../ui/ButtonPrimary";
 import { ScreenHeader } from "../ui/ScreenHeader";
 import { Spinner } from "../ui/Spinner";
 import { prepareOcrUploads } from "../../lib/ocrUpload";
+import { TabBar } from "../ui/TabBar";
+import { EmailInboxScreen } from "./EmailInboxScreen";
+import { Plus, Inbox } from "lucide-react";
 
 interface Props {
   householdId: Id<"households">;
+  currency: string;
+  initialTab?: "fresh" | "queue";
   onSuccess: () => void;
   onOcrCapture: (storageIds: Id<"_storage">[], mimeTypes?: string[]) => void;
   prefillOcrText?: string;
   prefillAmount?: number;
 }
 
-export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefillOcrText, prefillAmount }: Props) {
+export function AddExpenseScreen({ householdId, currency, initialTab = "fresh", onSuccess, onOcrCapture, prefillOcrText, prefillAmount }: Props) {
+  const [activeTab, setActiveTab] = useState<"fresh" | "queue">(initialTab);
   const [amount, setAmount] = useState(prefillAmount ? String(prefillAmount / 100) : "");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -129,15 +135,23 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
 
 
 
+  const TABS = [
+    { key: "fresh" as const, label: "Nowy Wydatek", icon: Plus },
+    { key: "queue" as const, label: "Oczekujące", icon: Inbox },
+  ];
+
   return (
     <div className="space-y-6 pb-4">
       <ScreenHeader
-        icon={<DollarSign />}
-        title="Dodaj wydatek"
-        subtitle="Wprowadź szczegóły transakcji"
+        icon={activeTab === "fresh" ? <DollarSign /> : <Inbox />}
+        title={activeTab === "fresh" ? "Dodaj wydatek" : "Kolejka do sprawdzenia"}
+        subtitle={activeTab === "fresh" ? "Wprowadź szczegóły transakcji" : "Oczekujące faktury i maile"}
       />
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <TabBar tabs={TABS} value={activeTab} onChange={setActiveTab} />
+
+      {activeTab === "fresh" ? (
+        <form onSubmit={handleSubmit} className="space-y-5">
         {/* Receipt / Uploads (Moved to top) */}
         <div className="app-card space-y-4">
           <div className="flex items-center gap-2 mb-2">
@@ -338,6 +352,13 @@ export function AddExpenseScreen({ householdId, onSuccess, onOcrCapture, prefill
           {saving ? "Zapisywanie..." : "Dodaj wydatek"}
         </ButtonPrimary>
       </form>
+      ) : (
+        <EmailInboxScreen
+          householdId={householdId}
+          currency={currency}
+          hideHeader
+        />
+      )}
     </div>
   );
 }

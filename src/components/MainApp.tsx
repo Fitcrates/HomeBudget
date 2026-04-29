@@ -5,6 +5,7 @@ import { ExpensesScreen } from "./screens/ExpensesScreen";
 import { AddExpenseScreen } from "./screens/AddExpenseScreen";
 import { HouseholdScreen } from "./screens/HouseholdScreen";
 import { OcrScreen } from "./screens/OcrScreen";
+import { EmailInboxScreen } from "./screens/EmailInboxScreen";
 import { GoalsScreen } from "./screens/GoalsScreenV2";
 import { ChatScreen } from "./screens/ChatScreen";
 import { BadgeNotificationProvider } from "./providers/BadgeNotificationProvider";
@@ -13,7 +14,7 @@ import { Id } from "../../convex/_generated/dataModel";
 import { Receipt, PiggyBank, Bot } from "lucide-react";
 import { DashboardIcon } from "./ui/icons/DashboardIcon";
 
-type Screen = "dashboard" | "expenses" | "add" | "household" | "ocr" | "goals" | "chat";
+type Screen = "dashboard" | "expenses" | "add" | "household" | "ocr" | "reviewQueue" | "goals" | "chat";
 
 interface Household {
   _id: Id<"households">;
@@ -93,6 +94,7 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
           {screen === "add" && (
             <AddExpenseScreen
               householdId={household._id}
+              currency={household.currency}
               onSuccess={() => setScreen("expenses")}
               onOcrCapture={handleOcrCapture}
             />
@@ -102,6 +104,7 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
               household={household}
               households={households}
               onSwitchHousehold={onSwitchHousehold}
+              onOpenInbox={() => setScreen("reviewQueue")}
             />
           )}
           {screen === "ocr" && ocrStorageIds.length > 0 && (
@@ -110,6 +113,16 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
               mimeTypes={ocrMimeTypes}
               householdId={household._id}
               onDone={() => setScreen("expenses")}
+              onOpenReviewQueue={() => setScreen("reviewQueue")}
+            />
+          )}
+          {screen === "reviewQueue" && (
+            <AddExpenseScreen
+              householdId={household._id}
+              currency={household.currency}
+              initialTab="queue"
+              onSuccess={() => setScreen("expenses")}
+              onOcrCapture={handleOcrCapture}
             />
           )}
           {screen === "goals" && (
