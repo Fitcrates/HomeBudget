@@ -42,10 +42,13 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
   });
 
   useEffect(() => {
+    const metaThemeColor = document.getElementById("theme-color-meta");
     if (isDark) {
       document.documentElement.classList.add("dark");
+      if (metaThemeColor) metaThemeColor.setAttribute("content", "#0a0a0a");
     } else {
       document.documentElement.classList.remove("dark");
+      if (metaThemeColor) metaThemeColor.setAttribute("content", "#fcf8f2");
     }
   }, [isDark]);
 
