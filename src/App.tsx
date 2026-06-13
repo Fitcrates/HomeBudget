@@ -35,9 +35,11 @@ function AuthScreen() {
     const metaThemeColor = document.getElementById("theme-color-meta");
     if (isDark) {
       document.documentElement.classList.add("dark");
+      document.documentElement.style.colorScheme = "dark";
       if (metaThemeColor) metaThemeColor.setAttribute("content", "#0a0a0a");
     } else {
       document.documentElement.classList.remove("dark");
+      document.documentElement.style.colorScheme = "light";
       if (metaThemeColor) metaThemeColor.setAttribute("content", "#fcf8f2");
     }
   }, [isDark]);
