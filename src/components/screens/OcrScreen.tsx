@@ -640,7 +640,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
   return (
     <div className="space-y-6 pb-4">
       <ScreenHeader
-        icon={<ScannerIcon className="w-8 h-8 text-[#c76823]" />}
+        icon={<ScannerIcon className="w-8 h-8 text-orange-600 dark:text-indigo-400 transition-colors duration-700" />}
         title="Skaner Paragonów"
         subtitle="Jeden prosty flow: dodaj plik, uruchom OCR i popraw wynik przed zapisem."
         onBack={handleDiscardAndDone}
@@ -650,12 +650,12 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
         <div className="mb-4 space-y-3">
           <div>
             <FormLabel>Krok 1</FormLabel>
-            <h3 className="mt-2 text-lg font-semibold text-[#2b180a]">Dodaj źródła do analizy</h3>
-            <p className="mt-1 max-w-2xl text-sm font-medium leading-relaxed text-[#8a7262]">
+            <h3 className="mt-2 text-lg font-semibold text-orange-950 dark:text-white transition-colors duration-700">Dodaj źródła do analizy</h3>
+            <p className="mt-1 max-w-2xl text-sm font-medium leading-relaxed text-orange-900/60 dark:text-white/50 transition-colors duration-700">
               Wgraj zdjęcia albo PDF. Jeśli paragon jest długi, dodaj kolejne ujęcie dopiero po pierwszym.
             </p>
           </div>
-          <div className="rounded-xl border border-[#f2dfcb] bg-[#fff8f2] px-3 py-2 text-xs font-bold text-[#8a7262]">
+          <div className="rounded-xl border border-orange-200/50 dark:border-white/10 bg-orange-50 dark:bg-white/5 px-3 py-2 text-xs font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">
             Zdjęcia / PDF ({currentStorageIds.length}/3)
           </div>
         </div>
@@ -673,17 +673,17 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
         {previewUrls.length > 0 && (
           <div className="mb-4 flex flex-wrap gap-3">
             {previewUrls.map((url, i) => (
-              <div key={i} className="relative rounded-xl border border-white/60 bg-white/60 p-2 shadow-sm">
+              <div key={i} className="relative rounded-xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-white/5 p-2 shadow-sm transition-colors duration-700">
                 {url === "pdf" ? (
-                  <div className="h-20 w-20 rounded-xl border-2 border-[#f2d6bf] shadow-sm bg-[#fff8f2] flex flex-col items-center justify-center gap-1">
-                    <FileText className="w-8 h-8 text-[#cf833f]" />
-                    <span className="text-[9px] font-bold text-[#cf833f]">PDF</span>
+                  <div className="h-20 w-20 rounded-xl border-2 border-orange-200/50 dark:border-white/10 shadow-sm bg-orange-50 dark:bg-white/5 flex flex-col items-center justify-center gap-1 transition-colors duration-700">
+                    <FileText className="w-8 h-8 text-orange-500 dark:text-indigo-400 transition-colors duration-700" />
+                    <span className="text-[9px] font-bold text-orange-500 dark:text-indigo-400 transition-colors duration-700">PDF</span>
                   </div>
                 ) : (
                   <img
                     src={url}
                     alt={`Plik ${i + 1}`}
-                    className="h-20 w-20 object-cover rounded-xl border-2 border-[#f2d6bf] shadow-sm"
+                    className="h-20 w-20 object-cover rounded-xl border-2 border-orange-200/50 dark:border-white/10 shadow-sm transition-colors duration-700"
                   />
                 )}
                 <button
@@ -713,7 +713,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
             >
               Dodaj kolejny kadr / plik
             </ButtonSecondary>
-            <p className="text-[11px] font-bold text-[#8a7262] leading-relaxed">
+            <p className="text-[11px] font-bold text-orange-900/60 dark:text-white/50 leading-relaxed transition-colors duration-700">
               Dodaj kolejny kadr dopiero po pierwszym zdjęciu, jeśli paragon nie mieści się na jednym ujęciu.
             </p>
           </div>
@@ -722,12 +722,12 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
         <div className="grid grid-cols-3 gap-3">
           <label
             className={`flex min-h-[112px] flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed py-4 transition-colors cursor-pointer ${currentStorageIds.length >= 3
-              ? "border-[#e0d0c0] opacity-40 cursor-not-allowed"
-              : "border-[#8bc5a0] bg-[#ebf7ef]/60 hover:border-[#67a57e] hover:bg-[#d8eedf]"
+              ? "border-orange-200 dark:border-white/10 opacity-40 cursor-not-allowed"
+              : "border-emerald-500/40 bg-emerald-50/60 hover:bg-emerald-100/60 hover:border-emerald-500 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:hover:border-emerald-400"
               }`}
           >
-            <ScannerIcon className="w-6 h-6 text-[#46825d]" />
-            <span className="text-xs font-bold text-[#46825d]">
+            <ScannerIcon className="w-6 h-6 text-emerald-700 dark:text-emerald-400 transition-colors duration-700" />
+            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 transition-colors duration-700">
               {uploading ? "Przesyłanie..." : "Aparat"}
             </span>
             <input
@@ -743,12 +743,12 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
 
           <label
             className={`flex min-h-[112px] flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed py-4 transition-colors cursor-pointer ${currentStorageIds.length >= 3
-              ? "border-[#e0d0c0] opacity-40 cursor-not-allowed"
-              : "border-[#d2bcad] bg-white/40 hover:border-orange-400 hover:bg-orange-50/50"
+              ? "border-orange-200 dark:border-white/10 opacity-40 cursor-not-allowed"
+              : "border-orange-300 dark:border-indigo-500/40 bg-white/40 dark:bg-white/5 hover:border-orange-400 dark:hover:border-indigo-400 hover:bg-orange-50/50 dark:hover:bg-indigo-500/10"
               }`}
           >
-            <Image className="w-6 h-6 text-[#8a7262]" />
-            <span className="text-xs font-bold text-[#8a7262]">
+            <Image className="w-6 h-6 text-orange-900/60 dark:text-white/50 transition-colors duration-700" />
+            <span className="text-xs font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">
               {uploading ? "Przesyłanie..." : "Galeria"}
             </span>
             <input
@@ -763,12 +763,12 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
 
           <label
             className={`flex min-h-[112px] flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed py-4 transition-colors cursor-pointer ${currentStorageIds.length >= 3
-              ? "border-[#e0d0c0] opacity-40 cursor-not-allowed"
-              : "border-[#b8a8d8] bg-[#f5f0ff]/60 hover:border-[#8b6fd4] hover:bg-[#ede8ff]"
+              ? "border-orange-200 dark:border-white/10 opacity-40 cursor-not-allowed"
+              : "border-violet-300 dark:border-violet-500/40 bg-violet-50/60 dark:bg-violet-500/10 hover:border-violet-500 dark:hover:border-violet-400 hover:bg-violet-100/60 dark:hover:bg-violet-500/20"
               }`}
           >
-            <FileText className="w-6 h-6 text-[#6b4fa8]" />
-            <span className="text-xs font-bold text-[#6b4fa8]">
+            <FileText className="w-6 h-6 text-violet-700 dark:text-violet-400 transition-colors duration-700" />
+            <span className="text-xs font-bold text-violet-700 dark:text-violet-400 transition-colors duration-700">
               {uploading ? "Przesyłanie..." : "Dokument"}
             </span>
             <input
@@ -782,7 +782,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
         </div>
 
         {hasPdf && (
-          <div className="mt-4 flex items-center gap-2 rounded-xl border border-[#d8ccf5] bg-[#f5f0ff] px-3 py-2 text-xs font-bold text-[#6b4fa8]">
+          <div className="mt-4 flex items-center gap-2 rounded-xl border border-violet-200 dark:border-violet-500/30 bg-violet-50 dark:bg-violet-500/10 px-3 py-2 text-xs font-bold text-violet-700 dark:text-violet-400 transition-colors duration-700">
             <FileText className="w-4 h-4" />
             <span>PDF wykryty — AI wyciągnie tekst i pozycje automatycznie</span>
           </div>
@@ -791,23 +791,23 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
         {uploading && <Spinner className="py-3" size="sm" />}
 
         {!items && (
-          <div className="mt-5 rounded-xl border border-[#f2dfcb] bg-white/55 p-4">
+          <div className="mt-5 rounded-[16px] border border-orange-200/50 dark:border-white/10 bg-white/55 dark:bg-white/5 p-4 transition-colors duration-700">
             <div className="mb-4 space-y-2">
               <div>
                 <FormLabel>Krok 2</FormLabel>
-                <h4 className="mt-1 text-base font-semibold text-[#2b180a]">Uruchom analizę OCR</h4>
+                <h4 className="mt-1 text-base font-semibold text-orange-950 dark:text-white transition-colors duration-700">Uruchom analizę OCR</h4>
               </div>
-              <div className="text-xs font-bold text-[#8a7262]">
+              <div className="text-xs font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">
                 AI spróbuje rozpoznać pozycje, kwoty i podpowiedzieć kategorie
               </div>
             </div>
             {queuedNotice && (
-              <div className="mb-4 space-y-3 rounded-xl border border-[#dfead2] bg-[#f6fff1] p-4">
+              <div className="mb-4 space-y-3 rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 p-4 transition-colors duration-700">
                 <div className="flex items-start gap-3">
-                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#46825d]" />
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-400 transition-colors duration-700" />
                   <div className="space-y-1">
-                    <p className="text-sm font-bold text-[#355f45]">Paragon trafil do kolejki</p>
-                    <p className="text-xs font-medium leading-relaxed text-[#4d6b3c]">
+                    <p className="text-sm font-bold text-emerald-900 dark:text-emerald-100 transition-colors duration-700">Paragon trafil do kolejki</p>
+                    <p className="text-xs font-medium leading-relaxed text-emerald-800 dark:text-emerald-200 transition-colors duration-700">
                       {queuedNotice} Zachowaj papierowy paragon do czasu audytu wyniku. Gotowy skan znajdziesz w kolejce do sprawdzenia.
                     </p>
                   </div>
@@ -835,23 +835,23 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
                     return (
                       <div
                         key={stage}
-                        className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-300 ${
+                        className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-700 ${
                           isActive
-                            ? "bg-[#fff1e4] text-[#cf833f] border border-[#f2d6bf]"
+                            ? "bg-orange-100 dark:bg-indigo-500/20 text-orange-600 dark:text-indigo-400 border border-orange-200 dark:border-indigo-500/30"
                             : isDone
-                              ? "bg-[#ebf7ef] text-[#46825d] border border-[#8bc5a0]"
-                              : "bg-[#f8f1e8]/60 text-[#c4aa90] border border-transparent"
+                              ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30"
+                              : "bg-orange-50/60 dark:bg-white/5 text-orange-900/40 dark:text-white/40 border border-transparent"
                         }`}
                       >
                         {isDone ? (
                           <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
                         ) : isActive ? (
                           <span className="relative flex h-3.5 w-3.5 shrink-0">
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#cf833f] opacity-40" />
-                            <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-[#cf833f]" />
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-600 dark:bg-indigo-400 opacity-40 transition-colors duration-700" />
+                            <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-orange-600 dark:bg-indigo-400 transition-colors duration-700" />
                           </span>
                         ) : (
-                          <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-[#d8ccba]" />
+                          <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-orange-200 dark:border-white/20 transition-colors duration-700" />
                         )}
                         <span>{STAGE_LABELS[stage]}</span>
                       </div>
@@ -880,7 +880,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <FormLabel>Krok 2</FormLabel>
-                  <h3 className="mt-1 text-lg font-semibold text-[#2b180a]">
+                  <h3 className="mt-1 text-lg font-semibold text-orange-950 dark:text-white transition-colors duration-700">
                     Sprawdź wynik OCR ({items.length} pozycji)
                   </h3>
                 </div>
@@ -935,16 +935,16 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
                 return (
                   <div
                     key={item.id}
-                    className={`relative py-4 border-b border-[#ebd8c8]/60 last:border-0 ${openBulkMenuId === item.id ? "z-30" : "z-0"
+                    className={`relative py-4 border-b border-orange-200/60 dark:border-white/10 last:border-0 transition-colors duration-700 ${openBulkMenuId === item.id ? "z-30" : "z-0"
                       }`}
                   >
                     <div className="mb-3 flex items-center justify-between gap-2">
                       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                        <span className="inline-flex h-8 items-center justify-center rounded-lg bg-[#f5e5cf]/60 px-2.5 text-xs font-bold text-[#8a7262]">
+                        <span className="inline-flex h-8 items-center justify-center rounded-lg bg-orange-100/60 dark:bg-white/10 px-2.5 text-xs font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">
                           #{index + 1}
                         </span>
                         {(receiptSummaries.length > 1 || item.receiptIndex > 0) && (
-                          <span className="inline-flex max-w-full items-center rounded-lg border border-[#c8d8ff] bg-[#eef4ff] px-2 py-1 text-[10px] font-bold text-[#3856a8]">
+                          <span className="inline-flex max-w-full items-center rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 px-2 py-1 text-[10px] font-bold text-blue-700 dark:text-blue-300 transition-colors duration-700">
                             {item.receiptLabel || `Paragon ${item.receiptIndex + 1}`}
                           </span>
                         )}
@@ -957,7 +957,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
                               type="button"
                               onClick={() => setOpenBulkMenuId(openBulkMenuId === item.id ? null : item.id)}
                               disabled={!item.categoryId || !item.subcategoryId}
-                              className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-[#ead8c5] bg-[#fff8f2] px-2 text-[11px] font-bold text-[#8a7262] transition-colors hover:border-[#cf833f] hover:text-[#cf833f] disabled:opacity-40"
+                              className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-orange-200 dark:border-white/10 bg-orange-50 dark:bg-white/5 px-2 text-[11px] font-bold text-orange-900/60 dark:text-white/50 transition-colors hover:border-orange-500 dark:hover:border-indigo-400 hover:text-orange-500 dark:hover:text-indigo-400 disabled:opacity-40 duration-700"
                             >
                               <Sparkles className="h-3.5 w-3.5" />
                               <span className="hidden min-[360px]:inline">Akcje</span>
@@ -965,21 +965,21 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
                             </button>
 
                             {openBulkMenuId === item.id && item.categoryId && item.subcategoryId && (
-                              <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-56 rounded-xl border border-[#efd9c2] bg-[#fffaf4] p-1.5 shadow-[0_10px_24px_rgba(180,120,80,0.18)]">
+                              <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-56 rounded-xl border border-orange-200 dark:border-white/10 bg-white dark:bg-neutral-900 p-1.5 shadow-xl dark:shadow-black transition-colors duration-700">
                                 <button
                                   type="button"
                                   onClick={() => {
                                     applyCategoryToRemainingItems(item.id);
                                     setOpenBulkMenuId(null);
                                   }}
-                                  className="flex w-full items-start gap-2 rounded-xl px-3 py-2 text-left transition-colors hover:bg-[#fff1e4]"
+                                  className="flex w-full items-start gap-2 rounded-xl px-3 py-2 text-left transition-colors hover:bg-orange-50 dark:hover:bg-white/5 duration-700"
                                 >
-                                  <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[#cf833f]" />
+                                  <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-orange-500 dark:text-indigo-400 transition-colors duration-700" />
                                   <span>
-                                    <span className="block text-[11px] font-bold text-[#6d4d38]">
+                                    <span className="block text-[11px] font-bold text-orange-900 dark:text-white/80 transition-colors duration-700">
                                       Przypisz do pozostałych
                                     </span>
-                                    <span className="block text-[10px] font-medium leading-relaxed text-[#9c806c]">
+                                    <span className="block text-[10px] font-medium leading-relaxed text-orange-900/50 dark:text-white/50 transition-colors duration-700">
                                       Skopiuj kategorię i podkategorię do reszty pozycji z tego skanu.
                                     </span>
                                   </span>
@@ -1016,11 +1016,11 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
                           inputMode="decimal"
                           value={item.amount}
                           onChange={(e) => updateItem(item.id, { amount: e.target.value })}
-                          className={`w-full rounded-xl border bg-white/60 px-3 py-2 text-sm font-bold text-right tabular-nums outline-none ${uncertainPrice
-                            ? "border-[#f3a086] text-[#b74210] focus:border-[#d95d27]"
+                          className={`w-full rounded-xl border bg-white/60 dark:bg-white/5 px-3 py-2 text-sm font-bold text-right tabular-nums outline-none transition-colors duration-700 ${uncertainPrice
+                            ? "border-red-300 dark:border-red-500/50 text-red-700 dark:text-red-400 focus:border-red-500"
                             : isDiscountRow
-                              ? "border-[#9bd1af] text-[#2c7a4b] focus:border-[#4f9a6e]"
-                              : "border-[#f5e5cf] text-[#cf833f] focus:border-[#cf833f]"
+                              ? "border-emerald-300 dark:border-emerald-500/50 text-emerald-700 dark:text-emerald-400 focus:border-emerald-500"
+                              : "border-orange-200/50 dark:border-white/10 text-orange-950 dark:text-white focus:border-orange-500 dark:focus:border-indigo-400"
                             }`}
                           placeholder="0.00"
                         />
@@ -1029,25 +1029,25 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
 
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {item.fromMapping && (
-                        <span className="inline-flex items-center gap-1 rounded-lg border border-[#8bc5a0] bg-[#ebf7ef] px-2 py-1 text-[10px] font-bold text-[#46825d]">
+                        <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 transition-colors duration-700">
                           <Brain className="h-3 w-3" />
                           Z historii
                         </span>
                       )}
                       {uncertainPrice && (
-                        <span className="rounded-lg border border-[#ffc2af] bg-[#ffe1d6] px-2 py-1 text-[10px] font-bold text-[#9a2b00]">
+                        <span className="rounded-lg border border-red-300 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 px-2 py-1 text-[10px] font-bold text-red-800 dark:text-red-400 transition-colors duration-700">
                           Niepewna cena
                         </span>
                       )}
                       {isDiscountRow && (
-                        <span className="rounded-lg border border-[#9bd1af] bg-[#e8f6ed] px-2 py-1 text-[10px] font-bold text-[#2c7a4b]">
+                        <span className="rounded-lg border border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 transition-colors duration-700">
                           Rabat / opust
                         </span>
                       )}
                     </div>
 
                     {uncertainPrice && (
-                      <p className="mt-2 rounded-xl border border-[#ffd4c4] bg-[#fff2ec] px-2 py-1 text-[10px] font-medium text-[#a94d22]">
+                      <p className="mt-2 rounded-xl border border-red-200 dark:border-red-500/20 bg-red-50/50 dark:bg-red-500/5 px-2 py-1 text-[10px] font-medium text-red-700 dark:text-red-400 transition-colors duration-700">
                         OCR nie był pewny kwoty.
                       </p>
                     )}
@@ -1104,7 +1104,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
               })}
             </div>
 
-            <div className="border-t border-[#f2dfcb] p-4">
+            <div className="border-t border-orange-200/50 dark:border-white/10 p-4 transition-colors duration-700">
               <ButtonSecondary
                 variant="dashed"
                 onClick={() =>
@@ -1162,19 +1162,19 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
                   <div
                     key={receipt.receiptIndex}
                     className={isMismatch
-                      ? "bg-[#fff2ec] border border-[#ffc2af] rounded-xl p-3"
-                      : "bg-[#ebf7ef] border border-[#8bc5a0] rounded-xl p-3"
+                      ? "bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl p-3 transition-colors duration-700"
+                      : "bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-xl p-3 transition-colors duration-700"
                     }
                   >
                     <div className="flex items-start gap-2.5">
                       {isMismatch ? (
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#a94d22]" />
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-700 dark:text-red-400 transition-colors duration-700" />
                       ) : (
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#46825d]" />
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-400 transition-colors duration-700" />
                       )}
                       <p className={isMismatch
-                        ? "text-[#a94d22] text-xs font-bold leading-relaxed"
-                        : "text-[#46825d] text-xs font-bold leading-relaxed"
+                        ? "text-red-700 dark:text-red-400 text-xs font-bold leading-relaxed transition-colors duration-700"
+                        : "text-emerald-700 dark:text-emerald-400 text-xs font-bold leading-relaxed transition-colors duration-700"
                       }>
                         {receipt.receiptLabel || `Paragon ${receipt.receiptIndex + 1}`}: suma pozycji ({formatAmount(itemsSum)}) vs suma towarów ({formatAmount(expected)}).
                         {payable > 0 && (

@@ -66,8 +66,8 @@ export function PieChart({ data, currency }: Props) {
           {slices.map((s) => (
             <path key={s.id} d={arcPath(s.start, s.end)} fill={s.color} opacity={0.8} stroke="rgba(255,255,255,0.6)" strokeWidth="2.5" />
           ))}
-          <text x={cx} y={cy - 6} textAnchor="middle" fontSize="10" fontWeight="bold" fill="#b89b87">Łącznie</text>
-          <text x={cx} y={cy + 8} textAnchor="middle" fontSize="12" fontWeight="900" fill="#3e2815">
+          <text x={cx} y={cy - 6} textAnchor="middle" fontSize="10" fontWeight="bold" className="fill-orange-900/60 dark:fill-white/50 transition-colors duration-700">Łącznie</text>
+          <text x={cx} y={cy + 8} textAnchor="middle" fontSize="12" fontWeight="900" className="fill-orange-950 dark:fill-white transition-colors duration-700">
             {fmt(total)}
           </text>
         </svg>
@@ -80,11 +80,11 @@ export function PieChart({ data, currency }: Props) {
             <div key={s.id} className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full flex-shrink-0 shadow-inner" style={{ backgroundColor: s.color, opacity: 0.8 }} />
               <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                <DynamicIcon name={s.icon} className="flex-shrink-0 w-[14px] h-[14px] text-[#cf833f]" />
-                <span className="text-[13px] font-bold text-[#6d4d38] truncate">{s.name}</span>
+                <DynamicIcon name={s.icon} className="flex-shrink-0 w-[14px] h-[14px] text-orange-500 dark:text-indigo-400 transition-colors duration-700" />
+                <span className="text-[13px] font-bold text-orange-900 dark:text-white/80 truncate transition-colors duration-700">{s.name}</span>
               </div>
-              <span className="text-[13px] font-medium text-[#3e2815]">{fmt(s.total)}</span>
-              <span className="text-[10px] font-bold text-[#b89b87] w-8 text-right">{((s.total / total) * 100).toFixed(0)}%</span>
+              <span className="text-[13px] font-bold text-orange-950 dark:text-white transition-colors duration-700">{fmt(s.total)}</span>
+              <span className="text-[10px] font-bold text-orange-900/60 dark:text-white/50 w-8 text-right transition-colors duration-700">{((s.total / total) * 100).toFixed(0)}%</span>
             </div>
           ))}
       </div>

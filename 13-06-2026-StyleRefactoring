@@ -1,0 +1,78 @@
+# Plan Refaktoryzacji i Designu: Domowe Gniazdo v2
+
+Celem tego dokumentu jest zdefiniowanie spójnych wytycznych architektonicznych oraz systemu wizualnego (Design System) dla nowej wersji aplikacji **Domowe Gniazdo**. Zmiany zostaną wdrożone w podziale na fazy (sesje), aby zapewnić płynne przejście.
+
+## 1. Architektura i Struktura (Feature-based Architecture)
+
+Porzucamy masywne "God Components" (np. 1200-linijkowy `OcrScreen.tsx`) na rzecz modułowej struktury opartej na funkcjonalnościach (features). Każdy moduł będzie zawierał własne komponenty, hooki i typy.
+
+**Nowa struktura katalogów:**
+```text
+src/
+ ├─ components/
+ │   ├─ ui/            # Reużywalne komponenty generyczne (przyciski, inputy, modale - shadcn/ui)
+ │   └─ layout/        # Komponenty układu (np. nawigacja, TabBar, Header)
+ ├─ features/
+ │   ├─ auth/          # Logowanie, rejestracja, zarządzanie sesją (ZROBIONE)
+ │   ├─ dashboard/     # Wykresy, podsumowania, główny ekran
+ │   ├─ expenses/      # Dodawanie, edycja i lista wydatków
+ │   ├─ ocr/           # Skaner paragonów, logika przetwarzania obrazu
+ │   ├─ budget/        # Limity, kategorie, planowanie budżetu
+ │   └─ household/     # Zarządzanie domownikami, role (owner/parent/child)
+ ├─ lib/               # Funkcje pomocnicze, utility (np. formatowanie walut)
+ └─ hooks/             # Globalne hooki
+```
+
+## 2. Design System: World-Class Modern UI
+
+Odrzucamy standardowy, płaski design na rzecz **Premium Glassmorphism** ze wsparciem dla dwóch motywów (z płynnym przejściem `duration-700`).
+
+### Motyw Jasny (Light Mode - "Ciepłe Ognisko")
+Motyw kojarzący się z domem, ciepłem i bezpieczeństwem.
+- **Tło:** Jasny, kremowy beż (`#fcf8f2`).
+- **Główne barwy:** Odcienie pomarańczy (`orange-500`), złota (`amber-400`), ciepłe brązy (`#4a2e1b`).
+- **Glassmorphism:** Karty to w połowie przezroczysta biel (`bg-white/60`) z intensywnym rozmyciem (`backdrop-blur-xl/3xl`) i bardzo delikatnymi, ciepłymi cieniami.
+- **Tekst:** Ciemne, głębokie brązy i przygaszone oranże.
+
+### Motyw Ciemny (Dark Mode - "Nowoczesna Noc")
+Motyw ultra-nowoczesny, głęboki, budujący wrażenie aplikacji z najwyższej półki (Apple/Fintech).
+- **Tło:** Bardzo ciemna szarość przechodząca w czerń (`#0a0a0a`).
+- **Główne barwy:** Indygo (`indigo-500`), fiolety (`violet-600`), neonowy róż (`fuchsia`).
+- **Glassmorphism:** Karty to lekko rozjaśniona czerń/biel (`bg-white/5` lub `bg-white/10`) z ostrymi, białymi krawędziami (`border-white/10`) i wewnętrznym cieniem (`shadow-inner`).
+- **Tekst:** Czysta biel i zgaszona biel dla elementów drugorzędnych (`text-white/60`).
+
+### Zasady Ogólne UI
+- **Płynność:** Zmiany motywu i stany hover używają klas `transition-all duration-300` (lub `700` dla zmiany motywu).
+- **Mikrointerakcje:** Przyciski po wciśnięciu delikatnie się zmniejszają (`active:scale-95`), a główne akcje pulsują blaskiem.
+- **Brak nudnych teł:** Główne tła aplikacji zawierają bardzo powolnie animowane (pulse) kolorowe "orby" mieszające się z siatką lub szumem (noise/mesh gradient).
+
+## 3. Fazy Implementacji (Podział na Sesje)
+
+Podzieliliśmy pracę na logiczne etapy, aby zmieścić się w limitach i zapewnić stabilność:
+
+### [ZROBIONE] Faza 0: Setup i Ekran Logowania
+- Konfiguracja Tailwind (darkMode: "class").
+- Przeprojektowanie ekranu powitalnego i formularza logowania (AuthScreen, SignInForm).
+
+### [DO ZROBIENIA] Faza 1: Globalny Layout i TabBar
+- Stworzenie nowego głównego layoutu po zalogowaniu.
+- Wdrożenie nowego, pływającego (floating) dolnego paska nawigacji (TabBar) w stylu Glassmorphism z animowanymi ikonami.
+- Zbudowanie zunifikowanego komponentu `<ScreenHeader />` w nowym designie.
+
+### [DO ZROBIENIA] Faza 2: Dashboard (Pulpit)
+- Refaktoryzacja `DashboardScreen.tsx`.
+- Rozbicie na mniejsze komponenty w `src/features/dashboard`.
+- Odświeżenie wyglądu kart z podsumowaniami, dodanie pięknych wykresów kołowych/słupkowych.
+
+### [DO ZROBIENIA] Faza 3: Wydatki i Skaner OCR
+- Rozbicie gigantycznego `OcrScreen.tsx` na: `CameraCapture`, `ImagePreview`, `OcrResultsForm`.
+- Wdrożenie nowego designu dla list wydatków (eleganckie elementy listy, wskaźniki kategorii).
+
+### [DO ZROBIENIA] Faza 4: Ustawienia Domu, Limity i Profil
+- Stworzenie ekranu zarządzania domownikami (Role: Właściciel/Rodzic/Dziecko) z użyciem pięknych Avatarów.
+- Refaktoryzacja `ProfileSettingsScreen` (dokończenie w nowym stylu bez Konsta UI).
+
+## Pytania Otwarte
+> [!IMPORTANT]
+> - Czy do wyświetlania wykresów na Dashboardzie mamy wykorzystać Recharts czy Chart.js? (Obecnie projekt wydaje się używać własnych rozwiązań lub standardowych bibliotek - warto to ustandaryzować).
+> - Czy dolny pasek nawigacyjny ma być przyklejony do samej krawędzi (jak w systemie), czy lekko "unosić się" (floating) nad dołem ekranu? Floating daje dużo bardziej nowoczesny efekt.

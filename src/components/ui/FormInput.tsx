@@ -18,8 +18,8 @@ export const FormInput = forwardRef<HTMLInputElement, FormInputProps>(
     return (
       <input
         ref={ref}
-        className={`w-full bg-white/70 backdrop-blur-sm border rounded-xl px-4 outline-none focus:border-[#cf833f] focus:bg-white transition-all text-[#2b180a] font-bold shadow-inner placeholder-[#e0c9b7] ${sizeMap[inputSize]} ${
-          error ? "border-red-300 focus:border-red-400" : "border-white/60"
+        className={`w-full bg-white/70 dark:bg-white/5 backdrop-blur-sm border rounded-xl px-4 outline-none focus:border-orange-500 dark:focus:border-indigo-400 focus:bg-white dark:focus:bg-white/10 transition-all text-orange-950 dark:text-white font-bold shadow-inner placeholder-orange-900/30 dark:placeholder-white/30 duration-700 ${sizeMap[inputSize]} ${
+          error ? "border-red-300 dark:border-red-500/50 focus:border-red-400 dark:focus:border-red-500" : "border-white/60 dark:border-white/10"
         } ${className}`}
         {...rest}
       />

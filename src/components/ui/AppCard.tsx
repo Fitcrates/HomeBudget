@@ -11,11 +11,11 @@ const paddingMap = { none: "p-0", sm: "p-3.5", md: "p-5", lg: "p-6" } as const;
 
 const variantMap = {
   default:
-    "w-full rounded-xl border border-white/50 bg-white/40 shadow-[0_8px_32px_rgba(180,120,80,0.15)] backdrop-blur-xl",
+    "w-full rounded-[24px] border border-orange-200/50 dark:border-white/10 bg-white/60 dark:bg-white/5 shadow-[0_8px_32px_rgba(200,120,60,0.1)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_8px_32px_rgba(0,0,0,0.4)] backdrop-blur-2xl transition-colors duration-700",
   inner:
-    "rounded-xl border border-white/60 bg-white/50 shadow-sm",
+    "rounded-[20px] border border-orange-200/50 dark:border-white/10 bg-white/70 dark:bg-white/5 shadow-sm dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] backdrop-blur-xl transition-colors duration-700",
   highlight:
-    "rounded-xl border-2 border-[#cf833f]/30 bg-white/60 shadow-[0_8px_32px_rgba(200,120,60,0.15)] backdrop-blur-xl",
+    "w-full rounded-[24px] border-2 border-orange-400/40 dark:border-indigo-500/40 bg-white/70 dark:bg-indigo-500/10 shadow-[0_8px_32px_rgba(200,120,60,0.15)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_8px_32px_rgba(99,102,241,0.2)] backdrop-blur-2xl transition-colors duration-700",
 } as const;
 
 export const AppCard = forwardRef<HTMLDivElement, AppCardProps>(

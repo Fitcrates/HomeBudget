@@ -11,8 +11,8 @@ export function matchCommerce(text: string, combinedContext: string, issuers: Is
   if (isBusinessSaaSLine(text, combinedContext)) return resolve(CATEGORY.BUSINESS, SUB.saas, categoriesArray);
 
   // ── Online / Marketplace ──
-  if (isMarketplaceIssuer || isElectronicsIssuer || has(combinedContext, /\b(kurier|przesylka|shipping|shipment|marketplace)\b/i)) {
-    if (has(combinedContext, /\b(koszt dostawy|przesylka|dostawa|kurier|paczkomat)\b/i)) return resolve(CATEGORY.ONLINE, SUB.dostawa, categoriesArray);
+  if (isMarketplaceIssuer || isElectronicsIssuer || has(combinedContext, /\b(inpost|kurier|przesylka|shipping|shipment|marketplace|paczkomat)\b/i)) {
+    if (has(combinedContext, /\b(inpost|koszt dostawy|przesylka|dostawa|kurier|paczkomat)\b/i)) return resolve(CATEGORY.ONLINE, SUB.dostawa, categoriesArray);
     if (isElectronicsIssuer || has(combinedContext, /\b(sluchawki|laptop|monitor|telefon komorkowy|smartfon|tablet|klawiatura|myszka|drukarka|pendrive|kabel usb|ladowark|powerbank|smartwatch)\b/i)) return resolve(CATEGORY.ONLINE, SUB.elektronika, categoriesArray);
     if (has(combinedContext, /\b(ksiazka|ebook|film|plyta|gra|komiks|audiobook)\b/i)) return resolve(CATEGORY.ONLINE, SUB.ksiazkiMedia, categoriesArray);
     if (has(combinedContext, /\b(krem|kosmetyki|szampon|perfumy|serum|tonik|makijaz)\b/i)) return resolve(CATEGORY.ONLINE, SUB.urodaOnline, categoriesArray);
@@ -48,6 +48,7 @@ export function matchCommerce(text: string, combinedContext: string, issuers: Is
 
 /** Standalone electronics matching */
 export function matchCommerceStandalone(text: string, categoriesArray: any[]): CategoryResolution | null {
+  if (has(text, /\b(inpost|paczkomat|kurier|przesylk|dostaw|shipping|shipment)\b/i)) return resolve(CATEGORY.ONLINE, SUB.dostawa, categoriesArray);
   if (has(text, /\b(sluchawk|laptop|monitor|telefon komork|smartfon|tablet|klawiatur|myszk|drukark|pendrive|kabel usb|ladowark|powerbank|smartwatch|router|dysk ssd|karta pamieci)\b/i)) return resolve(CATEGORY.ONLINE, SUB.elektronika, categoriesArray);
   return null;
 }

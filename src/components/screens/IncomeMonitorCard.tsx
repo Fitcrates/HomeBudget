@@ -69,8 +69,8 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
 
   const cardHeader = (
     <div className="flex items-center gap-2 drop-shadow-sm">
-      <DollarSign className="w-6 h-6 text-[#c76823]" />
-      <h3 className="text-[15px] font-medium text-[#2b180a]">Dochód miesięczny</h3>
+      <DollarSign className="w-6 h-6 text-orange-600 dark:text-indigo-400 transition-colors duration-700" />
+      <h3 className="text-[15px] font-bold text-orange-950 dark:text-white transition-colors duration-700">Dochód miesięczny</h3>
     </div>
   );
 
@@ -91,12 +91,12 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
           {cardHeader}
           <button
             onClick={startEdit}
-            className="text-xs font-bold text-[#cf833f] hover:underline"
+            className="text-xs font-bold text-orange-500 dark:text-indigo-400 hover:underline transition-colors duration-700"
           >
             Ustaw →
           </button>
         </div>
-        <p className="text-xs text-[#b89b87] font-medium text-center py-2">
+        <p className="text-xs text-orange-900/60 dark:text-white/50 font-medium text-center py-2 transition-colors duration-700">
           Ustaw miesięczny dochód, aby śledzić budżet w czasie rzeczywistym.
         </p>
       </AppCard>
@@ -120,7 +120,7 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
     ? "bg-gradient-to-r from-red-400 to-red-500"
     : isWarning
     ? "bg-gradient-to-r from-yellow-400 to-orange-400"
-    : "bg-gradient-to-r from-[#67c48a] to-[#4aad6f]";
+    : "bg-gradient-to-r from-emerald-500 to-emerald-600";
 
   return (
     <AppCard>
@@ -136,7 +136,7 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
           )}
           <button
             onClick={editing ? () => setEditing(false) : startEdit}
-            className="text-xs font-bold text-[#cf833f] hover:underline"
+            className="text-xs font-bold text-orange-500 dark:text-indigo-400 hover:underline transition-colors duration-700"
           >
             {editing ? "Anuluj" : "Edytuj"}
           </button>
@@ -158,7 +158,7 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
               placeholder="np. 8000.00"
               autoFocus
             />
-            <p className="text-[10px] text-[#b89b87] font-medium mt-1 ml-1">
+            <p className="text-[10px] text-orange-900/60 dark:text-white/50 font-medium mt-1 ml-1 transition-colors duration-700">
               Łączny dochód netto całego gospodarstwa domowego
             </p>
           </div>
@@ -176,18 +176,18 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
           {/* Main numbers */}
           <div className="flex items-end justify-between">
             <div>
-              <p className="text-[10px] font-bold text-[#b89b87] uppercase tracking-wider mb-0.5">
+              <p className="text-[10px] font-bold text-orange-900/60 dark:text-white/50 uppercase tracking-wider mb-0.5 transition-colors duration-700">
                 Wydano w tym miesiącu
               </p>
-              <p className={`text-2xl font-medium ${isOver ? "text-red-500" : "text-[#2b180a]"}`}>
+              <p className={`text-2xl font-bold transition-colors duration-700 ${isOver ? "text-red-500 dark:text-rose-400" : "text-orange-950 dark:text-white"}`}>
                 {formatAmount(spentThisMonth, currency)}
               </p>
             </div>
             <div className="text-right">
-              <p className="text-[10px] font-bold text-[#b89b87] uppercase tracking-wider mb-0.5">
+              <p className="text-[10px] font-bold text-orange-900/60 dark:text-white/50 uppercase tracking-wider mb-0.5 transition-colors duration-700">
                 Dochód
               </p>
-              <p className="text-lg font-medium text-[#6d4d38]">
+              <p className="text-lg font-bold text-orange-900 dark:text-white/80 transition-colors duration-700">
                 {formatAmount(monthly, currency)}
               </p>
             </div>
@@ -196,12 +196,12 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
           {/* Progress bar */}
           <ProgressBar value={pct} height="md" />
           <div className="flex justify-between mt-1.5">
-            <span className="text-[10px] font-bold text-[#b89b87]">
+            <span className="text-[10px] font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">
               {pct.toFixed(0)}% wykorzystano
             </span>
             <span
-              className={`text-[10px] font-bold ${
-                isOver ? "text-red-500" : "text-[#67c48a]"
+              className={`text-[10px] font-bold transition-colors duration-700 ${
+                isOver ? "text-red-500 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
               }`}
             >
               {isOver
@@ -227,7 +227,7 @@ export function IncomeMonitorCard({ householdId, currency, spentThisMonth }: Pro
               icon={<DollarSign className="w-4 h-4" />}
             >
               Prognoza oszczędności:{" "}
-              <span className="text-[#cf833f]">
+              <span className="text-orange-500 dark:text-indigo-400 font-bold transition-colors duration-700">
                 {formatAmount(Math.max(0, monthly - Math.round((spentThisMonth / dayOfMonth) * daysInMonth)), currency)}
               </span>{" "}
               do końca miesiąca

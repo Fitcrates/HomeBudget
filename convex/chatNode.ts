@@ -80,7 +80,10 @@ export const sendMessage = action({
     // 3. Prepare system prompt
     const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
     
-    const unboughtItems = shoppingList.filter(i => !i.isBought).map(i => i.name).join(", ");
+    const unboughtItems = (shoppingList as Array<{ isBought: boolean; name: string }>)
+      .filter((i) => !i.isBought)
+      .map((i) => i.name)
+      .join(", ");
     
     const systemPrompt = `Jesteś bardzo bystrym, domowym asystentem AI ds. budżetu i zakupów. Jesteś pomocny, ciepły i zwięzły w swoich wypowiedziach.
 Twoje główne zadania to pomaganie w planowaniu posiłków, sugerowaniu oszczędności, analizie wydatków oraz doradzaniu.
@@ -103,7 +106,7 @@ Nigdy nie wymieniaj w bloku JSON elementów, które już są na liście zakupów
     ];
     
     // Add last 10 messages to keep context window small enough
-    const contextHistory = history.slice(-10).map(m => ({
+    const contextHistory = (history as Array<{ role: string; text: string }>).slice(-10).map((m) => ({
       role: m.role,
       content: m.text,
     }));

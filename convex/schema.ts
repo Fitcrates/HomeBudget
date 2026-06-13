@@ -151,6 +151,230 @@ const applicationTables = {
   })
     .index("by_household", ["householdId"]),
 
+  offer_sources: defineTable({
+    name: v.string(),
+    sourceType: v.union(
+      v.literal("manual"),
+      v.literal("affiliate_network"),
+      v.literal("cashback_network"),
+      v.literal("ad_network"),
+      v.literal("price_comparison"),
+      v.literal("loyalty_program"),
+      v.literal("bank_offer")
+    ),
+    providerKey: v.string(),
+    status: v.union(v.literal("active"), v.literal("disabled"), v.literal("failing")),
+    priorityBoost: v.number(),
+    lastIngestedAt: v.optional(v.number()),
+    lastSuccessAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_provider_key", ["providerKey"])
+    .index("by_type_status", ["sourceType", "status"]),
+
+  offers: defineTable({
+    sourceId: v.id("offer_sources"),
+    sourceType: v.union(
+      v.literal("manual"),
+      v.literal("affiliate_network"),
+      v.literal("cashback_network"),
+      v.literal("price_comparison"),
+      v.literal("loyalty_program"),
+      v.literal("bank_offer")
+    ),
+    externalId: v.string(),
+    title: v.string(),
+    merchantName: v.string(),
+    description: v.string(),
+    categoryKeys: v.array(v.string()),
+    segmentKeys: v.array(v.string()),
+    countryCodes: v.array(v.string()),
+    currency: v.string(),
+    revenueModel: v.union(
+      v.literal("cps"),
+      v.literal("cpc"),
+      v.literal("cpm"),
+      v.literal("flat")
+    ),
+    commissionRate: v.optional(v.number()),
+    commissionAmount: v.optional(v.number()),
+    cashbackSharePct: v.optional(v.number()),
+    estimatedSavingsAmount: v.optional(v.number()),
+    estimatedSavingsPct: v.optional(v.number()),
+    affiliateUrl: v.string(),
+    imageUrl: v.optional(v.string()),
+    termsUrl: v.optional(v.string()),
+    startsAt: v.number(),
+    expiresAt: v.optional(v.number()),
+    status: v.union(v.literal("draft"), v.literal("active"), v.literal("paused"), v.literal("expired")),
+    weight: v.number(),
+    metadata: v.optional(v.any()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_status", ["status"])
+    .index("by_source_external", ["sourceId", "externalId"])
+    .index("by_source_status", ["sourceId", "status"])
+    .index("by_status_expires", ["status", "expiresAt"]),
+
+  household_spending_profiles: defineTable({
+    householdId: v.id("households"),
+    windowDays: v.number(),
+    currency: v.string(),
+    totalSpend: v.number(),
+    categoryStats: v.array(v.object({
+      categoryId: v.id("categories"),
+      categoryName: v.string(),
+      categoryKey: v.string(),
+      totalAmount: v.number(),
+      monthlyAverage: v.number(),
+      transactionCount: v.number(),
+      frequencyPerMonth: v.number(),
+    })),
+    computedAt: v.number(),
+    dataFrom: v.number(),
+    dataTo: v.number(),
+    dataHash: v.string(),
+  })
+    .index("by_household", ["householdId"])
+    .index("by_household_computed", ["householdId", "computedAt"]),
+
+  household_offer_segments: defineTable({
+    householdId: v.id("households"),
+    segmentKey: v.string(),
+    score: v.number(),
+    evidence: v.object({
+      windowDays: v.number(),
+      monthlyAverage: v.number(),
+      transactionCount: v.number(),
+      categoryKeys: v.array(v.string()),
+    }),
+    computedAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("by_household", ["householdId"])
+    .index("by_household_segment", ["householdId", "segmentKey"])
+    .index("by_segment", ["segmentKey"])
+    .index("by_expires", ["expiresAt"]),
+
+  household_segment_jobs: defineTable({
+    householdId: v.id("households"),
+    status: v.union(v.literal("dirty"), v.literal("processing"), v.literal("clean"), v.literal("failed")),
+    reason: v.string(),
+    nextRunAt: v.number(),
+    lastRunAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+    updatedAt: v.number(),
+  })
+    .index("by_status_next_run", ["status", "nextRunAt"])
+    .index("by_household", ["householdId"]),
+
+  household_offer_recommendations: defineTable({
+    householdId: v.id("households"),
+    offerId: v.id("offers"),
+    strategyKey: v.string(),
+    score: v.number(),
+    rank: v.number(),
+    messageTitle: v.string(),
+    messageBody: v.string(),
+    audit: v.object({
+      matchedSegments: v.array(v.string()),
+      matchedCategoryKeys: v.array(v.string()),
+      scoringFactors: v.array(v.object({
+        key: v.string(),
+        value: v.number(),
+        weight: v.number(),
+      })),
+    }),
+    status: v.union(v.literal("active"), v.literal("dismissed"), v.literal("expired")),
+    generatedAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("by_household_status_rank", ["householdId", "status", "rank"])
+    .index("by_offer", ["offerId"])
+    .index("by_household_offer", ["householdId", "offerId"]),
+
+  offer_clicks: defineTable({
+    householdId: v.id("households"),
+    userId: v.id("users"),
+    offerId: v.id("offers"),
+    recommendationId: v.optional(v.id("household_offer_recommendations")),
+    clickToken: v.string(),
+    affiliateUrl: v.string(),
+    sourceType: v.string(),
+    revenueModel: v.string(),
+    clickedAt: v.number(),
+    userAgentHash: v.optional(v.string()),
+  })
+    .index("by_offer_time", ["offerId", "clickedAt"])
+    .index("by_household_time", ["householdId", "clickedAt"])
+    .index("by_click_token", ["clickToken"]),
+
+  offer_conversions: defineTable({
+    clickId: v.optional(v.id("offer_clicks")),
+    offerId: v.id("offers"),
+    sourceId: v.id("offer_sources"),
+    externalConversionId: v.string(),
+    orderAmount: v.optional(v.number()),
+    commissionAmount: v.number(),
+    currency: v.string(),
+    status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected"), v.literal("paid")),
+    convertedAt: v.number(),
+    updatedAt: v.number(),
+    metadata: v.optional(v.any()),
+  })
+    .index("by_offer_time", ["offerId", "convertedAt"])
+    .index("by_source_external", ["sourceId", "externalConversionId"])
+    .index("by_source_time", ["sourceId", "convertedAt"])
+    .index("by_status", ["status"]),
+
+  provider_ingestion_runs: defineTable({
+    sourceId: v.id("offer_sources"),
+    providerKey: v.string(),
+    status: v.union(v.literal("running"), v.literal("success"), v.literal("failed")),
+    fetchedCount: v.number(),
+    upsertedCount: v.number(),
+    deactivatedCount: v.number(),
+    error: v.optional(v.string()),
+    startedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+  })
+    .index("by_source_time", ["sourceId", "startedAt"])
+    .index("by_provider_status", ["providerKey", "status"]),
+
+  ad_placements: defineTable({
+    placementKey: v.string(),
+    providerKey: v.string(),
+    sourceId: v.optional(v.id("offer_sources")),
+    screen: v.string(),
+    status: v.union(v.literal("active"), v.literal("disabled")),
+    accountKey: v.optional(v.string()),
+    campaignKey: v.optional(v.string()),
+    targetUrl: v.optional(v.string()),
+    metadata: v.optional(v.any()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_placement", ["placementKey"])
+    .index("by_provider_status", ["providerKey", "status"])
+    .index("by_screen_status", ["screen", "status"]),
+
+  ad_events: defineTable({
+    placementId: v.id("ad_placements"),
+    providerKey: v.string(),
+    householdId: v.optional(v.id("households")),
+    userId: v.optional(v.id("users")),
+    eventType: v.union(v.literal("impression"), v.literal("click"), v.literal("conversion"), v.literal("view")),
+    eventToken: v.string(),
+    occurredAt: v.number(),
+    metadata: v.optional(v.any()),
+  })
+    .index("by_placement_time", ["placementId", "occurredAt"])
+    .index("by_provider_time", ["providerKey", "occurredAt"])
+    .index("by_event_token", ["eventToken"]),
+
   // Forwarding inbox assigned to a household.
   email_inboxes: defineTable({
     householdId: v.id("households"),

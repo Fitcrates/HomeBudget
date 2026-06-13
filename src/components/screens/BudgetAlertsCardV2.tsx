@@ -5,6 +5,7 @@ import { formatAmount } from "../../lib/format";
 import { DynamicIcon } from "../ui/DynamicIcon";
 import { Target, AlertTriangle, CheckCircle, Users } from "lucide-react";
 import { ProgressBar } from "../ui/ProgressBar";
+import { AppCard } from "../ui/AppCard";
 
 interface Props {
   householdId: Id<"households">;
@@ -46,28 +47,28 @@ export function BudgetAlertsCard({ householdId, currency, dateFrom, dateTo }: Pr
 
   if (categoryAlerts.length === 0 && personalAlerts.length === 0) {
     return (
-      <div className="app-card ">
+      <AppCard>
         <div className="flex items-center justify-between mb-3 ">
           <div className="flex items-center gap-2 drop-shadow-sm">
-            <Target className="w-6 h-6 text-[#c76823]" />
-            <h3 className="text-[15px] font-medium text-[#2b180a]">Budżety</h3>
+            <Target className="w-6 h-6 text-orange-600 dark:text-indigo-400 transition-colors duration-700" />
+            <h3 className="text-[15px] font-bold text-orange-950 dark:text-white transition-colors duration-700">Budżety</h3>
           </div>
         </div>
-        <p className="text-xs text-[#b89b87] font-medium text-center py-3">
+        <p className="text-xs text-orange-900/60 dark:text-white/50 font-medium text-center py-3 transition-colors duration-700">
           Brak ustawionych limitów. Dodaj budżety kategorii lub limity osobiste w sekcji Zarządzanie Domem.
         </p>
-      </div>
+      </AppCard>
     );
   }
 
   return (
-    <div className="app-card">
+    <AppCard>
       {categoryAlerts.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 drop-shadow-sm">
-              <Target className="w-6 h-6 text-[#c76823]" />
-              <h3 className="text-[15px] font-medium text-[#2b180a]">Budżety kategorii</h3>
+              <Target className="w-6 h-6 text-orange-600 dark:text-indigo-400 transition-colors duration-700" />
+              <h3 className="text-[15px] font-bold text-orange-950 dark:text-white transition-colors duration-700">Budżety kategorii</h3>
             </div>
           </div>
 
@@ -90,7 +91,7 @@ export function BudgetAlertsCard({ householdId, currency, dateFrom, dateTo }: Pr
                 spent={alert.spent}
                 limit={alert.limitAmount}
                 pct={Math.min(alert.pct, 100)}
-                barColor={isOver ? "bg-red-400" : isWarning ? "bg-yellow-400" : "bg-[#67c48a]"}
+                barColor={isOver ? "bg-red-400" : isWarning ? "bg-yellow-400" : "bg-emerald-400 dark:bg-emerald-500"}
                 statusEmoji={statusIcon}
                 statusText={
                   isOver
@@ -108,8 +109,8 @@ export function BudgetAlertsCard({ householdId, currency, dateFrom, dateTo }: Pr
         <div className={categoryAlerts.length > 0 ? "mt-6 space-y-4" : "space-y-4"}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 drop-shadow-sm">
-              <Users className="w-6 h-6 text-[#c76823]" />
-              <h3 className="text-[15px] font-medium text-[#2b180a]">Budżety per osoba</h3>
+              <Users className="w-6 h-6 text-orange-600 dark:text-indigo-400 transition-colors duration-700" />
+              <h3 className="text-[15px] font-bold text-orange-950 dark:text-white transition-colors duration-700">Budżety per osoba</h3>
             </div>
           </div>
 
@@ -122,13 +123,13 @@ export function BudgetAlertsCard({ householdId, currency, dateFrom, dateTo }: Pr
               <div key={member.userId}>
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-[#3e2815]">{member.displayName}</span>
-                    <span className="text-[10px] font-bold text-[#8a7262]">
+                    <span className="text-xs font-bold text-orange-950 dark:text-white transition-colors duration-700">{member.displayName}</span>
+                    <span className="text-[10px] font-bold text-orange-900/60 dark:text-white/60 transition-colors duration-700">
                       {member.personalBudget?.period === "month" ? "miesięczny" : "tygodniowy"}
                     </span>
                   </div>
                   <span
-                    className={`text-[10px] font-bold ${isOver ? "text-red-500" : isWarning ? "text-yellow-600" : "text-[#46825d]"
+                    className={`text-[10px] font-bold transition-colors duration-700 ${isOver ? "text-red-500 dark:text-rose-400" : isWarning ? "text-yellow-600 dark:text-yellow-400" : "text-emerald-600 dark:text-emerald-400"
                       }`}
                   >
                     {isOver
@@ -141,10 +142,10 @@ export function BudgetAlertsCard({ householdId, currency, dateFrom, dateTo }: Pr
 
 
                 <div className="flex justify-between mt-1">
-                  <span className="text-[10px] font-bold text-[#b89b87]">
+                  <span className="text-[10px] font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">
                     {formatAmount(member.personalBudgetSpent ?? 0, currency)}
                   </span>
-                  <span className="text-[10px] font-bold text-[#b89b87]">
+                  <span className="text-[10px] font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">
                     {formatAmount(member.personalBudget?.limitAmount ?? 0, currency)}
                   </span>
                 </div>
@@ -153,7 +154,7 @@ export function BudgetAlertsCard({ householdId, currency, dateFrom, dateTo }: Pr
           })}
         </div>
       )}
-    </div>
+    </AppCard>
   );
 }
 
@@ -185,20 +186,20 @@ function BudgetRow({
     <div>
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
-          <DynamicIcon name={category?.icon ?? "Package"} className="w-[18px] h-[18px] text-[#cf833f]" />
-          <span className="text-xs font-bold text-[#3e2815]">{category?.name ?? "..."}</span>
+          <DynamicIcon name={category?.icon ?? "Package"} className="w-[18px] h-[18px] text-orange-500 dark:text-indigo-400 transition-colors duration-700" />
+          <span className="text-xs font-bold text-orange-950 dark:text-white transition-colors duration-700">{category?.name ?? "..."}</span>
         </div>
         <div className="flex items-center gap-1">
           {statusEmoji}
-          <span className="text-[10px] font-bold text-[#8a7262]">{statusText}</span>
+          <span className="text-[10px] font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">{statusText}</span>
         </div>
       </div>
-      <div className="h-2 w-full bg-[#f5e5cf] rounded-full overflow-hidden">
+      <div className="h-2 w-full bg-orange-100 dark:bg-white/10 rounded-full overflow-hidden transition-colors duration-700">
         <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
       </div>
       <div className="flex justify-between mt-1">
-        <span className="text-[10px] font-bold text-[#b89b87]">{formatAmount(spent, currency)}</span>
-        <span className="text-[10px] font-bold text-[#b89b87]">{formatAmount(limit, currency)}</span>
+        <span className="text-[10px] font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">{formatAmount(spent, currency)}</span>
+        <span className="text-[10px] font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">{formatAmount(limit, currency)}</span>
       </div>
     </div>
   );

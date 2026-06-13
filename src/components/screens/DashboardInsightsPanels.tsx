@@ -69,25 +69,25 @@ type WhatIfOverview = {
 
 const INSIGHT_CARD_STYLES = {
   info: {
-    shell: "border-[#f2dfcb]/90 bg-white/45",
-    iconWrap: "border-[#f2dfcb] bg-[#fff8f2]",
-    icon: "text-[#cf833f]",
-    panel: "border-[#f2dfcb] bg-[#fff8f2]/80",
-    badge: "bg-[#fff1e1] text-[#b55b1d]",
+    shell: "border-orange-200/50 dark:border-white/10 bg-white/45 dark:bg-white/5 transition-colors duration-700",
+    iconWrap: "border-orange-200/50 dark:border-white/10 bg-orange-50 dark:bg-white/5 transition-colors duration-700",
+    icon: "text-orange-500 dark:text-indigo-400",
+    panel: "border-orange-200/50 dark:border-white/10 bg-orange-50/80 dark:bg-white/5 transition-colors duration-700",
+    badge: "bg-orange-100 dark:bg-indigo-500/20 text-orange-700 dark:text-indigo-200",
   },
   warning: {
-    shell: "border-[#f3d2a4]/90 bg-[#fff8ee]/70",
-    iconWrap: "border-[#f3d2a4] bg-[#fff1dd]",
-    icon: "text-[#ca782a]",
-    panel: "border-[#f3d2a4] bg-[#fff5e8]",
-    badge: "bg-[#ffe7c7] text-[#b55b1d]",
+    shell: "border-amber-200/50 dark:border-violet-500/20 bg-amber-50/70 dark:bg-violet-500/5 transition-colors duration-700",
+    iconWrap: "border-amber-200/50 dark:border-violet-500/20 bg-amber-100/50 dark:bg-violet-500/10 transition-colors duration-700",
+    icon: "text-amber-600 dark:text-violet-400",
+    panel: "border-amber-200/50 dark:border-violet-500/20 bg-amber-50/90 dark:bg-violet-500/5 transition-colors duration-700",
+    badge: "bg-amber-200/50 dark:bg-violet-500/20 text-amber-700 dark:text-violet-200",
   },
   danger: {
-    shell: "border-[#f1c6c0]/90 bg-[#fff7f5]/75",
-    iconWrap: "border-[#f1c6c0] bg-[#fff1ee]",
-    icon: "text-[#d1632a]",
-    panel: "border-[#f1c6c0] bg-[#fff4f1]",
-    badge: "bg-[#ffe3dc] text-[#c55353]",
+    shell: "border-red-200/50 dark:border-rose-500/20 bg-red-50/75 dark:bg-rose-500/5 transition-colors duration-700",
+    iconWrap: "border-red-200/50 dark:border-rose-500/20 bg-red-100/50 dark:bg-rose-500/10 transition-colors duration-700",
+    icon: "text-red-600 dark:text-rose-400",
+    panel: "border-red-200/50 dark:border-rose-500/20 bg-red-50/90 dark:bg-rose-500/5 transition-colors duration-700",
+    badge: "bg-red-200/50 dark:bg-rose-500/20 text-red-700 dark:text-rose-200",
   },
 } satisfies Record<
   Severity,
@@ -140,10 +140,10 @@ export function InsightsOverviewCard({ householdId }: Pick<Props, "householdId">
     <AppCard>
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 drop-shadow-sm">
-          <Bot className="h-6 w-6 text-[#c76823]" />
-          <h3 className="text-[15px] font-medium text-[#2b180a]">Analiza wydatków</h3>
+          <Bot className="h-6 w-6 text-orange-600 dark:text-indigo-400 transition-colors duration-700" />
+          <h3 className="text-[15px] font-bold text-orange-950 dark:text-white transition-colors duration-700">Analiza wydatków</h3>
           {latest && (
-            <span className="rounded-full bg-[#f5e5cf]/60 px-2 py-0.5 text-[10px] font-bold text-[#b89b87]">
+            <span className="rounded-full bg-orange-200/50 dark:bg-white/10 px-2 py-0.5 text-[10px] font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">
               {new Date(latest.generatedAt).toLocaleDateString("pl-PL")}
             </span>
           )}
@@ -151,17 +151,17 @@ export function InsightsOverviewCard({ householdId }: Pick<Props, "householdId">
         <button
           onClick={handleGenerate}
           disabled={loading}
-          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all ${
+          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all duration-300 ${
             loading
-              ? "bg-[#f5e5cf] text-[#b89b87]"
+              ? "bg-orange-100 dark:bg-white/10 text-orange-900/60 dark:text-white/50"
               : isStale
-                ? "bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white shadow-sm hover:scale-[1.02]"
-                : "bg-[#f5e5cf] text-[#8a7262] hover:bg-[#eedcc8]"
+                ? "bg-gradient-to-r from-orange-500 to-amber-500 dark:from-indigo-500 dark:to-violet-600 text-white shadow-sm hover:scale-105"
+                : "bg-orange-100 dark:bg-white/10 text-orange-900/80 dark:text-white/70 hover:bg-orange-200 dark:hover:bg-white/20"
           }`}
         >
           {loading ? (
             <>
-              <span className="h-3 w-3 animate-spin rounded-full border-b border-[#b89b87]" />
+              <span className="h-3 w-3 animate-spin rounded-full border-b border-orange-900/60 dark:border-white/50" />
               Analizuję...
             </>
           ) : (
@@ -179,9 +179,9 @@ export function InsightsOverviewCard({ householdId }: Pick<Props, "householdId">
 
       {!loading && latest === null && (
         <div className="py-6 text-center">
-          <Search className="mx-auto mb-3 h-12 w-12 text-[#b89b87]" />
-          <p className="mb-1 text-sm font-bold text-[#8a7262]">Brak analizy</p>
-          <p className="text-xs text-[#b89b87]">Kliknij „Analizuj”, aby wygenerować pierwsze wnioski.</p>
+          <Search className="mx-auto mb-3 h-12 w-12 text-orange-900/40 dark:text-white/30 transition-colors duration-700" />
+          <p className="mb-1 text-sm font-bold text-orange-900/80 dark:text-white/70 transition-colors duration-700">Brak analizy</p>
+          <p className="text-xs text-orange-900/60 dark:text-white/50 transition-colors duration-700">Kliknij „Analizuj”, aby wygenerować pierwsze wnioski.</p>
         </div>
       )}
 
@@ -200,7 +200,7 @@ export function InsightsOverviewCard({ householdId }: Pick<Props, "householdId">
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-[#2b180a]">{insight.title}</p>
+                      <p className="text-sm font-bold text-orange-950 dark:text-white transition-colors duration-700">{insight.title}</p>
                       <span
                         className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${styles.badge}`}
                       >
@@ -208,7 +208,7 @@ export function InsightsOverviewCard({ householdId }: Pick<Props, "householdId">
                       </span>
                     </div>
                     <span
-                      className={`mt-3 block rounded-xl border px-3 py-2.5 text-xs font-medium leading-snug text-[#6d4d38] ${styles.panel}`}
+                      className={`mt-3 block rounded-xl border px-3 py-2.5 text-xs font-medium leading-snug text-orange-900 dark:text-white/80 ${styles.panel}`}
                     >
                       {insight.body}
                     </span>
@@ -265,8 +265,8 @@ export function InsightsScenariosCard({ householdId, currency }: Props) {
   return (
     <AppCard>
       <div className="mb-4 flex items-center gap-2 drop-shadow-sm">
-        <WandSparkles className="h-6 w-6 text-[#c76823]" />
-        <h3 className="text-[15px] font-medium text-[#2b180a]">Symulacje budżetu</h3>
+        <WandSparkles className="h-6 w-6 text-orange-600 dark:text-indigo-400 transition-colors duration-700" />
+        <h3 className="text-[15px] font-bold text-orange-950 dark:text-white transition-colors duration-700">Symulacje budżetu</h3>
       </div>
 
       {whatIf === undefined ? (
@@ -313,18 +313,18 @@ export function InsightsScenariosCard({ householdId, currency }: Props) {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-[#f2dfcb] bg-white/70 p-4">
+              <div className="rounded-xl border border-orange-200/50 dark:border-white/10 bg-white/70 dark:bg-white/5 p-4 transition-colors duration-700">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-[#2b180a]">
+                    <p className="text-sm font-bold text-orange-950 dark:text-white transition-colors duration-700">
                       {selectedCategory ? selectedCategory.categoryName : "Wybierz kategorię"}
                     </p>
-                    <p className="mt-1 text-xs font-medium text-[#8a7262]">
+                    <p className="mt-1 text-xs font-medium text-orange-900/60 dark:text-white/60 transition-colors duration-700">
                       Obecna projekcja tej kategorii:{" "}
                       {formatAmount(selectedCategory?.projectedMonthSpent ?? 0, currency)}
                     </p>
                   </div>
-                  <div className="rounded-full bg-[#fff1e1] px-3 py-1.5 text-xs font-bold tabular-nums text-[#b55b1d]">
+                  <div className="rounded-full bg-orange-100 dark:bg-indigo-500/20 px-3 py-1.5 text-xs font-bold tabular-nums text-orange-700 dark:text-indigo-200 transition-colors duration-700">
                     -{reductionPct}%
                   </div>
                 </div>
@@ -336,7 +336,7 @@ export function InsightsScenariosCard({ householdId, currency }: Props) {
                   step={5}
                   value={reductionPct}
                   onChange={(event) => setReductionPct(Number(event.target.value))}
-                  className="mt-4 h-2 w-full cursor-pointer appearance-none rounded-full bg-[#f2dfcb]"
+                  className="mt-4 h-2 w-full cursor-pointer appearance-none rounded-full bg-orange-200 dark:bg-white/20"
                 />
 
                 <div className="mt-4">
@@ -362,18 +362,18 @@ export function InsightsScenariosCard({ householdId, currency }: Props) {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <FormLabel>Wynik scenariusza</FormLabel>
-                  <p className="mt-2 text-lg font-semibold tabular-nums text-[#2b180a]">
+                  <p className="mt-2 text-lg font-bold tabular-nums text-orange-950 dark:text-white transition-colors duration-700">
                     {formatAmount(scenarioPreview.nextProjection, currency)}
                   </p>
-                  <p className="mt-1 text-xs font-medium text-[#8a7262]">
+                  <p className="mt-1 text-xs font-medium text-orange-900/60 dark:text-white/60 transition-colors duration-700">
                     względem bazowej prognozy {formatAmount(scenarioPreview.baselineProjection, currency)}
                   </p>
                 </div>
                 <div
-                  className={`flex items-center gap-2 rounded-full px-3 py-2 text-sm font-bold tabular-nums ${
+                  className={`flex items-center gap-2 rounded-full px-3 py-2 text-sm font-bold tabular-nums transition-colors duration-700 ${
                     scenarioPreview.delta <= 0
-                      ? "bg-[#ecfdf3] text-[#2d8d56]"
-                      : "bg-[#fff1f1] text-[#c55353]"
+                      ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+                      : "bg-red-100 dark:bg-rose-500/20 text-red-700 dark:text-rose-300"
                   }`}
                 >
                   {scenarioPreview.delta <= 0 ? (
@@ -388,10 +388,10 @@ export function InsightsScenariosCard({ householdId, currency }: Props) {
 
               <CompactTable
                 rows={[
-                  { label: "Cięcie kategorii", value: <><span className="block text-sm font-semibold tabular-nums text-[#2b180a]">{formatAmount(scenarioPreview.categorySavings, currency)}</span><span className="block mt-1 text-xs font-medium text-[#8a7262]">potencjalnie mniej w miesiącu</span></> },
-                  { label: "Nowa subskrypcja", value: <><span className="block text-sm font-semibold tabular-nums text-[#2b180a]">{formatAmount(scenarioPreview.extraMonthlyCost, currency)}</span><span className="block mt-1 text-xs font-medium text-[#8a7262]">dodatkowy koszt miesięczny</span></> },
+                  { label: "Cięcie kategorii", value: <><span className="block text-sm font-bold tabular-nums text-orange-950 dark:text-white transition-colors duration-700">{formatAmount(scenarioPreview.categorySavings, currency)}</span><span className="block mt-1 text-xs font-medium text-orange-900/60 dark:text-white/50 transition-colors duration-700">potencjalnie mniej w miesiącu</span></> },
+                  { label: "Nowa subskrypcja", value: <><span className="block text-sm font-bold tabular-nums text-orange-950 dark:text-white transition-colors duration-700">{formatAmount(scenarioPreview.extraMonthlyCost, currency)}</span><span className="block mt-1 text-xs font-medium text-orange-900/60 dark:text-white/50 transition-colors duration-700">dodatkowy koszt miesięczny</span></> },
                 ]}
-                className="bg-white/75"
+                className="bg-white/50 dark:bg-white/5 transition-colors duration-700"
               />
             </div>
           )}

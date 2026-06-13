@@ -99,21 +99,21 @@ export function BadgesScreen({ householdId }: Props) {
                     <img
                       src={member.avatarUrl}
                       alt={member.displayName}
-                      className="h-14 w-14 rounded-xl object-cover border-[3px] border-[#f2d6bf] shadow-sm"
+                      className="h-14 w-14 rounded-xl object-cover border-[3px] border-orange-200 dark:border-white/10 shadow-sm transition-colors duration-700"
                     />
                   ) : (
-                    <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-[#f8e8d6] to-[#f2d6bf] flex items-center justify-center text-[#8a4f2a] font-medium text-xl border-[3px] border-[#f2d6bf]">
+                    <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 dark:from-white/10 dark:to-white/5 flex items-center justify-center text-orange-800 dark:text-indigo-200 font-medium text-xl border-[3px] border-orange-200 dark:border-white/10 transition-colors duration-700">
                       {member.displayName.slice(0, 2).toUpperCase()}
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-[#2b180a] text-base truncate">
+                    <p className="font-medium text-orange-950 dark:text-white text-base truncate transition-colors duration-700">
                       {member.displayName}
                     </p>
-                    <p className="text-xs text-[#8a7262] font-medium truncate">{member.email}</p>
+                    <p className="text-xs text-orange-900/60 dark:text-white/50 font-medium truncate transition-colors duration-700">{member.email}</p>
                     <div className="flex items-center gap-1 mt-1">
-                      <Award className="w-4 h-4 text-[#cf833f]" />
-                      <span className="text-xs font-bold text-[#cf833f]">
+                      <Award className="w-4 h-4 text-orange-600 dark:text-indigo-400 transition-colors duration-700" />
+                      <span className="text-xs font-bold text-orange-600 dark:text-indigo-400 transition-colors duration-700">
                         {earned.length} / {ALL_BADGES.length} odznak
                       </span>
                     </div>
@@ -141,7 +141,7 @@ export function BadgesScreen({ householdId }: Props) {
                           <div
                             className={`h-2 w-2 rounded-full bg-gradient-to-r ${TIER_COLORS[tier]}`}
                           />
-                          <span className="text-[10px] font-bold text-[#b89b87] uppercase tracking-wider">
+                          <span className="text-[10px] font-bold text-orange-900/40 dark:text-white/40 uppercase tracking-wider transition-colors duration-700">
                             {TIER_LABEL[tier]} ({tierBadges.length})
                           </span>
                         </div>
@@ -158,7 +158,7 @@ export function BadgesScreen({ householdId }: Props) {
                                 earned
                                 size={80}
                               />
-                              <p className="text-[11px] font-medium text-[#2b180a] leading-tight text-center line-clamp-2">
+                              <p className="text-[11px] font-medium text-orange-950 dark:text-white leading-tight text-center line-clamp-2 transition-colors duration-700">
                                 {badge.name}
                               </p>
                             </button>
@@ -169,9 +169,9 @@ export function BadgesScreen({ householdId }: Props) {
                   })}
                 </div>
               ) : (
-                <div className="bg-[#fdf9f1] rounded-xl p-5 text-center shadow-sm">
-                  <Sprout className="w-12 h-12 text-[#8a7262] mx-auto mb-2" />
-                  <p className="text-sm font-bold text-[#8a7262]">
+                <div className="bg-orange-50 dark:bg-white/5 rounded-[16px] p-5 text-center shadow-sm transition-colors duration-700">
+                  <Sprout className="w-12 h-12 text-orange-900/60 dark:text-white/50 mx-auto mb-2 transition-colors duration-700" />
+                  <p className="text-sm font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">
                     Brak odznak — zacznij dodawać wydatki!
                   </p>
                 </div>
@@ -180,7 +180,7 @@ export function BadgesScreen({ householdId }: Props) {
               {/* Next badges to unlock */}
               {next.length > 0 && (
                 <div className="space-y-2">
-                  <h3 className="text-xs font-bold text-[#8a7262] uppercase tracking-wider ml-2">
+                  <h3 className="text-xs font-bold text-orange-900/60 dark:text-white/50 uppercase tracking-wider ml-2 transition-colors duration-700">
                     Następne do zdobycia
                   </h3>
                   <div className="grid grid-cols-3 gap-2">
@@ -188,7 +188,7 @@ export function BadgesScreen({ householdId }: Props) {
                       <button
                         key={badge.id}
                         onClick={() => setSelectedBadge({ badge, earned: false })}
-                        className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/20 backdrop-blur-sm border border-[#ede0d4]/40 hover:bg-white/30 transition-all active:scale-95"
+                        className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/20 dark:bg-white/5 backdrop-blur-sm border border-orange-200/40 dark:border-white/10 hover:bg-white/30 dark:hover:bg-white/10 transition-all active:scale-95 duration-700"
                       >
                         <BadgeEmblem
                           tier={badge.tier}
@@ -196,7 +196,7 @@ export function BadgesScreen({ householdId }: Props) {
                           earned={false}
                           size={70}
                         />
-                        <p className="text-[10px] font-bold text-[#b89b87] leading-tight text-center line-clamp-2">
+                        <p className="text-[10px] font-bold text-orange-900/40 dark:text-white/40 leading-tight text-center line-clamp-2 transition-colors duration-700">
                           {badge.name}
                         </p>
                       </button>
@@ -211,7 +211,7 @@ export function BadgesScreen({ householdId }: Props) {
       {/* ============ FAME (Hall of Glory) TAB ============ */}
       {tab === "fame" && (
         <div className="space-y-4">
-          <div className="bg-gradient-to-br from-[#2b180a] to-[#4a2e1b] rounded-xl p-6 shadow-xl relative overflow-hidden">
+          <div className="bg-gradient-to-br from-orange-950 to-orange-900 dark:from-neutral-900 dark:to-neutral-950 rounded-[16px] p-6 shadow-xl relative overflow-hidden transition-colors duration-700">
             <div className="absolute top-0 right-0 p-4 opacity-10">
               <Flame className="w-32 h-32 text-white" />
             </div>
@@ -298,7 +298,7 @@ export function BadgesScreen({ householdId }: Props) {
       {/* ============ FULL LIST (Catalog) TAB ============ */}
       {tab === "all" && (
         <div className="space-y-8">
-          <p className="text-[13px] font-bold text-[#8a7262] text-center mb-2">
+          <p className="text-[13px] font-bold text-orange-900/60 dark:text-white/50 text-center mb-2 transition-colors duration-700">
             Łącznie {ALL_BADGES.length} odznak do zebrania
           </p>
           {TIER_ORDER.map((tier) => {
@@ -309,7 +309,7 @@ export function BadgesScreen({ householdId }: Props) {
                 {/* Ornate tier header */}
                 <div className="flex items-center justify-center gap-3 mb-2">
                   <div className={`h-[2px] w-10 rounded-full bg-gradient-to-r ${TIER_COLORS[tier]}`} />
-                  <span className="text-[11px] font-black text-[#6d4d38] uppercase tracking-widest">
+                  <span className="text-[11px] font-black text-orange-900 dark:text-white/80 uppercase tracking-widest transition-colors duration-700">
                     Poziom {TIER_LABEL[tier]}
                   </span>
                   <div className={`h-[2px] w-10 rounded-full bg-gradient-to-l ${TIER_COLORS[tier]}`} />
@@ -322,10 +322,10 @@ export function BadgesScreen({ householdId }: Props) {
                       <button
                         key={badge.id}
                         onClick={() => setSelectedBadge({ badge, earned: isEarned })}
-                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl backdrop-blur-sm border transition-all active:scale-95 ${
+                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl backdrop-blur-sm border transition-all active:scale-95 duration-700 ${
                           isEarned
-                            ? "bg-white/40 border-white/50 hover:bg-white/55"
-                            : "bg-white/15 border-[#ede0d4]/30 hover:bg-white/25"
+                            ? "bg-white/40 dark:bg-white/10 border-white/50 dark:border-white/20 hover:bg-white/55 dark:hover:bg-white/20"
+                            : "bg-white/15 dark:bg-white/5 border-orange-200/30 dark:border-white/10 hover:bg-white/25 dark:hover:bg-white/10"
                         }`}
                       >
                         <BadgeEmblem
@@ -335,8 +335,8 @@ export function BadgesScreen({ householdId }: Props) {
                           size={80}
                         />
                         <p
-                          className={`text-[11px] font-medium leading-tight text-center line-clamp-2 ${
-                            isEarned ? "text-[#2b180a]" : "text-[#b89b87]"
+                          className={`text-[11px] font-medium leading-tight text-center line-clamp-2 transition-colors duration-700 ${
+                            isEarned ? "text-orange-950 dark:text-white" : "text-orange-900/40 dark:text-white/40"
                           }`}
                         >
                           {badge.name}
@@ -380,10 +380,10 @@ function StatPill({
   label: string;
 }) {
   return (
-    <div className="bg-white/60 backdrop-blur-md rounded-xl p-2.5 flex flex-col items-center gap-0.5 border border-white/60 shadow-sm">
-      <Icon className="w-5 h-5 text-[#c76823] drop-shadow-sm" />
-      <span className="text-sm font-medium text-[#2b180a] mt-1">{value}</span>
-      <span className="text-[9px] font-bold text-[#b89b87] text-center leading-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">
+    <div className="bg-white/60 dark:bg-white/5 backdrop-blur-md rounded-[16px] p-2.5 flex flex-col items-center gap-0.5 border border-white/60 dark:border-white/10 shadow-sm transition-colors duration-700">
+      <Icon className="w-5 h-5 text-orange-600 dark:text-indigo-400 drop-shadow-sm transition-colors duration-700" />
+      <span className="text-sm font-medium text-orange-950 dark:text-white mt-1 transition-colors duration-700">{value}</span>
+      <span className="text-[9px] font-bold text-orange-900/40 dark:text-white/40 text-center leading-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)] dark:drop-shadow-none transition-colors duration-700">
         {label}
       </span>
     </div>
@@ -410,7 +410,7 @@ function BadgeDetailModal({
 
       {/* Card */}
       <div
-        className="badge-detail-card relative z-10 bg-gradient-to-b from-[#fffdf8] to-[#fff5e6] rounded-xl p-6 max-w-[300px] w-[90vw] border-2 border-white/60 flex flex-col items-center text-center"
+        className="badge-detail-card relative z-10 bg-gradient-to-b from-orange-50 to-orange-100 dark:from-neutral-900 dark:to-neutral-800 rounded-[16px] p-6 max-w-[300px] w-[90vw] border-2 border-white/60 dark:border-white/10 flex flex-col items-center text-center transition-colors duration-700"
         style={{
           boxShadow: `0 0 50px 8px ${TIER_GLOWS[badge.tier]}, 0 20px 50px rgba(0,0,0,0.2)`,
         }}
@@ -419,7 +419,7 @@ function BadgeDetailModal({
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[#f5e5cf]/80 flex items-center justify-center text-[#8a7262] hover:bg-[#f5e5cf] transition-colors"
+          className="absolute top-4 right-4 w-8 h-8 rounded-full bg-orange-100/80 dark:bg-white/10 flex items-center justify-center text-orange-900/60 dark:text-white/50 hover:bg-orange-100 dark:hover:bg-white/20 transition-colors duration-700"
         >
           <X className="w-4 h-4" />
         </button>
@@ -433,7 +433,7 @@ function BadgeDetailModal({
         />
 
         {/* Name */}
-        <h3 className="text-xl font-medium text-[#2b180a] mt-3 leading-tight">
+        <h3 className="text-xl font-medium text-orange-950 dark:text-white mt-3 leading-tight transition-colors duration-700">
           {badge.name}
         </h3>
 
@@ -445,7 +445,7 @@ function BadgeDetailModal({
         </div>
 
         {/* Description */}
-        <p className="text-[13px] font-bold text-[#6d4d38] mt-3 leading-relaxed">
+        <p className="text-[13px] font-bold text-orange-900 dark:text-white/80 mt-3 leading-relaxed transition-colors duration-700">
           {badge.description}
         </p>
 
@@ -457,7 +457,7 @@ function BadgeDetailModal({
           </div>
         ) : (
           <div className="flex items-center gap-1.5 mt-3">
-            <span className="text-xs font-bold text-[#b89b87]">🔒 Jeszcze nie odblokowana</span>
+            <span className="text-xs font-bold text-orange-900/40 dark:text-white/40 transition-colors duration-700">🔒 Jeszcze nie odblokowana</span>
           </div>
         )}
 

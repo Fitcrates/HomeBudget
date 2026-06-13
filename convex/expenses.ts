@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { assertMember, getEffectiveFinancialRole } from "./households";
 import { assertWithinPersonalBudgetLimit, getBudgetPeriodRange } from "./budgets";
+import { internal } from "./_generated/api";
 
 function monthRange(dateMs: number) {
   const date = new Date(dateMs);
@@ -171,10 +172,17 @@ export const create = mutation({
       amountDelta: args.amount,
     });
 
-    return await ctx.db.insert("expenses", {
+    const expenseId = await ctx.db.insert("expenses", {
       ...args,
       userId,
     });
+
+    await ctx.runMutation(internal.offers.segments.jobs.markHouseholdDirty, {
+      householdId: args.householdId,
+      reason: "expense_created",
+    });
+
+    return expenseId;
   },
 });
 
@@ -318,6 +326,11 @@ export const createMany = mutation({
       existingByMonth.set(monthKey, existingInMonth);
     }
 
+    await ctx.runMutation(internal.offers.segments.jobs.markHouseholdDirty, {
+      householdId: args.householdId,
+      reason: "expenses_created",
+    });
+
     return { insertedIds, insertedCount: insertedIds.length };
   },
 });
@@ -360,6 +373,11 @@ export const update = mutation({
 
     const { expenseId, ...updates } = args;
     await ctx.db.patch(args.expenseId, updates);
+
+    await ctx.runMutation(internal.offers.segments.jobs.markHouseholdDirty, {
+      householdId: expense.householdId,
+      reason: "expense_updated",
+    });
   },
 });
 
@@ -377,6 +395,11 @@ export const remove = mutation({
       await ctx.storage.delete(expense.receiptImageId);
     }
     await ctx.db.delete(args.expenseId);
+
+    await ctx.runMutation(internal.offers.segments.jobs.markHouseholdDirty, {
+      householdId: expense.householdId,
+      reason: "expense_removed",
+    });
   },
 });
 

@@ -179,8 +179,8 @@ export function ProfileSettingsScreen({ householdId }: Props) {
           <FormLabel>Rola finansowa</FormLabel>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-bold text-[#2b180a]">{financialRoleLabel(myMembership.financialRole)}</p>
-              <p className="text-xs font-medium text-[#8a7262]">
+              <p className="text-sm font-bold text-orange-950 dark:text-white transition-colors duration-700">{financialRoleLabel(myMembership.financialRole)}</p>
+              <p className="text-xs font-medium text-orange-900/60 dark:text-white/50 transition-colors duration-700">
                 {myMembership.financialRole === "parent"
                   ? "Możesz kontrolować finanse domowe i limity dzieci."
                   : myMembership.financialRole === "child"
@@ -188,7 +188,7 @@ export function ProfileSettingsScreen({ householdId }: Props) {
                     : "Współdzielisz domowe finanse z pozostałymi."}
               </p>
             </div>
-            <span className="rounded-full border border-[#f3d3b6] bg-[#fff3e7] px-3 py-1 text-[11px] font-bold text-[#b86a28]">
+            <span className="rounded-full border border-orange-200 dark:border-white/10 bg-orange-50 dark:bg-white/5 px-3 py-1 text-[11px] font-bold text-orange-600 dark:text-indigo-400 transition-colors duration-700">
               {myMembership.role === "owner" ? "Właściciel" : "Członek"}
             </span>
           </div>
@@ -196,7 +196,8 @@ export function ProfileSettingsScreen({ householdId }: Props) {
       )}
 
       {/* Avatar + Display Name */}
-      <form onSubmit={handleSaveProfile} className="app-card space-y-5">
+      <AppCard className="space-y-5">
+        <form onSubmit={handleSaveProfile} className="space-y-5">
         <FormLabel>Zdjęcie profilowe</FormLabel>
 
         <div className="flex items-center gap-5">
@@ -205,10 +206,10 @@ export function ProfileSettingsScreen({ householdId }: Props) {
               <img
                 src={avatarPreviewUrl}
                 alt="Avatar"
-                className="h-20 w-20 rounded-xl object-cover border-[3px] border-[#f2d6bf] shadow-md"
+                className="h-20 w-20 rounded-xl object-cover border-[3px] border-orange-200/50 dark:border-white/10 shadow-md transition-colors duration-700"
               />
             ) : (
-              <div className="h-20 w-20 rounded-xl bg-white/60 backdrop-blur-md border-[3px] border-[#f2d6bf]/60 flex items-center justify-center text-[#8a4f2a] font-medium text-2xl shadow-sm">
+              <div className="h-20 w-20 rounded-xl bg-white/60 dark:bg-white/5 backdrop-blur-md border-[3px] border-orange-200/50 dark:border-white/10 flex items-center justify-center text-orange-800 dark:text-indigo-200 font-medium text-2xl shadow-sm transition-colors duration-700">
                 {initials}
               </div>
             )}
@@ -220,7 +221,7 @@ export function ProfileSettingsScreen({ householdId }: Props) {
           </div>
 
           <div className="flex flex-col gap-2 flex-1">
-            <label className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white/60 backdrop-blur-sm border border-white/60 hover:border-[#cf833f] hover:bg-white transition-all cursor-pointer text-sm font-bold text-[#6d4d38] shadow-sm">
+            <label className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white/60 dark:bg-white/5 backdrop-blur-sm border border-white/60 dark:border-white/10 hover:border-orange-500 dark:hover:border-indigo-400 hover:bg-white dark:hover:bg-white/10 transition-all cursor-pointer text-sm font-bold text-orange-900 dark:text-white/80 shadow-sm duration-700">
               <Camera className="w-4 h-4" />
               <span>{uploadingAvatar ? "Przesyłanie..." : "Zmień zdjęcie"}</span>
               <input
@@ -256,13 +257,15 @@ export function ProfileSettingsScreen({ householdId }: Props) {
         <ButtonPrimary type="submit" loading={savingProfile} disabled={uploadingAvatar}>
           {savingProfile ? "Zapisywanie..." : "Zapisz profil"}
         </ButtonPrimary>
-      </form>
+        </form>
+      </AppCard>
 
       {/* Password Change */}
-      <form onSubmit={handleChangePassword} className="app-card space-y-4">
+      <AppCard className="space-y-4">
+        <form onSubmit={handleChangePassword} className="space-y-4">
         <div>
           <FormLabel>Zmiana hasła</FormLabel>
-          <p className="text-xs text-[#8a7262] font-medium">
+          <p className="text-xs text-orange-900/60 dark:text-white/50 font-medium transition-colors duration-700">
             Podaj aktualne hasło, aby ustawić nowe.
           </p>
         </div>
@@ -281,7 +284,7 @@ export function ProfileSettingsScreen({ householdId }: Props) {
             <button
               type="button"
               onClick={() => setShowCurrent((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#b89b87] hover:text-[#cf833f]"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-900/40 dark:text-white/40 hover:text-orange-500 dark:hover:text-indigo-400 transition-colors duration-700"
             >
               {showCurrent ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
@@ -302,19 +305,19 @@ export function ProfileSettingsScreen({ householdId }: Props) {
             <button
               type="button"
               onClick={() => setShowNew((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#b89b87] hover:text-[#cf833f]"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-900/40 dark:text-white/40 hover:text-orange-500 dark:hover:text-indigo-400 transition-colors duration-700"
             >
               {showNew ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
           {strength && (
             <div className="mt-2 space-y-1">
-              <div className="h-1.5 w-full bg-[#f5e5cf] rounded-full overflow-hidden">
+              <div className="h-1.5 w-full bg-orange-100 dark:bg-white/10 rounded-full overflow-hidden transition-colors duration-700">
                 <div
                   className={`h-full rounded-full transition-all ${strength.color} ${strength.width}`}
                 />
               </div>
-              <p className="text-[11px] font-bold text-[#b89b87] ml-1">{strength.label}</p>
+              <p className="text-[11px] font-bold text-orange-900/40 dark:text-white/40 ml-1 transition-colors duration-700">{strength.label}</p>
             </div>
           )}
         </div>
@@ -338,7 +341,7 @@ export function ProfileSettingsScreen({ householdId }: Props) {
             <button
               type="button"
               onClick={() => setShowConfirm((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#b89b87] hover:text-[#cf833f]"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-900/40 dark:text-white/40 hover:text-orange-500 dark:hover:text-indigo-400 transition-colors duration-700"
             >
               {showConfirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
@@ -362,14 +365,15 @@ export function ProfileSettingsScreen({ householdId }: Props) {
         >
           {changingPassword ? "Zmienianie..." : "Zmień hasło"}
         </ButtonPrimary>
-      </form>
+        </form>
+      </AppCard>
 
       {/* Sign out */}
       <AppCard className="space-y-3">
         <FormLabel>Konto</FormLabel>
-        <p className="text-xs text-[#8a7262] font-medium">
+        <p className="text-xs text-orange-900/60 dark:text-white/50 font-medium transition-colors duration-700">
           Zalogowany jako:{" "}
-          <span className="text-[#cf833f]">{myProfile?.email || "..."}</span>
+          <span className="text-orange-600 dark:text-indigo-400">{myProfile?.email || "..."}</span>
         </p>
         <ButtonSecondary
           variant="outline"

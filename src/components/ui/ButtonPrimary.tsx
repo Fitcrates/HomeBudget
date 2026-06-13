@@ -15,8 +15,8 @@ const sizeMap = {
 } as const;
 
 const variantMap = {
-  primary: "bg-gradient-to-r from-[#de9241] to-[#ca782a] shadow-[0_4px_16px_rgba(200,120,50,0.3)]",
-  danger: "bg-gradient-to-r from-[#e86b58] to-[#d44f43] shadow-[0_4px_16px_rgba(200,60,50,0.3)]",
+  primary: "bg-gradient-to-r from-orange-400 to-orange-600 dark:from-indigo-500 dark:to-violet-600 shadow-[0_4px_16px_rgba(200,120,50,0.3)] dark:shadow-[0_4px_16px_rgba(99,102,241,0.3)] transition-colors duration-700",
+  danger: "bg-gradient-to-r from-red-500 to-red-600 dark:from-red-600 dark:to-red-800 shadow-[0_4px_16px_rgba(200,60,50,0.3)] transition-colors duration-700",
 } as const;
 
 export const ButtonPrimary = forwardRef<HTMLButtonElement, ButtonPrimaryProps>(

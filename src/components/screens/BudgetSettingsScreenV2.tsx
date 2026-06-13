@@ -17,6 +17,7 @@ import { Spinner } from "../ui/Spinner";
 import { ScreenHeader } from "../ui/ScreenHeader";
 import { StatusBadge } from "../ui/StatusBadge";
 import { financialRoleLabel, financialRoleBadgeVariant } from "../../lib/financialRole";
+import { AppCard } from "../ui/AppCard";
 
 interface Props {
   householdId: Id<"households">;
@@ -146,7 +147,7 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
 
   // financialRoleLabel + financialRoleBadgeVariant imported from lib/financialRole
 
-  const cardClass = "app-card";
+
   const BUDGET_TABS = [
     { key: "categories" as const, label: "Kategorie", icon: Target },
     { key: "people" as const, label: "Osoby", icon: Users },
@@ -188,56 +189,56 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
 
       {mode === "people" && (
         <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-xl border border-white/50 bg-white/50 p-2 shadow-sm">
-            <div className="flex items-center gap-2 text-[#cf833f] mb-2">
+          <div className="rounded-[16px] border border-white/50 dark:border-white/10 bg-white/50 dark:bg-white/5 p-2 shadow-sm transition-colors duration-700">
+            <div className="flex items-center gap-2 text-orange-600 dark:text-indigo-400 mb-2 transition-colors duration-700">
               <TrendingUp className="w-4 h-4" />
               <span className="text-[11px] font-bold uppercase tracking-wider">Najwięcej wydaje</span>
             </div>
-            <p className="text-sm font-bold text-[#2b180a] truncate">{highestSpender?.displayName ?? "-"}</p>
-            <p className="text-xs font-bold text-[#8a7262]">
+            <p className="text-sm font-bold text-orange-950 dark:text-white truncate transition-colors duration-700">{highestSpender?.displayName ?? "-"}</p>
+            <p className="text-xs font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">
               {highestSpender ? formatAmount(highestSpender.monthlySpent, currency) : "-"}
             </p>
           </div>
 
-          <div className="rounded-xl border border-white/50 bg-white/50 p-2 shadow-sm">
-            <div className="flex items-center gap-2 text-[#cf833f] mb-2">
+          <div className="rounded-[16px] border border-white/50 dark:border-white/10 bg-white/50 dark:bg-white/5 p-2 shadow-sm transition-colors duration-700">
+            <div className="flex items-center gap-2 text-orange-600 dark:text-indigo-400 mb-2 transition-colors duration-700">
               <ShieldAlert className="w-4 h-4" />
               <span className="text-[11px] font-bold uppercase tracking-wider">Przekroczone</span>
             </div>
-            <p className="text-lg font-bold text-[#2b180a]">{overBudgetCount}</p>
-            <p className="text-xs font-bold text-[#8a7262]">osób ponad limit</p>
+            <p className="text-lg font-bold text-orange-950 dark:text-white transition-colors duration-700">{overBudgetCount}</p>
+            <p className="text-xs font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">osób ponad limit</p>
           </div>
 
-          <div className="rounded-xl border border-white/50 bg-white/50 p-2 shadow-sm">
-            <div className="flex items-center gap-2 text-[#cf833f] mb-2">
+          <div className="rounded-[16px] border border-white/50 dark:border-white/10 bg-white/50 dark:bg-white/5 p-2 shadow-sm transition-colors duration-700">
+            <div className="flex items-center gap-2 text-orange-600 dark:text-indigo-400 mb-2 transition-colors duration-700">
               <Users className="w-4 h-4" />
               <span className="text-[11px] font-bold uppercase tracking-wider">Aktywne limity</span>
             </div>
-            <p className="text-lg font-bold text-[#2b180a]">{activePersonBudgets}</p>
-            <p className="text-xs font-bold text-[#8a7262]">budżetów osobistych</p>
+            <p className="text-lg font-bold text-orange-950 dark:text-white transition-colors duration-700">{activePersonBudgets}</p>
+            <p className="text-xs font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">budżetów osobistych</p>
           </div>
         </div>
       )}
 
       {mode === "categories" ? (
-        <div className={`${cardClass} space-y-3`}>
+        <AppCard className="space-y-3">
           {categories.map((cat) => {
             const existing = budgetMap.get(cat._id);
             const isEditing = editingCatId === cat._id;
 
             return (
-              <div key={cat._id} className="rounded-xl border border-white/60 bg-white/50 p-3.5 shadow-sm">
+              <div key={cat._id} className="rounded-[16px] border border-white/60 dark:border-white/10 bg-white/50 dark:bg-white/5 p-3.5 shadow-sm transition-colors duration-700">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3.5">
-                    <DynamicIcon name={cat.icon} className="w-6 h-6 text-[#cf833f]" />
+                    <DynamicIcon name={cat.icon} className="w-6 h-6 text-orange-600 dark:text-indigo-400 transition-colors duration-700" />
                     <div>
-                      <p className="text-sm font-bold text-[#2b180a]">{cat.name}</p>
+                      <p className="text-sm font-bold text-orange-950 dark:text-white transition-colors duration-700">{cat.name}</p>
                       {existing ? (
-                        <p className="text-[10px] font-bold text-[#cf833f]">
+                        <p className="text-[10px] font-bold text-orange-600 dark:text-indigo-400 transition-colors duration-700">
                           {formatAmount(existing.limitAmount, currency)} / {existing.period === "month" ? "miesiąc" : "tydzień"}
                         </p>
                       ) : (
-                        <p className="text-[10px] font-bold text-[#c0a898]">Brak limitu</p>
+                        <p className="text-[10px] font-bold text-orange-900/40 dark:text-white/40 transition-colors duration-700">Brak limitu</p>
                       )}
                     </div>
                   </div>
@@ -254,26 +255,25 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
                       <button
                         type="button"
                         onClick={() => (isEditing ? setEditingCatId(null) : startEditCategory(cat._id))}
-                        className={`text-[11px] font-bold px-3 py-1.5 rounded-xl transition-all shadow-sm ${
-                          isEditing
-                            ? "bg-white/60 text-[#8a7262] hover:bg-white border border-[#ebd8c8]/50"
+                        className={`text-[11px] font-bold px-3 py-1.5 rounded-xl transition-all shadow-sm duration-700 ${isEditing
+                            ? "bg-white/60 dark:bg-white/10 text-orange-900/60 dark:text-white/50 hover:bg-white dark:hover:bg-white/20 border border-orange-200/50 dark:border-white/10"
                             : existing
-                              ? "bg-white/60 text-[#cf833f] hover:bg-white border border-white/60"
-                              : "bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white shadow-[0_2px_8px_rgba(200,120,50,0.3)] hover:scale-105"
-                        }`}
+                              ? "bg-white/60 dark:bg-white/10 text-orange-600 dark:text-indigo-400 hover:bg-white dark:hover:bg-white/20 border border-white/60 dark:border-white/10"
+                              : "bg-gradient-to-r from-orange-400 to-orange-600 dark:from-indigo-500 dark:to-violet-600 text-white shadow-lg shadow-orange-500/20 dark:shadow-indigo-500/20 hover:scale-105"
+                          }`}
                       >
                         {isEditing ? "Anuluj" : existing ? "Edytuj" : "Ustaw"}
                       </button>
                     </div>
                   ) : (
-                    <span className="text-[11px] font-bold text-[#b89b87]">Tylko rodzic/partner</span>
+                    <span className="text-[11px] font-bold text-orange-900/40 dark:text-white/40 transition-colors duration-700">Tylko rodzic/partner</span>
                   )}
                 </div>
 
                 {isEditing && canManageCategoryBudgets && (
                   <div className="mt-4 space-y-3">
                     <div>
-                      <label className="block text-[11px] font-bold text-[#b89b87] uppercase tracking-wider mb-1.5 ml-1">
+                      <label className="block text-[11px] font-bold text-orange-900/40 dark:text-white/40 uppercase tracking-wider mb-1.5 ml-1 transition-colors duration-700">
                         Limit kwotowy ({currency})
                       </label>
                       <FormInput
@@ -294,11 +294,10 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
                           key={period}
                           type="button"
                           onClick={() => setCategoryEditPeriod(period)}
-                          className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                            categoryEditPeriod === period
-                              ? "bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white shadow-sm"
-                              : "bg-white border border-[#f5e5cf] text-[#8a7262]"
-                          }`}
+                          className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 duration-700 ${categoryEditPeriod === period
+                              ? "bg-gradient-to-r from-orange-400 to-orange-600 dark:from-indigo-500 dark:to-violet-600 text-white shadow-sm"
+                              : "bg-white dark:bg-white/5 border border-orange-200 dark:border-white/10 text-orange-900/60 dark:text-white/50"
+                            }`}
                         >
                           <Calendar className="w-4 h-4" />
                           <span>{period === "month" ? "Miesięczny" : "Tygodniowy"}</span>
@@ -319,32 +318,32 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
               </div>
             );
           })}
-        </div>
+        </AppCard>
       ) : (
-        <div className={`${cardClass} space-y-3`}>
+        <AppCard className="space-y-3">
           {memberBudgetOverview.map((member) => {
             const existing = personBudgetMap.get(member.userId);
             const isEditing = editingUserId === member.userId;
 
             return (
-              <div key={member.userId} className="rounded-xl border border-white/60 bg-white/50 p-3.5 shadow-sm">
+              <div key={member.userId} className="rounded-[16px] border border-white/60 dark:border-white/10 bg-white/50 dark:bg-white/5 p-3.5 shadow-sm transition-colors duration-700">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-bold text-[#2b180a] truncate">{member.displayName}</p>
+                      <p className="text-sm font-bold text-orange-950 dark:text-white truncate transition-colors duration-700">{member.displayName}</p>
                       <StatusBadge variant={financialRoleBadgeVariant(member.financialRole)}>
                         {financialRoleLabel(member.financialRole)}
                       </StatusBadge>
                     </div>
-                    <p className="text-[11px] font-bold text-[#8a7262]">
+                    <p className="text-[11px] font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">
                       Wydał(a) w tym miesiącu {formatAmount(member.monthlySpent, currency)}
                     </p>
                     {existing ? (
-                      <p className="text-[10px] font-bold text-[#cf833f]">
+                      <p className="text-[10px] font-bold text-orange-600 dark:text-indigo-400 transition-colors duration-700">
                         Limit {formatAmount(existing.limitAmount, currency)} / {existing.period === "month" ? "miesiąc" : "tydzień"}
                       </p>
                     ) : (
-                      <p className="text-[10px] font-bold text-[#c0a898]">Brak budżetu osobistego</p>
+                      <p className="text-[10px] font-bold text-orange-900/40 dark:text-white/40 transition-colors duration-700">Brak budżetu osobistego</p>
                     )}
                   </div>
 
@@ -360,37 +359,35 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
                       <button
                         type="button"
                         onClick={() => (isEditing ? setEditingUserId(null) : startEditPerson(member.userId))}
-                        className={`text-[11px] font-bold px-3 py-1.5 rounded-xl transition-all shadow-sm ${
-                          isEditing
-                            ? "bg-white/60 text-[#8a7262] hover:bg-white border border-[#ebd8c8]/50"
+                        className={`text-[11px] font-bold px-3 py-1.5 rounded-xl transition-all shadow-sm duration-700 ${isEditing
+                            ? "bg-white/60 dark:bg-white/10 text-orange-900/60 dark:text-white/50 hover:bg-white dark:hover:bg-white/20 border border-orange-200/50 dark:border-white/10"
                             : existing
-                              ? "bg-white/60 text-[#cf833f] hover:bg-white border border-white/60"
-                              : "bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white shadow-[0_2px_8px_rgba(200,120,50,0.3)] hover:scale-105"
-                        }`}
+                              ? "bg-white/60 dark:bg-white/10 text-orange-600 dark:text-indigo-400 hover:bg-white dark:hover:bg-white/20 border border-white/60 dark:border-white/10"
+                              : "bg-gradient-to-r from-orange-400 to-orange-600 dark:from-indigo-500 dark:to-violet-600 text-white shadow-lg shadow-orange-500/20 dark:shadow-indigo-500/20 hover:scale-105"
+                          }`}
                       >
                         {isEditing ? "Anuluj" : existing ? "Edytuj" : "Ustaw"}
                       </button>
                     </div>
                   ) : (
-                    <span className="text-[11px] font-bold text-[#b89b87]">Tylko rodzic</span>
+                    <span className="text-[11px] font-bold text-orange-900/40 dark:text-white/40 transition-colors duration-700">Tylko rodzic</span>
                   )}
                 </div>
 
                 {member.personalBudget && member.personalBudgetSpent !== null && (
                   <div className="mt-3 space-y-1.5">
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-[#f5e5cf]">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-orange-100 dark:bg-white/10 transition-colors duration-700">
                       <div
-                        className={`h-full rounded-full ${
-                          member.isOverBudget
+                        className={`h-full rounded-full transition-colors duration-700 ${member.isOverBudget
                             ? "bg-red-400"
                             : (member.personalBudgetPct ?? 0) >= 80
                               ? "bg-yellow-400"
-                              : "bg-[#67c48a]"
-                        }`}
+                              : "bg-emerald-400 dark:bg-emerald-500"
+                          }`}
                         style={{ width: `${Math.min(member.personalBudgetPct ?? 0, 100)}%` }}
                       />
                     </div>
-                    <div className="flex justify-between text-[11px] font-bold text-[#8a7262]">
+                    <div className="flex justify-between text-[11px] font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">
                       <span>Wydano {formatAmount(member.personalBudgetSpent ?? 0, currency)}</span>
                       <span>
                         {member.personalBudgetRemaining !== null && member.personalBudgetRemaining >= 0
@@ -404,7 +401,7 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
                 {isEditing && canManagePersonBudgets && (
                   <div className="mt-4 space-y-3">
                     <div>
-                      <label className="block text-[11px] font-bold text-[#b89b87] uppercase tracking-wider mb-1.5 ml-1">
+                      <label className="block text-[11px] font-bold text-orange-900/40 dark:text-white/40 uppercase tracking-wider mb-1.5 ml-1 transition-colors duration-700">
                         Limit osobisty ({currency})
                       </label>
                       <FormInput
@@ -425,11 +422,10 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
                           key={period}
                           type="button"
                           onClick={() => setPersonEditPeriod(period)}
-                          className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                            personEditPeriod === period
-                              ? "bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white shadow-sm"
-                              : "bg-white border border-[#f5e5cf] text-[#8a7262]"
-                          }`}
+                          className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 duration-700 ${personEditPeriod === period
+                              ? "bg-gradient-to-r from-orange-400 to-orange-600 dark:from-indigo-500 dark:to-violet-600 text-white shadow-sm"
+                              : "bg-white dark:bg-white/5 border border-orange-200 dark:border-white/10 text-orange-900/60 dark:text-white/50"
+                            }`}
                         >
                           <Calendar className="w-4 h-4" />
                           <span>{period === "month" ? "Miesięczny" : "Tygodniowy"}</span>
@@ -450,7 +446,7 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
               </div>
             );
           })}
-        </div>
+        </AppCard>
       )}
 
       <ConfirmDialog

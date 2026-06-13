@@ -57,10 +57,10 @@ export function EmailSetupCard({ householdId, onOpenInbox }: Props) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <Mail className="h-5 w-5 text-[#c76823]" />
-            <h3 className="text-[16px] font-medium text-[#2b180a]">Forwardowanie rachunków</h3>
+            <Mail className="h-5 w-5 text-orange-600 dark:text-indigo-400 transition-colors duration-700" />
+            <h3 className="text-[16px] font-medium text-orange-950 dark:text-white transition-colors duration-700">Forwardowanie rachunków</h3>
           </div>
-          <p className="mt-1 text-xs font-medium leading-relaxed text-[#8a7262]">
+          <p className="mt-1 text-xs font-medium leading-relaxed text-orange-900/60 dark:text-white/50 transition-colors duration-700">
             Każde domostwo może mieć własny adres do przesyłania dalej rachunków i faktur z maila.
           </p>
         </div>
@@ -69,7 +69,7 @@ export function EmailSetupCard({ householdId, onOpenInbox }: Props) {
           <button
             type="button"
             onClick={onOpenInbox}
-            className="rounded-full bg-[#fff2e2] px-3 py-1.5 text-[11px] font-bold text-[#b86a28] transition-colors hover:bg-[#ffe7c7]"
+            className="rounded-full bg-orange-100 dark:bg-white/10 px-3 py-1.5 text-[11px] font-bold text-orange-700 dark:text-indigo-300 transition-colors duration-700 hover:bg-orange-200 dark:hover:bg-white/20"
           >
             {setup?.pendingCount ?? 0} do sprawdzenia
           </button>
@@ -79,18 +79,18 @@ export function EmailSetupCard({ householdId, onOpenInbox }: Props) {
       {!setup ? (
         <Spinner className="py-8" />
       ) : !setup.isResendConfigured ? (
-        <div className="mt-4 rounded-2xl border border-[#ffc9b6] bg-[#fff4ef] p-4">
-          <p className="text-sm font-bold text-[#9a3e16]">Skrzynka jeszcze nie jest aktywna</p>
-          <p className="mt-1 text-xs font-medium leading-relaxed text-[#9a5b3d]">
+        <div className="mt-4 rounded-2xl border border-red-300 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 p-4 transition-colors duration-700">
+          <p className="text-sm font-bold text-red-800 dark:text-red-400 transition-colors duration-700">Skrzynka jeszcze nie jest aktywna</p>
+          <p className="mt-1 text-xs font-medium leading-relaxed text-red-700 dark:text-red-300 transition-colors duration-700">
             Backend nie ma jeszcze ustawionej domeny odbiorczej dla maili. Gdy konfiguracja będzie gotowa, pojawi się
             tu adres dla tego domostwa.
           </p>
         </div>
       ) : !inbox ? (
         <div className="mt-4 space-y-4">
-          <div className="rounded-2xl border border-white/60 bg-gradient-to-br from-[#fff7ef] to-[#fffdf8] p-4">
-            <p className="text-sm font-bold text-[#2b180a]">Jeden adres dla całego domostwa</p>
-            <p className="mt-1 text-[12px] font-medium leading-relaxed text-[#8a7262]">
+          <div className="rounded-[16px] border border-white/60 dark:border-white/10 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-neutral-900 dark:to-neutral-800 p-4 transition-colors duration-700">
+            <p className="text-sm font-bold text-orange-950 dark:text-white transition-colors duration-700">Jeden adres dla całego domostwa</p>
+            <p className="mt-1 text-[12px] font-medium leading-relaxed text-orange-900/60 dark:text-white/50 transition-colors duration-700">
               Wystarczy zrobić forward maila z rachunkiem, a aplikacja przygotuje wydatki do zatwierdzenia.
             </p>
           </div>
@@ -105,11 +105,11 @@ export function EmailSetupCard({ householdId, onOpenInbox }: Props) {
         </div>
       ) : (
         <div className="mt-4 space-y-4">
-          <div className="rounded-2xl border border-[#f1d8c5] bg-gradient-to-br from-[#fff7ef] to-[#fffdf8] p-4">
+          <div className="rounded-[16px] border border-orange-200 dark:border-white/10 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-neutral-900 dark:to-neutral-800 p-4 transition-colors duration-700">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#b89b87]">Adres do forwardowania</p>
-                <p className="mt-1 text-[12px] font-medium leading-relaxed text-[#8a7262]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-orange-900/40 dark:text-white/40 transition-colors duration-700">Adres do forwardowania</p>
+                <p className="mt-1 text-[12px] font-medium leading-relaxed text-orange-900/60 dark:text-white/50 transition-colors duration-700">
                   Forwarduj tu rachunki i faktury z maila. Gotowe pozycje pojawią się później w kolejce.
                 </p>
               </div>
@@ -117,15 +117,15 @@ export function EmailSetupCard({ householdId, onOpenInbox }: Props) {
               <button
                 type="button"
                 onClick={() => copyText(inbox.address, "Skopiowano adres skrzynki.")}
-                className="rounded-xl border border-[#ead8c5] bg-white px-3 py-3 text-[#cf833f] transition-colors hover:bg-[#fff7ef]"
+                className="rounded-xl border border-orange-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-3 text-orange-600 dark:text-indigo-400 transition-colors duration-700 hover:bg-orange-50 dark:hover:bg-white/10"
                 aria-label="Kopiuj adres"
               >
                 <Clipboard className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="mt-3 rounded-2xl border border-[#ead8c5] bg-white px-4 py-3">
-              <p className="break-all font-mono text-[13px] font-bold text-[#6d4d38]">{inbox.address}</p>
+            <div className="mt-3 rounded-[16px] border border-orange-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-3 transition-colors duration-700">
+              <p className="break-all font-mono text-[13px] font-bold text-orange-900 dark:text-white/80 transition-colors duration-700">{inbox.address}</p>
             </div>
 
             <div className="mt-3 flex flex-wrap gap-2">
@@ -140,7 +140,7 @@ export function EmailSetupCard({ householdId, onOpenInbox }: Props) {
               <button
                 type="button"
                 onClick={onOpenInbox}
-                className="inline-flex items-center gap-2 rounded-full bg-[#fff1df] px-3 py-2 text-[11px] font-bold text-[#b86a28] transition-colors hover:bg-[#ffe7c7]"
+                className="inline-flex items-center gap-2 rounded-full bg-orange-100 dark:bg-white/10 px-3 py-2 text-[11px] font-bold text-orange-700 dark:text-indigo-300 transition-colors duration-700 hover:bg-orange-200 dark:hover:bg-white/20"
               >
                 <ArrowRight className="h-3.5 w-3.5" />
                 Otwórz kolejkę maili
@@ -149,16 +149,16 @@ export function EmailSetupCard({ householdId, onOpenInbox }: Props) {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-white/60 bg-white/60 p-4">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-[#b89b87]">Co wysyłać</p>
-              <p className="mt-2 text-[12px] font-medium leading-relaxed text-[#6d4d38]">
+            <div className="rounded-[16px] border border-white/60 dark:border-white/10 bg-white/60 dark:bg-white/5 p-4 transition-colors duration-700">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-orange-900/40 dark:text-white/40 transition-colors duration-700">Co wysyłać</p>
+              <p className="mt-2 text-[12px] font-medium leading-relaxed text-orange-900 dark:text-white/80 transition-colors duration-700">
                 Najlepiej PDF-y z fakturami, potwierdzenia zakupów i zdjęcia rachunków jako załączniki.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-white/60 bg-white/60 p-4">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-[#b89b87]">Co dalej</p>
-              <p className="mt-2 text-[12px] font-medium leading-relaxed text-[#6d4d38]">
+            <div className="rounded-[16px] border border-white/60 dark:border-white/10 bg-white/60 dark:bg-white/5 p-4 transition-colors duration-700">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-orange-900/40 dark:text-white/40 transition-colors duration-700">Co dalej</p>
+              <p className="mt-2 text-[12px] font-medium leading-relaxed text-orange-900 dark:text-white/80 transition-colors duration-700">
                 Aplikacja wyciągnie pozycje i pokaże je w kolejce, gdzie można je poprawić i zapisać.
               </p>
             </div>

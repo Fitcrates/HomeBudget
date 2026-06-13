@@ -125,6 +125,11 @@ function isGenericHeuristicFallback(categoriesArray: any[], subcategoryId: strin
   return GENERIC_HEURISTIC_SUBCATEGORY_NAMES.has(stripDiacritics(subcategoryName));
 }
 
+function isNonFinancialNegativeMeasurement(description: string): boolean {
+  const text = stripDiacritics(description);
+  return /\b(moc\s+soczewk|dioptr|sfera|cylinder|cyl\b|axis\b|os\b|bc\b|dia\b|add\b|kontaktow)\b/i.test(text);
+}
+
 export async function parseAndNormalizeResponse(
   ctx: any,
   householdId: Id<"households">,
@@ -269,6 +274,7 @@ export async function parseAndNormalizeResponse(
       const parsedAmount = parseAmountNumber(item?.amount);
 
       if (parsedAmount === null || parsedAmount === 0) continue;
+      if (parsedAmount < 0 && isNonFinancialNegativeMeasurement(originalRawDesc)) continue;
 
       const isDiscountLine = isDiscountLikeDescription(originalRawDesc) || parsedAmount < 0;
       if (isDiscountLine) {

@@ -13,7 +13,6 @@ import { Home, Receipt, BarChart3, WandSparkles } from "lucide-react";
 import { AppCard } from "../ui/AppCard";
 import { TabBar } from "../ui/TabBar";
 import { CatLoader } from "../ui/CatLoader";
-import { ScreenHeader } from "../ui/ScreenHeader";
 
 interface Props {
   householdId: Id<"households">;
@@ -60,11 +59,6 @@ export function DashboardScreen({ householdId, currency }: Props) {
 
   return (
     <div className="space-y-6">
-      <ScreenHeader
-        icon={<Home className="w-9 h-9" strokeWidth={2.5} />}
-        title="Cześć, Rodzinko!"
-        subtitle="Dashboard"
-      />
 
       <PeriodSelector
         value={period}
@@ -87,25 +81,25 @@ export function DashboardScreen({ householdId, currency }: Props) {
                 {summary && summary.count > 0 && (
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] font-bold text-[#b89b87] uppercase tracking-wider">Łącznie wydano</p>
-                      <p className="text-xl font-medium text-[#2b180a]">{formatAmount(summary.total, currency)}</p>
+                      <p className="text-[10px] font-bold text-orange-900/60 dark:text-white/50 uppercase tracking-wider transition-colors duration-700">Łącznie wydano</p>
+                      <p className="text-xl font-bold text-orange-950 dark:text-white transition-colors duration-700">{formatAmount(summary.total, currency)}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] font-bold text-[#b89b87] uppercase tracking-wider">Transakcji</p>
-                      <p className="text-xl font-medium text-[#2b180a]">{summary.count}</p>
+                      <p className="text-[10px] font-bold text-orange-900/60 dark:text-white/50 uppercase tracking-wider transition-colors duration-700">Transakcji</p>
+                      <p className="text-xl font-bold text-orange-950 dark:text-white transition-colors duration-700">{summary.count}</p>
                     </div>
                   </div>
                 )}
 
-                {summary?.count > 0 && byCategory.length > 0 && <div className="border-t border-[#e8d5c4]/60 my-1" />}
+                {summary?.count > 0 && byCategory.length > 0 && <div className="border-t border-orange-200/50 dark:border-white/10 my-1 transition-colors duration-700" />}
 
                 {byCategory.length > 0 && <PieChart data={byCategory} currency={currency} />}
 
-                {byCategory.length > 0 && byPeriod.length > 0 && <div className="border-t border-[#e8d5c4]/60 my-1" />}
+                {byCategory.length > 0 && byPeriod.length > 0 && <div className="border-t border-orange-200/50 dark:border-white/10 my-1 transition-colors duration-700" />}
 
                 {byPeriod.length > 0 && (
                   <>
-                    <h3 className="text-sm font-medium mt-2 text-[#3e2815] mb-4">Wydatki w czasie</h3>
+                    <h3 className="text-sm font-bold mt-2 text-orange-950 dark:text-white mb-4 transition-colors duration-700">Wydatki w czasie</h3>
                     <BarChart data={byPeriod} currency={currency} />
                   </>
                 )}
@@ -129,8 +123,8 @@ export function DashboardScreen({ householdId, currency }: Props) {
 
             {byCategory.length === 0 && (
               <AppCard className="text-center py-10 opacity-80">
-                <Receipt className="w-16 h-16 mx-auto mb-4 text-[#d8c5bc]" strokeWidth={2} />
-                <p className="text-[#8a7262] font-bold">Brak wydatków w tym okresie</p>
+                <Receipt className="w-16 h-16 mx-auto mb-4 text-orange-300 dark:text-white/20 transition-colors duration-700" strokeWidth={2} />
+                <p className="text-orange-900/60 dark:text-white/50 font-bold transition-colors duration-700">Brak wydatków w tym okresie</p>
               </AppCard>
             )}
           </div>

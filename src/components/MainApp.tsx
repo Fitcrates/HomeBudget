@@ -11,8 +11,8 @@ import { ChatScreen } from "./screens/ChatScreen";
 import { BadgeNotificationProvider } from "./providers/BadgeNotificationProvider";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { Receipt, PiggyBank, Bot } from "lucide-react";
-import { DashboardIcon } from "./ui/icons/DashboardIcon";
+import { TabBar } from "./layout/TabBar";
+import { ScreenHeader } from "./layout/ScreenHeader";
 
 type Screen = "dashboard" | "expenses" | "add" | "household" | "ocr" | "reviewQueue" | "goals" | "chat";
 
@@ -37,6 +37,18 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
   const [ocrMimeTypes, setOcrMimeTypes] = useState<string[]>([]);
   const syncDefaultCatalog = useMutation(api.categories.syncDefaultCatalog);
 
+  const [isDark, setIsDark] = useState(() => {
+    return document.documentElement.classList.contains("dark");
+  });
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [isDark]);
+
   useEffect(() => {
     void syncDefaultCatalog({ householdId: household._id }).catch((err) => {
       console.warn("Category catalog sync failed", err);
@@ -50,172 +62,93 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
     setScreen("ocr");
   }
 
+  const getScreenTitle = (s: Screen) => {
+    switch (s) {
+      case "dashboard": return "Pulpit";
+      case "expenses": return "Wydatki";
+      case "add": return "Dodaj wydatek";
+      case "household": return "Twój dom";
+      case "ocr": return "Skaner paragonów";
+      case "reviewQueue": return "Do zatwierdzenia";
+      case "goals": return "Budżet";
+      case "chat": return "Asystent AI";
+      default: return "Domowe Gniazdo";
+    }
+  };
+
   return (
     <BadgeNotificationProvider householdId={household._id}>
-      <div
-        className="w-full max-w-[420px] h-dvh flex flex-col mx-auto relative font-sans selection:bg-orange-200 pt-[env(safe-area-inset-top)] lg:my-4 lg:h-[90vh]"
-        style={{
-          background: "linear-gradient(160deg, var(--color-light) 0%, var(--color-app-top) 100%)",
-          color: "var(--text-primary)",
-          boxShadow: "0 0 60px rgba(160, 100, 50, 0.15)",
-          borderRadius: "var(--radius-xl)",
-        }}
-      >
-        {/* ── Top bar ─────────────────────────────────────── */}
-        <header className="relative z-20 px-3 sm:px-4 pt-3 pb-2">
-          <div className="flex justify-end">
-            <button
-              onClick={() => setScreen("household")}
-              disabled={screen === "household"}
-              className="text-xs font-bold rounded-full px-3.5 py-2 transition-all flex items-center gap-1"
-              style={{
-                background: screen === "household"
-                  ? "rgba(255,255,255,0.5)"
-                  : "rgba(255,255,255,0.7)",
-                border: `1.5px solid ${screen === "household" ? "var(--border-divider)" : "var(--border-subtle)"}`,
-                color: screen === "household" ? "var(--text-faint)" : "var(--accent)",
-                cursor: screen === "household" ? "default" : "pointer",
-                boxShadow: screen === "household" ? "none" : "var(--shadow-soft)",
-              }}
-            >
-              ⚙️ Dom
-            </button>
-          </div>
-        </header>
+      <div className="relative w-full h-dvh flex flex-col bg-[#fcf8f2] dark:bg-[#0a0a0a] overflow-hidden selection:bg-orange-500/30 dark:selection:bg-indigo-500/30 transition-colors duration-700">
+        
+        {/* ── Animated Background ──────────────────────────────── */}
+        <div className="absolute inset-0 pointer-events-none z-0 flex items-center justify-center overflow-hidden">
+          <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-amber-400/20 dark:bg-violet-600/15 blur-[120px] mix-blend-multiply dark:mix-blend-screen animate-pulse transition-colors duration-700" style={{ animationDuration: '8s' }} />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-orange-500/15 dark:bg-indigo-600/15 blur-[120px] mix-blend-multiply dark:mix-blend-screen animate-pulse transition-colors duration-700" style={{ animationDuration: '10s', animationDelay: '1s' }} />
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E')] opacity-[0.05] dark:opacity-[0.15] mix-blend-overlay" />
+        </div>
 
-        {/* ── Main content area ───────────────────────────── */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden pt-2 pb-28 relative z-10 px-3 sm:px-4 space-y-5 scrollbar-hide">
-          {screen === "dashboard" && (
-            <DashboardScreen householdId={household._id} currency={household.currency} />
-          )}
-          {screen === "expenses" && (
-            <ExpensesScreen householdId={household._id} currency={household.currency} />
-          )}
-          {screen === "add" && (
-            <AddExpenseScreen
-              householdId={household._id}
-              currency={household.currency}
-              onSuccess={() => setScreen("expenses")}
-              onOcrCapture={handleOcrCapture}
-            />
-          )}
-          {screen === "household" && (
-            <HouseholdScreen
-              household={household}
-              households={households}
-              onSwitchHousehold={onSwitchHousehold}
-              onOpenInbox={() => setScreen("reviewQueue")}
-            />
-          )}
-          {screen === "ocr" && ocrStorageIds.length > 0 && (
-            <OcrScreen
-              storageIds={ocrStorageIds}
-              mimeTypes={ocrMimeTypes}
-              householdId={household._id}
-              onDone={() => setScreen("expenses")}
-              onOpenReviewQueue={() => setScreen("reviewQueue")}
-            />
-          )}
-          {screen === "reviewQueue" && (
-            <AddExpenseScreen
-              householdId={household._id}
-              currency={household.currency}
-              initialTab="queue"
-              onSuccess={() => setScreen("expenses")}
-              onOcrCapture={handleOcrCapture}
-            />
-          )}
-          {screen === "goals" && (
-            <GoalsScreen householdId={household._id} currency={household.currency} />
-          )}
-          {screen === "chat" && (
-            <ChatScreen householdId={household._id} />
-          )}
-        </main>
-      </div>
+        {/* ── Main App Container ───────────────────────────────── */}
+        <div className="relative z-10 w-full max-w-[420px] mx-auto h-full flex flex-col pt-[env(safe-area-inset-top)] lg:my-4 lg:h-[90vh] lg:rounded-[32px] lg:border lg:border-orange-200/50 dark:lg:border-white/10 lg:bg-white/40 dark:lg:bg-white/5 lg:backdrop-blur-3xl lg:shadow-2xl transition-all duration-700">
+          
+          <ScreenHeader 
+            title={getScreenTitle(screen)} 
+            onSettingsClick={() => setScreen("household")}
+            isDark={isDark}
+            onToggleTheme={() => setIsDark(!isDark)}
+          />
 
-      {/* ── Bottom navigation ─────────────────────────────── */}
-      <div className="fixed bottom-0 left-0 w-full bg-gradient-to-t from-[var(--color-light)] via-[var(--color-light)]/95 to-transparent pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] px-3 sm:px-6 z-50 pointer-events-none lg:left-1/2 lg:-translate-x-1/2 lg:max-w-[420px] lg:bottom-4">
-        <nav
-          className="w-full mx-auto flex items-center justify-between px-4 py-2 pointer-events-auto"
-          style={{
-            background: "rgba(255, 252, 245, 0.92)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            border: "1.5px solid rgba(235, 216, 200, 0.4)",
-            borderRadius: "var(--radius-2xl)",
-            boxShadow: "0 12px 40px rgba(180, 110, 50, 0.18), 0 0 0 1px rgba(255,255,255,0.3) inset",
-          }}
-        >
-          <NavBtn
-            icon={<DashboardIcon className="w-6 h-6" />}
-            active={screen === "dashboard"}
-            onClick={() => setScreen("dashboard")}
-          />
-          <NavBtn
-            icon={<Receipt className="w-6 h-6" strokeWidth={2.2} />}
-            active={screen === "expenses"}
-            onClick={() => setScreen("expenses")}
-          />
-          <button
-            onClick={() => setScreen("add")}
-            className="w-[58px] h-[58px] -mt-6 rounded-full flex flex-col items-center justify-center text-white transition-all hover:scale-105 active:scale-95"
-            style={{
-              background: "linear-gradient(145deg, var(--accent-light), var(--accent-dark))",
-              boxShadow: "0 8px 24px rgba(202, 120, 42, 0.4), 0 0 0 4px var(--color-light)",
-            }}
-          >
-            <span className="text-3xl leading-none font-light mb-0.5">+</span>
-          </button>
-          <NavBtn
-            icon={<PiggyBank className="w-[22px] h-[22px]" strokeWidth={2.2} />}
-            active={screen === "goals"}
-            onClick={() => setScreen("goals")}
-          />
-          <NavBtn
-            icon={<Bot className="w-6 h-6" strokeWidth={2.2} />}
-            active={screen === "chat"}
-            onClick={() => setScreen("chat")}
-          />
-        </nav>
+          <main className="flex-1 overflow-y-auto overflow-x-hidden pt-2 pb-28 px-3 sm:px-4 space-y-5 scrollbar-hide relative z-10">
+            {screen === "dashboard" && (
+              <DashboardScreen householdId={household._id} currency={household.currency} />
+            )}
+            {screen === "expenses" && (
+              <ExpensesScreen householdId={household._id} currency={household.currency} />
+            )}
+            {screen === "add" && (
+              <AddExpenseScreen
+                householdId={household._id}
+                currency={household.currency}
+                onSuccess={() => setScreen("expenses")}
+                onOcrCapture={handleOcrCapture}
+              />
+            )}
+            {screen === "household" && (
+              <HouseholdScreen
+                household={household}
+                households={households}
+                onSwitchHousehold={onSwitchHousehold}
+                onOpenInbox={() => setScreen("reviewQueue")}
+              />
+            )}
+            {screen === "ocr" && ocrStorageIds.length > 0 && (
+              <OcrScreen
+                storageIds={ocrStorageIds}
+                mimeTypes={ocrMimeTypes}
+                householdId={household._id}
+                onDone={() => setScreen("expenses")}
+                onOpenReviewQueue={() => setScreen("reviewQueue")}
+              />
+            )}
+            {screen === "reviewQueue" && (
+              <AddExpenseScreen
+                householdId={household._id}
+                currency={household.currency}
+                initialTab="queue"
+                onSuccess={() => setScreen("expenses")}
+                onOcrCapture={handleOcrCapture}
+              />
+            )}
+            {screen === "goals" && (
+              <GoalsScreen householdId={household._id} currency={household.currency} />
+            )}
+            {screen === "chat" && (
+              <ChatScreen householdId={household._id} />
+            )}
+          </main>
+        </div>
+
+        <TabBar currentScreen={screen} onNavigate={setScreen} />
       </div>
     </BadgeNotificationProvider>
-  );
-}
-
-/* ── Navigation Button ─────────────────────────────────── */
-function NavBtn({
-  icon,
-  active,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="relative flex items-center justify-center w-12 h-12 rounded-xl transition-all outline-none"
-      style={{
-        background: active ? "rgba(250, 235, 205, 0.6)" : "transparent",
-        boxShadow: active ? "var(--shadow-soft)" : "none",
-        transform: active ? "scale(1.05)" : "scale(1)",
-      }}
-    >
-      <div
-        className="transition-all duration-300"
-        style={{
-          color: "var(--accent)",
-          transform: active ? "scale(1.1)" : "scale(1)",
-          filter: active
-            ? "drop-shadow(0 2px 4px rgba(207,131,63,0.3))"
-            : "grayscale(0.3) drop-shadow(0 1px 2px rgba(0,0,0,0.05))",
-          opacity: active ? 1 : 0.55,
-        }}
-      >
-        {icon}
-      </div>
-    </button>
   );
 }

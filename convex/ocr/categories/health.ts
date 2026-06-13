@@ -7,6 +7,13 @@ import { IssuerFlags } from "./issuers";
 export function matchHealth(text: string, combinedContext: string, issuers: IssuerFlags, categoriesArray: any[]): CategoryResolution | null {
   const { isPharmacyIssuer, isMedicalIssuer, isGymIssuer } = issuers;
 
+  if (
+    !has(text, /\b(inpost|paczkomat|kurier|przesylk|dostaw|shipping|shipment)\b/i) &&
+    (
+      has(text, /\b(optyk|optic\b|optical\b|soczewk|kontaktow|okular|oprawk|szkla korekcyjne|dioptr|moc soczewki)\b/i) ||
+      has(combinedContext, /\b(family\s+optic|optyk|optic\b|optical\b)\b/i)
+    )
+  ) return resolve(CATEGORY.HEALTH, SUB.apteka, categoriesArray);
   if (isPharmacyIssuer || has(text, /\b(lek\b|leki\b|tablet|tabl|syrop|kaps|suplement|wit\b|vit\b|masc|krem lecz|plaster|termometr|ibuprom|apap|paracetamol|rutinoscorbin|electrolyte|elektrolit|magnez|omega|tran\b|probiotyk|krople|spray do nosa)\b/i)) return resolve(CATEGORY.HEALTH, SUB.apteka, categoriesArray);
   if (isMedicalIssuer || has(combinedContext, /\b(konsultacja|badanie|przychodnia|laboratorium|usg|rehabilitacja|fizjoterapia)\b/i)) {
     if (has(combinedContext, /\b(dent|stomatolog|ortodon|higienizacja|wybielanie)\b/i)) return resolve(CATEGORY.HEALTH, SUB.dentysta, categoriesArray);

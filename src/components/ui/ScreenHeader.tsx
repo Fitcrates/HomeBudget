@@ -21,21 +21,21 @@ export function ScreenHeader({
         {onBack && (
           <button
             onClick={onBack}
-            className="text-2xl text-[#6d4d38] font-bold hover:text-[#2b180a] leading-none drop-shadow-sm"
+            className="text-2xl text-orange-900/70 dark:text-white/70 font-bold hover:text-orange-950 dark:hover:text-white leading-none drop-shadow-sm transition-colors duration-700"
           >
             ←
           </button>
         )}
-        <span className="drop-shadow-sm [&>svg]:w-8 [&>svg]:h-8 [&>svg]:text-[#c76823]">
+        <span className="drop-shadow-sm [&>svg]:w-8 [&>svg]:h-8 [&>svg]:text-orange-500 dark:[&>svg]:text-indigo-400 [&>svg]:transition-colors [&>svg]:duration-700">
           {icon}
         </span>
-        <h2 className="text-[26px] font-medium tracking-tight text-[#2b180a] drop-shadow-sm">
+        <h2 className="text-[26px] font-medium tracking-tight text-orange-950 dark:text-white drop-shadow-sm transition-colors duration-700">
           {title}
         </h2>
         {action && <div className="ml-auto">{action}</div>}
       </div>
       {subtitle && (
-        <p className="text-xs text-[#8a7262] font-medium ml-10 mt-1">{subtitle}</p>
+        <p className="text-xs text-orange-900/60 dark:text-white/50 font-medium ml-10 mt-1 transition-colors duration-700">{subtitle}</p>
       )}
     </div>
   );

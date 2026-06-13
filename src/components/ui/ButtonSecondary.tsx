@@ -7,11 +7,11 @@ interface ButtonSecondaryProps extends React.ButtonHTMLAttributes<HTMLButtonElem
 
 const variantMap = {
   outline:
-    "border border-[#e6c9b0]/50 bg-white/60 backdrop-blur-sm text-[#8a4f2a] hover:border-[#cf833f]/60 hover:bg-white shadow-sm",
+    "border border-orange-200/50 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur-sm text-orange-800 dark:text-white/80 hover:border-orange-500/60 dark:hover:border-indigo-400/60 hover:bg-white dark:hover:bg-white/10 shadow-sm transition-colors duration-700",
   ghost:
-    "border border-[#f5e5cf] bg-white/60 text-[#cf833f] hover:bg-white shadow-sm",
+    "border border-orange-100 dark:border-white/5 bg-white/60 dark:bg-white/5 text-orange-500 dark:text-indigo-400 hover:bg-white dark:hover:bg-white/10 shadow-sm transition-colors duration-700",
   dashed:
-    "border-2 border-dashed border-[#d2bcad]/70 bg-white/40 text-[#8a7262] hover:border-[#cf833f]/50 hover:bg-white/60",
+    "border-2 border-dashed border-orange-200/70 dark:border-white/20 bg-white/40 dark:bg-white/5 text-orange-900/60 dark:text-white/50 hover:border-orange-500/50 dark:hover:border-indigo-400/50 hover:bg-white/60 dark:hover:bg-white/10 transition-colors duration-700",
 } as const;
 
 export const ButtonSecondary = forwardRef<HTMLButtonElement, ButtonSecondaryProps>(

@@ -275,7 +275,7 @@ export const generate = action({
     const dataHash = btoa(
       JSON.stringify({
         count: expenses.length,
-        total: expenses.reduce((sum, expense) => sum + expense.total, 0),
+        total: expenses.reduce((sum: number, expense: { total: number }) => sum + expense.total, 0),
         projectedMonthSpent: scenarioContext.projectedMonthSpent,
       })
     ).slice(0, 32);
@@ -294,13 +294,13 @@ export const generate = action({
         projectedMonthSpent: scenarioContext.projectedMonthSpent / 100,
         previousMonthSpent: scenarioContext.previousMonthSpent / 100,
         subscriptionProjectedMonthly: scenarioContext.subscriptionProjectedMonthly / 100,
-        categories: scenarioContext.categories.map((category) => ({
+        categories: scenarioContext.categories.map((category: any) => ({
           categoryName: category.categoryName,
           projectedMonthSpent: category.projectedMonthSpent / 100,
           currentMonthSpent: category.currentMonthSpent / 100,
           isSubscriptionCategory: category.isSubscriptionCategory,
         })),
-        suggestedScenarios: scenarioContext.suggestedScenarios.map((scenario) => ({
+        suggestedScenarios: scenarioContext.suggestedScenarios.map((scenario: any) => ({
           label: scenario.label,
           type: scenario.type,
           categoryName: scenario.categoryName,

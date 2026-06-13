@@ -64,25 +64,25 @@ type WhatIfOverview = {
 
 const INSIGHT_CARD_STYLES = {
   info: {
-    shell: "border-[#f2dfcb]/90 bg-white/45",
-    iconWrap: "border-[#f2dfcb] bg-[#fff8f2]",
-    icon: "text-[#cf833f]",
-    panel: "border-[#f2dfcb] bg-[#fff8f2]/80",
-    badge: "bg-[#fff1e1] text-[#b55b1d]",
+    shell: "border-orange-200/90 dark:border-white/10 bg-white/45 dark:bg-white/5 transition-colors duration-700",
+    iconWrap: "border-orange-200 dark:border-white/10 bg-orange-50 dark:bg-white/5 transition-colors duration-700",
+    icon: "text-orange-600 dark:text-indigo-400 transition-colors duration-700",
+    panel: "border-orange-200 dark:border-white/10 bg-orange-50/80 dark:bg-white/5 transition-colors duration-700",
+    badge: "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 transition-colors duration-700",
   },
   warning: {
-    shell: "border-[#f3d2a4]/90 bg-[#fff8ee]/70",
-    iconWrap: "border-[#f3d2a4] bg-[#fff1dd]",
-    icon: "text-[#ca782a]",
-    panel: "border-[#f3d2a4] bg-[#fff5e8]",
-    badge: "bg-[#ffe7c7] text-[#b55b1d]",
+    shell: "border-amber-300/90 dark:border-amber-500/30 bg-amber-50/70 dark:bg-amber-500/10 transition-colors duration-700",
+    iconWrap: "border-amber-300 dark:border-amber-500/30 bg-amber-100 dark:bg-amber-500/20 transition-colors duration-700",
+    icon: "text-amber-600 dark:text-amber-400 transition-colors duration-700",
+    panel: "border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 transition-colors duration-700",
+    badge: "bg-amber-200 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 transition-colors duration-700",
   },
   danger: {
-    shell: "border-[#f1c6c0]/90 bg-[#fff7f5]/75",
-    iconWrap: "border-[#f1c6c0] bg-[#fff1ee]",
-    icon: "text-[#d1632a]",
-    panel: "border-[#f1c6c0] bg-[#fff4f1]",
-    badge: "bg-[#ffe3dc] text-[#c55353]",
+    shell: "border-red-300/90 dark:border-red-500/30 bg-red-50/75 dark:bg-red-500/10 transition-colors duration-700",
+    iconWrap: "border-red-300 dark:border-red-500/30 bg-red-100 dark:bg-red-500/20 transition-colors duration-700",
+    icon: "text-red-600 dark:text-red-400 transition-colors duration-700",
+    panel: "border-red-300 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 transition-colors duration-700",
+    badge: "bg-red-200 dark:bg-red-900/40 text-red-700 dark:text-red-300 transition-colors duration-700",
   },
 } satisfies Record<
   Severity,
@@ -166,7 +166,7 @@ export function InsightsCard({ householdId, currency }: Props) {
   }, [extraSubscriptionAmount, reductionPct, selectedCategory, whatIf]);
 
   const cardClass =
-    "rounded-xl border border-white/50 bg-white/40 pt-6 pb-6 p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)] backdrop-blur-xl";
+    "rounded-[16px] border border-white/50 dark:border-white/10 bg-white/40 dark:bg-white/5 pt-6 pb-6 p-6 shadow-[0_8px_32px_rgba(180,120,80,0.15)] dark:shadow-none backdrop-blur-xl transition-colors duration-700";
 
   const isStale = !latest || Date.now() - latest.generatedAt > 24 * 60 * 60 * 1000;
 
@@ -174,10 +174,10 @@ export function InsightsCard({ householdId, currency }: Props) {
     <div className={cardClass}>
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 drop-shadow-sm">
-          <Bot className="h-6 w-6 text-[#c76823]" />
-          <h3 className="text-[15px] font-medium text-[#2b180a]">Analiza i scenariusze</h3>
+          <Bot className="h-6 w-6 text-orange-600 dark:text-indigo-400 transition-colors duration-700" />
+          <h3 className="text-[15px] font-medium text-orange-950 dark:text-white transition-colors duration-700">Analiza i scenariusze</h3>
           {latest && (
-            <span className="rounded-full bg-[#f5e5cf]/60 px-2 py-0.5 text-[10px] font-bold text-[#b89b87]">
+            <span className="rounded-full bg-orange-100/60 dark:bg-white/10 px-2 py-0.5 text-[10px] font-bold text-orange-900/40 dark:text-white/40 transition-colors duration-700">
               {new Date(latest.generatedAt).toLocaleDateString("pl-PL")}
             </span>
           )}
@@ -185,17 +185,17 @@ export function InsightsCard({ householdId, currency }: Props) {
         <button
           onClick={handleGenerate}
           disabled={loading}
-          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all ${
+          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all duration-700 ${
             loading
-              ? "bg-[#f5e5cf] text-[#b89b87]"
+              ? "bg-orange-100 dark:bg-white/10 text-orange-900/40 dark:text-white/40"
               : isStale
-                ? "bg-gradient-to-r from-[#de9241] to-[#ca782a] text-white shadow-sm hover:scale-[1.02]"
-                : "bg-[#f5e5cf] text-[#8a7262] hover:bg-[#eedcc8]"
+                ? "bg-gradient-to-r from-orange-400 to-orange-600 dark:from-indigo-500 dark:to-violet-600 text-white shadow-sm hover:scale-[1.02]"
+                : "bg-orange-100 dark:bg-white/10 text-orange-900/60 dark:text-white/50 hover:bg-orange-200 dark:hover:bg-white/20"
           }`}
         >
           {loading ? (
             <>
-              <span className="h-3 w-3 animate-spin rounded-full border-b border-[#b89b87]" />
+              <span className="h-3 w-3 animate-spin rounded-full border-b border-orange-900/40 dark:border-white/40" />
               Analizuję...
             </>
           ) : (
@@ -209,33 +209,33 @@ export function InsightsCard({ householdId, currency }: Props) {
 
       {loading && (
         <div className="flex flex-col items-center justify-center gap-4 py-6">
-          <div className="relative flex h-28 w-28 items-center justify-center rounded-full border border-[#f2d6bf] bg-[#fff8f2] shadow-inner">
-            <div className="absolute inset-0 animate-spin rounded-full border-[4px] border-[#de9241] border-t-transparent" />
-            <div className="direction-reverse absolute inset-2 animate-spin rounded-full border-[4px] border-[#ca782a] border-b-transparent" />
+          <div className="relative flex h-28 w-28 items-center justify-center rounded-full border border-orange-200 dark:border-white/10 bg-orange-50 dark:bg-white/5 shadow-inner transition-colors duration-700">
+            <div className="absolute inset-0 animate-spin rounded-full border-[4px] border-orange-500 dark:border-indigo-500 border-t-transparent" />
+            <div className="direction-reverse absolute inset-2 animate-spin rounded-full border-[4px] border-orange-600 dark:border-violet-600 border-b-transparent" />
             <div className="absolute h-20 w-20 overflow-hidden rounded-full">
               <DotLottieReact src={catLottie} loop autoplay />
             </div>
           </div>
-          <p className="text-sm font-bold text-[#8a7262] animate-pulse">Analiza przelicza Twoje dane...</p>
+          <p className="text-sm font-bold text-orange-900/60 dark:text-white/50 animate-pulse transition-colors duration-700">Analiza przelicza Twoje dane...</p>
         </div>
       )}
 
       {!loading && latest === undefined ? (
         <div className="flex flex-col items-center justify-center gap-3 py-6">
-          <div className="relative flex h-24 w-24 items-center justify-center rounded-full border border-[#f2d6bf] bg-[#fff8f2] shadow-inner">
-            <div className="absolute inset-0 animate-spin rounded-full border-[3px] border-[#de9241] border-t-transparent" />
-            <div className="direction-reverse absolute inset-1.5 animate-spin rounded-full border-[3px] border-[#ca782a] border-b-transparent" />
+          <div className="relative flex h-24 w-24 items-center justify-center rounded-full border border-orange-200 dark:border-white/10 bg-orange-50 dark:bg-white/5 shadow-inner transition-colors duration-700">
+            <div className="absolute inset-0 animate-spin rounded-full border-[3px] border-orange-500 dark:border-indigo-500 border-t-transparent" />
+            <div className="direction-reverse absolute inset-1.5 animate-spin rounded-full border-[3px] border-orange-600 dark:border-violet-600 border-b-transparent" />
             <div className="absolute h-18 w-18 overflow-hidden rounded-full">
               <DotLottieReact src={catLottie} loop autoplay />
             </div>
           </div>
-          <p className="text-xs font-bold text-[#8a7262] animate-pulse">Ładowanie analizy...</p>
+          <p className="text-xs font-bold text-orange-900/60 dark:text-white/50 animate-pulse transition-colors duration-700">Ładowanie analizy...</p>
         </div>
       ) : !loading && latest === null ? (
         <div className="py-6 text-center">
-          <Search className="mx-auto mb-3 h-12 w-12 text-[#b89b87]" />
-          <p className="mb-1 text-sm font-bold text-[#8a7262]">Brak analizy</p>
-          <p className="text-xs text-[#b89b87]">Kliknij „Analizuj”, aby wygenerować pierwsze wnioski.</p>
+          <Search className="mx-auto mb-3 h-12 w-12 text-orange-900/40 dark:text-white/40 transition-colors duration-700" />
+          <p className="mb-1 text-sm font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">Brak analizy</p>
+          <p className="text-xs text-orange-900/40 dark:text-white/40 transition-colors duration-700">Kliknij „Analizuj”, aby wygenerować pierwsze wnioski.</p>
         </div>
       ) : !loading && latest ? (
         <div className="space-y-3">
@@ -252,7 +252,7 @@ export function InsightsCard({ householdId, currency }: Props) {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-[#2b180a]">{insight.title}</p>
+                      <p className="text-sm font-medium text-orange-950 dark:text-white transition-colors duration-700">{insight.title}</p>
                     <span
                       className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${styles.badge}`}
                     >
@@ -260,7 +260,7 @@ export function InsightsCard({ householdId, currency }: Props) {
                     </span>
                     </div>
                     <span
-                      className={`mt-3 block rounded-xl border px-3 py-2.5 text-xs font-medium leading-snug text-[#6d4d38] ${styles.panel}`}
+                      className={`mt-3 block rounded-xl border px-3 py-2.5 text-xs font-medium leading-snug text-orange-900 dark:text-white/80 ${styles.panel}`}
                     >
                       {insight.body}
                     </span>
@@ -275,26 +275,26 @@ export function InsightsCard({ householdId, currency }: Props) {
       {whatIf && (
         <div className="mt-5  ">
           <div className="mb-3 flex items-center gap-2">
-            <WandSparkles className="h-4 w-4 text-[#cf833f]" />
-            <h4 className="text-sm font-semibold text-[#2b180a]">Symulacje oszczędności</h4>
+            <WandSparkles className="h-4 w-4 text-orange-600 dark:text-indigo-400 transition-colors duration-700" />
+            <h4 className="text-sm font-semibold text-orange-950 dark:text-white transition-colors duration-700">Symulacje oszczędności</h4>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-[#f2dfcb] bg-[#fff8f2]">
+          <div className="overflow-hidden rounded-[16px] border border-orange-200 dark:border-white/10 bg-orange-50 dark:bg-white/5 transition-colors duration-700">
             <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b89b87]">Prognoza miesiąca</p>
-              <p className="text-right text-sm font-semibold tabular-nums text-[#2b180a]">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-orange-900/40 dark:text-white/40 transition-colors duration-700">Prognoza miesiąca</p>
+              <p className="text-right text-sm font-semibold tabular-nums text-orange-950 dark:text-white transition-colors duration-700">
                 {formatAmount(whatIf.projectedMonthSpent, currency)}
               </p>
             </div>
-            <div className="flex items-center justify-between gap-3 border-t border-[#f2dfcb] px-3 py-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b89b87]">Ten miesiąc do dziś</p>
-              <p className="text-right text-sm font-semibold tabular-nums text-[#2b180a]">
+            <div className="flex items-center justify-between gap-3 border-t border-orange-200 dark:border-white/10 px-3 py-2.5 transition-colors duration-700">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-orange-900/40 dark:text-white/40 transition-colors duration-700">Ten miesiąc do dziś</p>
+              <p className="text-right text-sm font-semibold tabular-nums text-orange-950 dark:text-white transition-colors duration-700">
                 {formatAmount(whatIf.currentMonthSpent, currency)}
               </p>
             </div>
-            <div className="flex items-center justify-between gap-3 border-t border-[#f2dfcb] px-3 py-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b89b87]">Subskrypcje</p>
-              <p className="text-right text-sm font-semibold tabular-nums text-[#2b180a]">
+            <div className="flex items-center justify-between gap-3 border-t border-orange-200 dark:border-white/10 px-3 py-2.5 transition-colors duration-700">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-orange-900/40 dark:text-white/40 transition-colors duration-700">Subskrypcje</p>
+              <p className="text-right text-sm font-semibold tabular-nums text-orange-950 dark:text-white transition-colors duration-700">
                 {formatAmount(whatIf.subscriptionProjectedMonthly, currency)}
               </p>
             </div>
@@ -310,10 +310,10 @@ export function InsightsCard({ householdId, currency }: Props) {
                     setSelectedCategoryId(scenario.categoryId);
                     setReductionPct(scenario.reductionPct);
                   }}
-                  className={`rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${
+                  className={`rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors duration-700 ${
                     selectedCategoryId === scenario.categoryId && reductionPct === scenario.reductionPct
-                      ? "border-[#cf833f] bg-[#fff1e1] text-[#b55b1d]"
-                      : "border-[#f2dfcb] bg-white/80 text-[#8a7262] hover:bg-white"
+                      ? "border-orange-500 dark:border-indigo-400 bg-orange-100 dark:bg-indigo-500/20 text-orange-700 dark:text-indigo-300"
+                      : "border-orange-200 dark:border-white/10 bg-white/80 dark:bg-white/5 text-orange-900/60 dark:text-white/50 hover:bg-white dark:hover:bg-white/10"
                   }`}
                 >
                   {scenario.label}
@@ -325,7 +325,7 @@ export function InsightsCard({ householdId, currency }: Props) {
           {whatIf.categories.length > 0 && (
             <div className="mt-4 space-y-4">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#b89b87]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-orange-900/40 dark:text-white/40 transition-colors duration-700">
                   Kategoria do symulacji
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -334,10 +334,10 @@ export function InsightsCard({ householdId, currency }: Props) {
                       key={category.categoryId}
                       type="button"
                       onClick={() => setSelectedCategoryId(category.categoryId)}
-                      className={`rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${
+                      className={`rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors duration-700 ${
                         selectedCategoryId === category.categoryId
-                          ? "border-[#cf833f] bg-[#fff1e1] text-[#b55b1d]"
-                          : "border-[#f2dfcb] bg-white/80 text-[#8a7262] hover:bg-white"
+                          ? "border-orange-500 dark:border-indigo-400 bg-orange-100 dark:bg-indigo-500/20 text-orange-700 dark:text-indigo-300"
+                          : "border-orange-200 dark:border-white/10 bg-white/80 dark:bg-white/5 text-orange-900/60 dark:text-white/50 hover:bg-white dark:hover:bg-white/10"
                       }`}
                     >
                       {category.categoryName}
@@ -346,18 +346,18 @@ export function InsightsCard({ householdId, currency }: Props) {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-[#f2dfcb] bg-white/70 p-4">
+              <div className="rounded-[16px] border border-orange-200 dark:border-white/10 bg-white/70 dark:bg-white/5 p-4 transition-colors duration-700">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-[#2b180a]">
+                    <p className="text-sm font-semibold text-orange-950 dark:text-white transition-colors duration-700">
                       {selectedCategory ? selectedCategory.categoryName : "Wybierz kategorię"}
                     </p>
-                    <p className="mt-1 text-xs font-medium text-[#8a7262]">
+                    <p className="mt-1 text-xs font-medium text-orange-900/60 dark:text-white/50 transition-colors duration-700">
                       Obecna projekcja tej kategorii:{" "}
                       {formatAmount(selectedCategory?.projectedMonthSpent ?? 0, currency)}
                     </p>
                   </div>
-                  <div className="rounded-full bg-[#fff1e1] px-3 py-1.5 text-xs font-bold tabular-nums text-[#b55b1d]">
+                  <div className="rounded-full bg-orange-100 dark:bg-orange-900/40 px-3 py-1.5 text-xs font-bold tabular-nums text-orange-700 dark:text-orange-300 transition-colors duration-700">
                     -{reductionPct}%
                   </div>
                 </div>
@@ -369,11 +369,11 @@ export function InsightsCard({ householdId, currency }: Props) {
                   step={5}
                   value={reductionPct}
                   onChange={(event) => setReductionPct(Number(event.target.value))}
-                  className="mt-4 h-2 w-full cursor-pointer appearance-none rounded-full bg-[#f2dfcb]"
+                  className="mt-4 h-2 w-full cursor-pointer appearance-none rounded-full bg-orange-200 dark:bg-white/10 accent-orange-500 dark:accent-indigo-400 transition-colors duration-700"
                 />
 
                 <div className="mt-4">
-                  <label className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#b89b87]">
+                  <label className="text-[11px] font-bold uppercase tracking-[0.16em] text-orange-900/40 dark:text-white/40 transition-colors duration-700">
                     Dodaj nową subskrypcję ({currency} / miesiąc)
                   </label>
                   <input
@@ -383,7 +383,7 @@ export function InsightsCard({ householdId, currency }: Props) {
                     value={extraSubscriptionAmount}
                     onChange={(event) => setExtraSubscriptionAmount(event.target.value)}
                     placeholder="np. 29.99"
-                    className="mt-2 w-full rounded-xl border border-[#f2dfcb] bg-white px-3 py-2 text-sm font-bold text-[#2b180a] outline-none focus:border-[#cf833f]"
+                    className="mt-2 w-full rounded-[16px] border border-orange-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2 text-sm font-bold text-orange-950 dark:text-white outline-none focus:border-orange-500 dark:focus:border-indigo-400 transition-colors duration-700"
                   />
                 </div>
               </div>
@@ -394,21 +394,21 @@ export function InsightsCard({ householdId, currency }: Props) {
             <div className="mt-4  p-1.5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#b89b87]">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-orange-900/40 dark:text-white/40 transition-colors duration-700">
                     Wynik scenariusza
                   </p>
-                  <p className="mt-2 text-lg font-semibold tabular-nums text-[#2b180a]">
+                  <p className="mt-2 text-lg font-semibold tabular-nums text-orange-950 dark:text-white transition-colors duration-700">
                     {formatAmount(scenarioPreview.nextProjection, currency)}
                   </p>
-                  <p className="mt-1 text-xs font-medium text-[#8a7262]">
+                  <p className="mt-1 text-xs font-medium text-orange-900/60 dark:text-white/50 transition-colors duration-700">
                     względem bazowej prognozy {formatAmount(scenarioPreview.baselineProjection, currency)}
                   </p>
                 </div>
                 <div
-                  className={`flex items-center gap-2 rounded-full px-3 py-2 text-sm font-bold tabular-nums ${
+                  className={`flex items-center gap-2 rounded-full px-3 py-2 text-sm font-bold tabular-nums transition-colors duration-700 ${
                     scenarioPreview.delta <= 0
-                      ? "bg-[#ecfdf3] text-[#2d8d56]"
-                      : "bg-[#fff1f1] text-[#c55353]"
+                      ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                      : "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400"
                   }`}
                 >
                   {scenarioPreview.delta <= 0 ? (
@@ -421,24 +421,24 @@ export function InsightsCard({ householdId, currency }: Props) {
                 </div>
               </div>
 
-         <div className="mt-4 overflow-hidden rounded-xl border border-[#f2dfcb] bg-white/75"> 
+         <div className="mt-4 overflow-hidden rounded-[16px] border border-orange-200 dark:border-white/10 bg-white/75 dark:bg-white/5 transition-colors duration-700"> 
                 <div className="px-3 py-2.5">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b89b87]">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-orange-900/40 dark:text-white/40 transition-colors duration-700">
                     Cięcie kategorii
                   </p>
-                  <p className="text-sm font-semibold tabular-nums text-[#2b180a]">
+                  <p className="text-sm font-semibold tabular-nums text-orange-950 dark:text-white transition-colors duration-700">
                     {formatAmount(scenarioPreview.categorySavings, currency)}
                   </p>
-                  <p className="mt-1 text-xs font-medium text-[#8a7262]">potencjalnie mniej w miesiącu</p>
+                  <p className="mt-1 text-xs font-medium text-orange-900/60 dark:text-white/50 transition-colors duration-700">potencjalnie mniej w miesiącu</p>
                 </div>
-                <div className="border-t border-[#f2dfcb] px-3 py-2.5">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#b89b87]">
+                <div className="border-t border-orange-200 dark:border-white/10 px-3 py-2.5 transition-colors duration-700">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-orange-900/40 dark:text-white/40 transition-colors duration-700">
                     Nowa subskrypcja
                   </p>
-                  <p className="text-sm font-semibold tabular-nums text-[#2b180a]">
+                  <p className="text-sm font-semibold tabular-nums text-orange-950 dark:text-white transition-colors duration-700">
                     {formatAmount(scenarioPreview.extraMonthlyCost, currency)}
                   </p>
-                  <p className="mt-1 text-xs font-medium text-[#8a7262]">dodatkowy koszt miesięczny</p>
+                  <p className="mt-1 text-xs font-medium text-orange-900/60 dark:text-white/50 transition-colors duration-700">dodatkowy koszt miesięczny</p>
                 </div>
               </div> 
             </div> 
