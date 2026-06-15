@@ -10,11 +10,24 @@
   <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
   <link rel="manifest" href="/site.webmanifest" />
-  <meta name="theme-color" content="#fcf8f2" media="(prefers-color-scheme: light)" id="theme-color-light" />
-  <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" id="theme-color-dark" />
+  <meta name="theme-color" content="#fcf8f2" id="theme-color" />
   <meta name="color-scheme" content="light dark" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" id="apple-status-bar-style" />
+  <script>
+    try {
+      const isDark = localStorage.getItem("homebudget_theme") === "dark";
+      const color = isDark ? "#0a0a0a" : "#fcf8f2";
+      document.documentElement.classList.toggle("dark", isDark);
+      document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+      document.documentElement.style.backgroundColor = color;
+      document.getElementById("theme-color").setAttribute("content", color);
+      document
+        .getElementById("apple-status-bar-style")
+        .setAttribute("content", isDark ? "black" : "default");
+    } catch {}
+  </script>
 
   <title>SpendyAI</title>
 

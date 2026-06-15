@@ -10,6 +10,7 @@ import { MainApp } from "./components/MainApp";
 import { HomeIcon } from "./components/ui/icons/HomeIcon";
 import { TripsScreen } from "./components/screens/TripsScreen";
 import { Id } from "../convex/_generated/dataModel";
+import { applyAppTheme, getInitialDarkMode } from "./lib/theme";
 
 function getTripInviteCode() {
   if (typeof window === "undefined") return null;
@@ -40,24 +41,10 @@ export default function App() {
 
 /* ── Auth / Login Screen ─────────────────────────────────── */
 function AuthScreen() {
-  const [isDark, setIsDark] = useState(() => {
-    return document.documentElement.classList.contains("dark");
-  });
+  const [isDark, setIsDark] = useState(getInitialDarkMode);
 
   useEffect(() => {
-    const metaLight = document.getElementById("theme-color-light");
-    const metaDark = document.getElementById("theme-color-dark");
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-      document.documentElement.style.colorScheme = "dark";
-      metaLight?.setAttribute("content", "#0a0a0a");
-      metaDark?.setAttribute("content", "#0a0a0a");
-    } else {
-      document.documentElement.classList.remove("dark");
-      document.documentElement.style.colorScheme = "light";
-      metaLight?.setAttribute("content", "#fcf8f2");
-      metaDark?.setAttribute("content", "#fcf8f2");
-    }
+    applyAppTheme(isDark);
   }, [isDark]);
 
   return (

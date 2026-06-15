@@ -109,7 +109,7 @@ body,
 
 html {
   min-height: 100dvh;
-  background: var(--color-app-top);
+  background: #fcf8f2;
 }
 
 body {
@@ -117,7 +117,7 @@ body {
   min-height: 100dvh;
   font-family: var(--font-body);
   color: var(--text-primary);
-  background: var(--color-light);
+  background: #fcf8f2;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -125,7 +125,13 @@ body {
 
 #root {
   min-height: 100dvh;
-  background: var(--color-light);
+  background: #fcf8f2;
+}
+
+html.dark,
+html.dark body,
+html.dark #root {
+  background: #0a0a0a;
 }
 
 h1,

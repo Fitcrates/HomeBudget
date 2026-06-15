@@ -13,6 +13,7 @@ import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { TabBar } from "./layout/TabBar";
 import { ScreenHeader } from "./layout/ScreenHeader";
+import { applyAppTheme, getInitialDarkMode } from "../lib/theme";
 
 type Screen = "dashboard" | "trips" | "add" | "household" | "ocr" | "reviewQueue" | "goals" | "chat";
 
@@ -40,24 +41,10 @@ export function MainApp({ household, households, onSwitchHousehold, initialScree
   const [ocrMimeTypes, setOcrMimeTypes] = useState<string[]>([]);
   const syncDefaultCatalog = useMutation(api.categories.syncDefaultCatalog);
 
-  const [isDark, setIsDark] = useState(() => {
-    return document.documentElement.classList.contains("dark");
-  });
+  const [isDark, setIsDark] = useState(getInitialDarkMode);
 
   useEffect(() => {
-    const metaLight = document.getElementById("theme-color-light");
-    const metaDark = document.getElementById("theme-color-dark");
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-      document.documentElement.style.colorScheme = "dark";
-      metaLight?.setAttribute("content", "#0a0a0a");
-      metaDark?.setAttribute("content", "#0a0a0a");
-    } else {
-      document.documentElement.classList.remove("dark");
-      document.documentElement.style.colorScheme = "light";
-      metaLight?.setAttribute("content", "#fcf8f2");
-      metaDark?.setAttribute("content", "#fcf8f2");
-    }
+    applyAppTheme(isDark);
   }, [isDark]);
 
   useEffect(() => {
