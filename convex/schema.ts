@@ -40,6 +40,58 @@ const applicationTables = {
     .index("by_code", ["code"])
     .index("by_email", ["email"]),
 
+  trips: defineTable({
+    name: v.string(),
+    currency: v.string(),
+    createdByUserId: v.id("users"),
+    inviteCode: v.string(),
+    status: v.union(v.literal("active"), v.literal("closed")),
+    startDate: v.optional(v.number()),
+    endDate: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_creator", ["createdByUserId"])
+    .index("by_invite_code", ["inviteCode"]),
+
+  trip_members: defineTable({
+    tripId: v.id("trips"),
+    userId: v.optional(v.id("users")),
+    email: v.optional(v.string()),
+    displayName: v.string(),
+    role: v.union(v.literal("owner"), v.literal("member")),
+    status: v.union(v.literal("active"), v.literal("invited")),
+    createdAt: v.number(),
+    joinedAt: v.optional(v.number()),
+  })
+    .index("by_trip", ["tripId"])
+    .index("by_user", ["userId"])
+    .index("by_trip_and_user", ["tripId", "userId"])
+    .index("by_trip_and_email", ["tripId", "email"]),
+
+  trip_expenses: defineTable({
+    tripId: v.id("trips"),
+    createdByUserId: v.id("users"),
+    paidByMemberId: v.id("trip_members"),
+    participantIds: v.array(v.id("trip_members")),
+    amount: v.number(),
+    date: v.number(),
+    description: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_trip", ["tripId"])
+    .index("by_trip_and_date", ["tripId", "date"]),
+
+  trip_exports: defineTable({
+    tripId: v.id("trips"),
+    userId: v.id("users"),
+    householdId: v.id("households"),
+    expenseId: v.id("expenses"),
+    amount: v.number(),
+    exportedAt: v.number(),
+  })
+    .index("by_trip", ["tripId"])
+    .index("by_trip_and_user", ["tripId", "userId"]),
+
   categories: defineTable({
     householdId: v.optional(v.id("households")),
     name: v.string(),
@@ -83,6 +135,7 @@ const applicationTables = {
     isSubscription: v.optional(v.boolean()),
     sourcePendingEmailExpenseId: v.optional(v.id("pending_email_expenses")),
     sourceProviderMessageId: v.optional(v.string()),
+    sourceTripExportId: v.optional(v.id("trip_exports")),
   })
     .index("by_household", ["householdId"])
     .index("by_household_and_date", ["householdId", "date"])

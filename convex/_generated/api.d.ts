@@ -87,6 +87,7 @@ import type * as profile from "../profile.js";
 import type * as router from "../router.js";
 import type * as seed from "../seed.js";
 import type * as shopping from "../shopping.js";
+import type * as trips from "../trips.js";
 
 import type {
   ApiFromModules,
@@ -174,6 +175,7 @@ declare const fullApi: ApiFromModules<{
   router: typeof router;
   seed: typeof seed;
   shopping: typeof shopping;
+  trips: typeof trips;
 }>;
 
 /**

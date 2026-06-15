@@ -16,9 +16,10 @@ import { AppCard } from "../ui/AppCard";
 interface Props {
   householdId: Id<"households">;
   currency: string;
+  embedded?: boolean;
 }
 
-export function ExpensesScreen({ householdId, currency }: Props) {
+export function ExpensesScreen({ householdId, currency, embedded = false }: Props) {
   const [period, setPeriod] = useState("month");
   const [customFrom, setCustomFrom] = useState<number | null>(null);
   const [customTo, setCustomTo] = useState<number | null>(null);
@@ -81,10 +82,12 @@ export function ExpensesScreen({ householdId, currency }: Props) {
 
   return (
     <div className="space-y-5 pb-8">
-      <ScreenHeader
-        icon={<Receipt className="h-9 w-9 text-orange-600 dark:text-indigo-400" strokeWidth={2.5} />}
-        title="Wszystkie wydatki"
-      />
+      {!embedded && (
+        <ScreenHeader
+          icon={<Receipt className="h-9 w-9 text-orange-600 dark:text-indigo-400" strokeWidth={2.5} />}
+          title="Wszystkie wydatki"
+        />
+      )}
 
         <AppCard className="space-y-4">
           <PeriodSelector

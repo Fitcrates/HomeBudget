@@ -1,20 +1,20 @@
 import { useEffect, useState } from "react";
 import { useMutation } from "convex/react";
-import { DashboardScreen } from "./screens/DashboardScreen";
-import { ExpensesScreen } from "./screens/ExpensesScreen";
+import { DashboardScreen, DashboardTab } from "./screens/DashboardScreen";
 import { AddExpenseScreen } from "./screens/AddExpenseScreen";
 import { HouseholdScreen } from "./screens/HouseholdScreen";
 import { OcrScreen } from "./screens/OcrScreen";
 import { EmailInboxScreen } from "./screens/EmailInboxScreen";
 import { GoalsScreen } from "./screens/GoalsScreenV2";
 import { ChatScreen } from "./screens/ChatScreen";
+import { TripsScreen } from "./screens/TripsScreen";
 import { BadgeNotificationProvider } from "./providers/BadgeNotificationProvider";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { TabBar } from "./layout/TabBar";
 import { ScreenHeader } from "./layout/ScreenHeader";
 
-type Screen = "dashboard" | "expenses" | "add" | "household" | "ocr" | "reviewQueue" | "goals" | "chat";
+type Screen = "dashboard" | "trips" | "add" | "household" | "ocr" | "reviewQueue" | "goals" | "chat";
 
 interface Household {
   _id: Id<"households">;
@@ -29,10 +29,13 @@ interface Props {
   household: Household;
   households: Household[];
   onSwitchHousehold: (id: string) => void;
+  initialScreen?: Screen;
+  initialTripId?: Id<"trips">;
 }
 
-export function MainApp({ household, households, onSwitchHousehold }: Props) {
-  const [screen, setScreen] = useState<Screen>("dashboard");
+export function MainApp({ household, households, onSwitchHousehold, initialScreen, initialTripId }: Props) {
+  const [screen, setScreen] = useState<Screen>(initialScreen ?? "dashboard");
+  const [dashboardInitialTab, setDashboardInitialTab] = useState<DashboardTab>("overview");
   const [ocrStorageIds, setOcrStorageIds] = useState<Id<"_storage">[]>([]);
   const [ocrMimeTypes, setOcrMimeTypes] = useState<string[]>([]);
   const syncDefaultCatalog = useMutation(api.categories.syncDefaultCatalog);
@@ -42,15 +45,18 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
   });
 
   useEffect(() => {
-    const metaThemeColor = document.getElementById("theme-color-meta");
+    const metaLight = document.getElementById("theme-color-light");
+    const metaDark = document.getElementById("theme-color-dark");
     if (isDark) {
       document.documentElement.classList.add("dark");
       document.documentElement.style.colorScheme = "dark";
-      if (metaThemeColor) metaThemeColor.setAttribute("content", "#0a0a0a");
+      metaLight?.setAttribute("content", "#0a0a0a");
+      metaDark?.setAttribute("content", "#0a0a0a");
     } else {
       document.documentElement.classList.remove("dark");
       document.documentElement.style.colorScheme = "light";
-      if (metaThemeColor) metaThemeColor.setAttribute("content", "#fcf8f2");
+      metaLight?.setAttribute("content", "#fcf8f2");
+      metaDark?.setAttribute("content", "#fcf8f2");
     }
   }, [isDark]);
 
@@ -67,10 +73,17 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
     setScreen("ocr");
   }
 
+  function handleNavigate(nextScreen: Screen) {
+    if (nextScreen === "dashboard" && screen !== "dashboard") {
+      setDashboardInitialTab("overview");
+    }
+    setScreen(nextScreen);
+  }
+
   const getScreenTitle = (s: Screen) => {
     switch (s) {
       case "dashboard": return "Pulpit";
-      case "expenses": return "Wydatki";
+      case "trips": return "Wyjazdy";
       case "add": return "Dodaj wydatek";
       case "household": return "Twój dom";
       case "ocr": return "Skaner paragonów";
@@ -104,16 +117,27 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
 
           <main className="flex-1 overflow-y-auto overflow-x-hidden pt-2 pb-28 px-3 sm:px-4 space-y-5 scrollbar-hide relative z-10">
             {screen === "dashboard" && (
-              <DashboardScreen householdId={household._id} currency={household.currency} />
+              <DashboardScreen
+                householdId={household._id}
+                currency={household.currency}
+                initialTab={dashboardInitialTab}
+              />
             )}
-            {screen === "expenses" && (
-              <ExpensesScreen householdId={household._id} currency={household.currency} />
+            {screen === "trips" && (
+              <TripsScreen
+                householdId={household._id}
+                householdCurrency={household.currency}
+                initialTripId={initialTripId}
+              />
             )}
             {screen === "add" && (
               <AddExpenseScreen
                 householdId={household._id}
                 currency={household.currency}
-                onSuccess={() => setScreen("expenses")}
+                onSuccess={() => {
+                  setDashboardInitialTab("history");
+                  setScreen("dashboard");
+                }}
                 onOcrCapture={handleOcrCapture}
               />
             )}
@@ -130,7 +154,10 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
                 storageIds={ocrStorageIds}
                 mimeTypes={ocrMimeTypes}
                 householdId={household._id}
-                onDone={() => setScreen("expenses")}
+                onDone={() => {
+                  setDashboardInitialTab("history");
+                  setScreen("dashboard");
+                }}
                 onOpenReviewQueue={() => setScreen("reviewQueue")}
               />
             )}
@@ -139,7 +166,10 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
                 householdId={household._id}
                 currency={household.currency}
                 initialTab="queue"
-                onSuccess={() => setScreen("expenses")}
+                onSuccess={() => {
+                  setDashboardInitialTab("history");
+                  setScreen("dashboard");
+                }}
                 onOcrCapture={handleOcrCapture}
               />
             )}
@@ -152,7 +182,7 @@ export function MainApp({ household, households, onSwitchHousehold }: Props) {
           </main>
         </div>
 
-        <TabBar currentScreen={screen} onNavigate={setScreen} />
+        <TabBar currentScreen={screen} onNavigate={handleNavigate} />
       </div>
     </BadgeNotificationProvider>
   );

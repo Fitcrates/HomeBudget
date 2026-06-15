@@ -1,8 +1,8 @@
 import React from "react";
-import { Receipt, PiggyBank, Bot } from "lucide-react";
+import { PiggyBank, Bot, Plane } from "lucide-react";
 import { DashboardIcon } from "../ui/icons/DashboardIcon";
 
-type Screen = "dashboard" | "expenses" | "add" | "household" | "ocr" | "reviewQueue" | "goals" | "chat";
+type Screen = "dashboard" | "trips" | "add" | "household" | "ocr" | "reviewQueue" | "goals" | "chat";
 
 interface TabBarProps {
   currentScreen: Screen;
@@ -11,9 +11,9 @@ interface TabBarProps {
 
 export function TabBar({ currentScreen, onNavigate }: TabBarProps) {
   return (
-    <div className="fixed bottom-0 left-0 w-full pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] px-4 sm:px-6 z-50 pointer-events-none lg:left-1/2 lg:-translate-x-1/2 lg:max-w-[420px] lg:bottom-4 transition-all duration-700">
-      {/* Floating Glassmorphism Container */}
-      <nav className="w-full max-w-[380px] mx-auto flex items-center justify-between px-3 py-2.5 pointer-events-auto rounded-[28px] bg-white/70 dark:bg-[#111111]/80 backdrop-blur-2xl border border-orange-200/50 dark:border-white/10 shadow-[0_8px_32px_rgba(200,120,50,0.15)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.5)] transition-all duration-700">
+    <div className="fixed bottom-0 left-0 w-full z-50 transition-all duration-700">
+      {/* Docked Glassmorphism Container */}
+      <nav className="w-full flex items-center justify-between px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] rounded-t-[28px] bg-white/80 dark:bg-[#111111]/90 backdrop-blur-2xl border-t border-orange-200/50 dark:border-white/10 shadow-[0_-8px_32px_rgba(200,120,50,0.1)] dark:shadow-[0_-8px_32px_rgba(0,0,0,0.5)] transition-all duration-700">
         
         <NavBtn
           icon={<DashboardIcon className="w-6 h-6" />}
@@ -21,9 +21,9 @@ export function TabBar({ currentScreen, onNavigate }: TabBarProps) {
           onClick={() => onNavigate("dashboard")}
         />
         <NavBtn
-          icon={<Receipt className="w-6 h-6" strokeWidth={2.2} />}
-          active={currentScreen === "expenses"}
-          onClick={() => onNavigate("expenses")}
+          icon={<Plane className="w-6 h-6" strokeWidth={2.2} />}
+          active={currentScreen === "trips"}
+          onClick={() => onNavigate("trips")}
         />
         
         {/* Floating Add Button */}

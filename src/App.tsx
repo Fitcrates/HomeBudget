@@ -1,13 +1,26 @@
-import { Authenticated, Unauthenticated, useQuery } from "convex/react";
+import { Authenticated, Unauthenticated, useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
 import { SignOutButton } from "./SignOutButton";
-import { Toaster } from "sonner";
-import { useState, useEffect } from "react";
+import { Toaster, toast } from "sonner";
+import { useState, useEffect, useRef } from "react";
 import { Moon, Sun } from "lucide-react";
 import { HouseholdSetup } from "./components/HouseholdSetup";
 import { MainApp } from "./components/MainApp";
 import { HomeIcon } from "./components/ui/icons/HomeIcon";
+import { TripsScreen } from "./components/screens/TripsScreen";
+import { Id } from "../convex/_generated/dataModel";
+
+function getTripInviteCode() {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("trip")?.trim().toUpperCase() || null;
+}
+
+function removeTripInviteFromUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("trip");
+  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+}
 
 export default function App() {
   return (
@@ -32,15 +45,18 @@ function AuthScreen() {
   });
 
   useEffect(() => {
-    const metaThemeColor = document.getElementById("theme-color-meta");
+    const metaLight = document.getElementById("theme-color-light");
+    const metaDark = document.getElementById("theme-color-dark");
     if (isDark) {
       document.documentElement.classList.add("dark");
       document.documentElement.style.colorScheme = "dark";
-      if (metaThemeColor) metaThemeColor.setAttribute("content", "#0a0a0a");
+      metaLight?.setAttribute("content", "#0a0a0a");
+      metaDark?.setAttribute("content", "#0a0a0a");
     } else {
       document.documentElement.classList.remove("dark");
       document.documentElement.style.colorScheme = "light";
-      if (metaThemeColor) metaThemeColor.setAttribute("content", "#fcf8f2");
+      metaLight?.setAttribute("content", "#fcf8f2");
+      metaDark?.setAttribute("content", "#fcf8f2");
     }
   }, [isDark]);
 
@@ -98,9 +114,32 @@ function AuthScreen() {
 /* ── Authenticated App (household routing) ───────────────── */
 function AuthenticatedApp() {
   const households = useQuery(api.households.listMine);
+  const trips = useQuery(api.trips.listMine);
+  const joinTrip = useMutation(api.trips.joinByCode);
   const [activeHouseholdId, setActiveHouseholdId] = useState<string | null>(null);
+  const [joinedTripId, setJoinedTripId] = useState<Id<"trips"> | null>(null);
+  const [joiningTrip, setJoiningTrip] = useState(() => Boolean(getTripInviteCode()));
+  const inviteHandledRef = useRef(false);
 
-  if (households === undefined) {
+  useEffect(() => {
+    const inviteCode = getTripInviteCode();
+    if (!inviteCode || inviteHandledRef.current) return;
+    inviteHandledRef.current = true;
+    setJoiningTrip(true);
+
+    void joinTrip({ code: inviteCode })
+      .then((tripId) => {
+        setJoinedTripId(tripId);
+        removeTripInviteFromUrl();
+        toast.success("Dołączono do wyjazdu.");
+      })
+      .catch((error: any) => {
+        toast.error(error?.message || "Nie udało się dołączyć do wyjazdu.");
+      })
+      .finally(() => setJoiningTrip(false));
+  }, [joinTrip]);
+
+  if (households === undefined || trips === undefined || joiningTrip) {
     return (
       <div className="flex-1 flex items-center justify-center min-h-dvh">
         <div
@@ -117,6 +156,18 @@ function AuthenticatedApp() {
       : households[0];
 
   if (!activeHousehold) {
+    if (joinedTripId || trips.length > 0) {
+      return (
+        <div className="min-h-dvh bg-[#fcf8f2] px-3 pb-10 pt-[max(1rem,env(safe-area-inset-top))] dark:bg-[#0a0a0a]">
+          <div className="mx-auto w-full max-w-[420px]">
+            <div className="mb-3 flex justify-end">
+              <SignOutButton />
+            </div>
+            <TripsScreen householdCurrency="PLN" initialTripId={joinedTripId ?? undefined} />
+          </div>
+        </div>
+      );
+    }
     return <HouseholdSetup onCreated={(id) => setActiveHouseholdId(id)} />;
   }
 
@@ -125,6 +176,8 @@ function AuthenticatedApp() {
       household={activeHousehold as any}
       households={households as any[]}
       onSwitchHousehold={setActiveHouseholdId}
+      initialScreen={joinedTripId ? "trips" : undefined}
+      initialTripId={joinedTripId ?? undefined}
     />
   );
 }

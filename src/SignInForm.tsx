@@ -16,6 +16,10 @@ const SUBMIT_LABEL: Record<AuthMode, Record<Intent, string>> = {
 
 export function SignInForm() {
   const { signIn } = useAuthActions();
+  const [tripInviteCode, setTripInviteCode] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("trip")?.trim().toUpperCase() || "";
+  });
   const [mode, setMode]       = useState<AuthMode>("signIn");
   const [intent, setIntent]   = useState<Intent>("create");
   const [submitting, setSubmitting] = useState(false);
@@ -26,11 +30,20 @@ export function SignInForm() {
 
   const emailRegex = useMemo(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/, []);
 
-  const isJoining = intent === "join";
+  const isTripInvite = Boolean(tripInviteCode);
+  const isJoining = intent === "join" || isTripInvite;
 
   function setModeAndIntent(m: AuthMode, i: Intent) {
     setMode(m);
     setIntent(i);
+  }
+
+  function dismissTripInvite() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("trip");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    setTripInviteCode("");
+    setModeAndIntent("signIn", "create");
   }
 
   function validateBeforeSubmit() {
@@ -57,7 +70,8 @@ export function SignInForm() {
     formData.set("password", password);
 
     try {
-      sessionStorage.setItem(HOUSEHOLD_INTENT_KEY, intent);
+      if (isTripInvite) sessionStorage.removeItem(HOUSEHOLD_INTENT_KEY);
+      else sessionStorage.setItem(HOUSEHOLD_INTENT_KEY, intent);
       await signIn("password", formData);
     } catch (error: any) {
       const msg = String(error?.message || "").toLowerCase();
@@ -112,7 +126,7 @@ export function SignInForm() {
           <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E')] opacity-[0.05] dark:opacity-[0.15] mix-blend-overlay" />
           <button
             type="button"
-            onClick={() => setModeAndIntent("signIn", "create")}
+            onClick={isTripInvite ? dismissTripInvite : () => setModeAndIntent("signIn", "create")}
             className="absolute right-4 top-4 rounded-full p-1.5 text-orange-900/40 dark:text-white/40 transition-all hover:bg-orange-500/10 dark:hover:bg-white/10 hover:text-orange-900 dark:hover:text-white"
           >
             <X className="h-4 w-4" />
@@ -122,12 +136,23 @@ export function SignInForm() {
               <KeyRound className="h-5 w-5 text-orange-500 dark:text-indigo-300" />
             </div>
             <div>
-              <p className="text-[15px] font-bold text-orange-950 dark:text-white transition-colors duration-700">Dołączasz z zaproszenia</p>
-              <p className="mt-1 text-sm font-medium leading-relaxed text-orange-900/70 dark:text-indigo-200/80 transition-colors duration-700">
-                {mode === "signIn"
-                  ? "Zaloguj się, aby wpisać kod i dołączyć do domu."
-                  : "Utwórz konto, aby wpisać kod i dołączyć do domu."}
+              <p className="text-[15px] font-bold text-orange-950 dark:text-white transition-colors duration-700">
+                {isTripInvite ? "Dołączasz do wyjazdu" : "Dołączasz z zaproszenia"}
               </p>
+              <p className="mt-1 text-sm font-medium leading-relaxed text-orange-900/70 dark:text-indigo-200/80 transition-colors duration-700">
+                {isTripInvite
+                  ? mode === "signIn"
+                    ? "Zaloguj się, a automatycznie dołączysz do wspólnego rozliczenia."
+                    : "Utwórz konto, a automatycznie dołączysz do wspólnego rozliczenia."
+                  : mode === "signIn"
+                    ? "Zaloguj się, aby wpisać kod i dołączyć do domu."
+                    : "Utwórz konto, aby wpisać kod i dołączyć do domu."}
+              </p>
+              {isTripInvite && (
+                <p className="mt-2 text-xs font-bold uppercase tracking-[0.14em] text-orange-600 dark:text-indigo-300">
+                  Kod wyjazdu: {tripInviteCode}
+                </p>
+              )}
               <div className="mt-4 flex gap-2">
                 {(["signIn", "signUp"] as AuthMode[]).map((m) => (
                   <button
@@ -206,7 +231,11 @@ export function SignInForm() {
             <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
           ) : (
             <>
-              <span>{SUBMIT_LABEL[mode][intent]}</span>
+              <span>
+                {isTripInvite
+                  ? mode === "signIn" ? "Zaloguj się i dołącz" : "Utwórz konto i dołącz"
+                  : SUBMIT_LABEL[mode][intent]}
+              </span>
               <ArrowRight className="h-4 w-4" />
             </>
           )}

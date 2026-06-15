@@ -9,23 +9,25 @@ import { formatAmount } from "../../lib/format";
 import { InsightsOverviewCard, InsightsScenariosCard } from "./DashboardInsightsPanels";
 import { BudgetAlertsCard } from "./BudgetAlertsCardV2";
 import { IncomeMonitorCard } from "./IncomeMonitorCard";
-import { Home, Receipt, BarChart3, WandSparkles } from "lucide-react";
+import { Receipt, BarChart3, History, WandSparkles } from "lucide-react";
 import { AppCard } from "../ui/AppCard";
 import { TabBar } from "../ui/TabBar";
 import { CatLoader } from "../ui/CatLoader";
+import { ExpensesScreen } from "./ExpensesScreen";
 
 interface Props {
   householdId: Id<"households">;
   currency: string;
+  initialTab?: DashboardTab;
 }
 
-type DashboardTab = "overview" | "simulations";
+export type DashboardTab = "overview" | "simulations" | "history";
 
-export function DashboardScreen({ householdId, currency }: Props) {
+export function DashboardScreen({ householdId, currency, initialTab = "overview" }: Props) {
   const [period, setPeriod] = useState<string>("month");
   const [customFrom, setCustomFrom] = useState<number | null>(null);
   const [customTo, setCustomTo] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
+  const [activeTab, setActiveTab] = useState<DashboardTab>(initialTab);
 
   const { from, to } = useMemo(
     () => getPeriodRange(period, customFrom, customTo),
@@ -55,23 +57,28 @@ export function DashboardScreen({ householdId, currency }: Props) {
   const DASHBOARD_TABS = [
     { key: "overview" as const, label: "Przegląd", icon: BarChart3 },
     { key: "simulations" as const, label: "Symulacje", icon: WandSparkles },
+    { key: "history" as const, label: "Historia", icon: History },
   ];
 
   return (
     <div className="space-y-6">
 
-      <PeriodSelector
-        value={period}
-        onChange={setPeriod}
-        customFrom={customFrom}
-        customTo={customTo}
-        onCustomFrom={setCustomFrom}
-        onCustomTo={setCustomTo}
-      />
-
       <TabBar tabs={DASHBOARD_TABS} value={activeTab} onChange={setActiveTab} />
 
-      {isLoading ? (
+      {activeTab !== "history" && (
+        <PeriodSelector
+          value={period}
+          onChange={setPeriod}
+          customFrom={customFrom}
+          customTo={customTo}
+          onCustomFrom={setCustomFrom}
+          onCustomTo={setCustomTo}
+        />
+      )}
+
+      {activeTab === "history" ? (
+        <ExpensesScreen householdId={householdId} currency={currency} embedded />
+      ) : isLoading ? (
         <CatLoader message="Ładowanie danych..." size="lg" />
       ) : (
         activeTab === "overview" ? (
