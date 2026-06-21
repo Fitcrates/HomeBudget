@@ -4,7 +4,7 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { DynamicIcon } from "../ui/DynamicIcon";
 import { toast } from "sonner";
-import { DollarSign, CloudUpload, FileText, Image as ImageIcon } from "lucide-react";
+import { ChevronDown, DollarSign, CloudUpload, FileText, Image as ImageIcon } from "lucide-react";
 import { FormLabel } from "../ui/FormLabel";
 import { FormInput } from "../ui/FormInput";
 import { ButtonPrimary } from "../ui/ButtonPrimary";
@@ -34,6 +34,7 @@ export function AddExpenseScreen({ householdId, currency, initialTab = "fresh", 
   const [isSubscription, setIsSubscription] = useState(false);
   const [categoryId, setCategoryId] = useState<Id<"categories"> | null>(null);
   const [subcategoryId, setSubcategoryId] = useState<Id<"subcategories"> | null>(null);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [receiptStorageId, setReceiptStorageId] = useState<Id<"_storage"> | null>(null);
@@ -43,6 +44,8 @@ export function AddExpenseScreen({ householdId, currency, initialTab = "fresh", 
   const generateUploadUrl = useMutation(api.expenses.generateUploadUrl);
 
   const selectedCategory = categories?.find((c) => c._id === categoryId);
+  const selectedSubcategory = selectedCategory?.subcategories.find((s: any) => s._id === subcategoryId);
+  const showCategoryHint = Boolean(amount.trim()) && (!categoryId || !subcategoryId);
 
   async function uploadFiles(files: File[]) {
     const uploadedStorageIds: Id<"_storage">[] = [];
@@ -267,88 +270,112 @@ export function AddExpenseScreen({ householdId, currency, initialTab = "fresh", 
                 To jest wydatek stały (subskrypcja, rachunek)
               </span>
             </label>
-          </AppCard>
 
-          {/* Categories Accordion */}
-          <AppCard className="space-y-3">
-            <FormLabel>Kategoria i Podkategoria</FormLabel>
-            {categories === undefined ? (
-              <Spinner className="py-6" />
-            ) : (
-              <div className="flex flex-col gap-2.5">
-                {categories.map((cat) => {
-                  const isOpen = categoryId === cat._id;
-                  return (
-                    <div
-                      key={cat._id}
-                      className={`transition-all duration-700 rounded-[16px] border overflow-hidden ${isOpen
-                          ? "bg-white/80 dark:bg-white/10 border-orange-400/30 dark:border-indigo-500/30 shadow-sm"
-                          : "bg-white/40 dark:bg-white/5 border-white/60 dark:border-white/10 hover:bg-white/60 dark:hover:bg-white/10"
-                        }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCategoryId(isOpen ? null : cat._id);
-                          setSubcategoryId(null); // Reset subcategory when toggling main
-                        }}
-                        className="w-full flex items-center justify-between p-3.5 outline-none"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-[16px] transition-colors duration-700 ${isOpen ? "bg-orange-100 dark:bg-indigo-500/20 text-orange-600 dark:text-indigo-400" : "text-orange-900/60 dark:text-white/50"}`}>
-                            <DynamicIcon name={cat.icon} className="w-5 h-5 drop-shadow-sm" />
-                          </div>
-                          <span className={`text-[14px] font-bold transition-colors duration-700 ${isOpen ? "text-orange-950 dark:text-white" : "text-orange-900 dark:text-white/80"}`}>
-                            {cat.name}
-                          </span>
-                        </div>
-                        <svg
-                          className={`w-5 h-5 transition-transform duration-300 ${isOpen ? "rotate-180 text-orange-600 dark:text-indigo-400" : "text-orange-900/40 dark:text-white/40"}`}
-                          fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
+            <div className="space-y-2 pt-1">
+              {showCategoryHint && (
+                <div className="relative inline-flex rounded-xl bg-orange-600 px-3 py-2 text-xs font-bold text-white shadow-lg dark:bg-indigo-500">
+                  Wybierz kategorię:
+                  <span className="absolute -bottom-1 left-5 h-2 w-2 rotate-45 bg-orange-600 dark:bg-indigo-500" />
+                </div>
+              )}
 
-                      {isOpen && (
-                        <div className="px-3 pb-3 pt-1 grid grid-cols-3 gap-2 animate-in fade-in slide-in-from-top-2">
-                          {cat.subcategories.map((sub) => (
-                            <button
-                              key={sub._id}
-                              type="button"
-                              onClick={() => setSubcategoryId(sub._id)}
-                              className={`p-2.5 rounded-[12px] flex flex-col items-center gap-1.5 transition-all duration-300 outline-none ${subcategoryId === sub._id
-                                  ? "border border-orange-400 dark:border-indigo-500 bg-orange-100/50 dark:bg-indigo-500/20 shadow-inner scale-[1.02]"
-                                  : "hover:bg-orange-50/50 dark:hover:bg-white/5 shadow-sm"
+              <div className="overflow-hidden rounded-[16px] border border-orange-200/60 bg-white/50 shadow-sm transition-colors duration-700 dark:border-white/10 dark:bg-white/5">
+                <button
+                  type="button"
+                  onClick={() => setCategoriesOpen((open) => !open)}
+                  className="flex w-full items-center justify-between gap-3 p-3.5 text-left outline-none"
+                >
+                  <div className="min-w-0">
+                    <FormLabel className="mb-1">Kategoria</FormLabel>
+                    <p className={`truncate text-sm font-bold transition-colors duration-700 ${selectedCategory ? "text-orange-950 dark:text-white" : "text-orange-900/55 dark:text-white/45"}`}>
+                      {selectedCategory
+                        ? `${selectedCategory.name}${selectedSubcategory ? ` / ${selectedSubcategory.name}` : ""}`
+                        : "Wybierz kategorię i podkategorię"}
+                    </p>
+                  </div>
+                  <ChevronDown className={`h-5 w-5 shrink-0 text-orange-700 transition-transform duration-300 dark:text-indigo-300 ${categoriesOpen ? "rotate-180" : ""}`} />
+                </button>
+
+                {categoriesOpen && (
+                  <div className="border-t border-orange-200/60 p-3 dark:border-white/10">
+                    {categories === undefined ? (
+                      <Spinner className="py-6" />
+                    ) : (
+                      <div className="flex flex-col gap-2.5">
+                        {categories.map((cat) => {
+                          const isOpen = categoryId === cat._id;
+                          return (
+                            <div
+                              key={cat._id}
+                              className={`overflow-hidden rounded-[16px] border transition-all duration-700 ${isOpen
+                                ? "border-orange-400/30 bg-white/80 shadow-sm dark:border-indigo-500/30 dark:bg-white/10"
+                                : "border-white/60 bg-white/40 hover:bg-white/60 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                                 }`}
                             >
-                              <DynamicIcon name={sub.icon} className={`w-6 h-6 opacity-90 drop-shadow-sm transition-colors duration-700 ${subcategoryId === sub._id ? "text-orange-600 dark:text-indigo-400" : "text-orange-500 dark:text-white/80"}`} />
-                              <div className={`text-[10px] font-bold leading-tight text-center line-clamp-2 transition-colors duration-700 ${subcategoryId === sub._id ? "text-orange-900 dark:text-indigo-200" : "text-orange-900/60 dark:text-white/60"
-                                }`}>
-                                {sub.name}
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCategoryId(isOpen ? null : cat._id);
+                                  setSubcategoryId(null);
+                                }}
+                                className="flex w-full items-center justify-between p-3.5 outline-none"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className={`rounded-[16px] p-2 transition-colors duration-700 ${isOpen ? "bg-orange-100 text-orange-600 dark:bg-indigo-500/20 dark:text-indigo-400" : "text-orange-900/60 dark:text-white/50"}`}>
+                                    <DynamicIcon name={cat.icon} className="h-5 w-5 drop-shadow-sm" />
+                                  </div>
+                                  <span className={`text-[14px] font-bold transition-colors duration-700 ${isOpen ? "text-orange-950 dark:text-white" : "text-orange-900 dark:text-white/80"}`}>
+                                    {cat.name}
+                                  </span>
+                                </div>
+                                <ChevronDown className={`h-4 w-4 text-orange-900/40 transition-transform duration-300 dark:text-white/40 ${isOpen ? "rotate-180" : ""}`} />
+                              </button>
+
+                              {isOpen && (
+                                <div className="grid grid-cols-3 gap-2 px-3 pb-3 pt-1 animate-in fade-in slide-in-from-top-2">
+                                  {cat.subcategories.map((sub) => (
+                                    <button
+                                      key={sub._id}
+                                      type="button"
+                                      onClick={() => {
+                                        setSubcategoryId(sub._id);
+                                        setCategoriesOpen(false);
+                                      }}
+                                      className={`flex min-h-[76px] flex-col items-center gap-1.5 rounded-[12px] p-2.5 outline-none transition-all duration-300 ${subcategoryId === sub._id
+                                        ? "scale-[1.02] border border-orange-400 bg-orange-100/50 shadow-inner dark:border-indigo-500 dark:bg-indigo-500/20"
+                                        : "shadow-sm hover:bg-orange-50/50 dark:hover:bg-white/5"
+                                        }`}
+                                    >
+                                      <DynamicIcon name={sub.icon} className={`h-6 w-6 opacity-90 drop-shadow-sm transition-colors duration-700 ${subcategoryId === sub._id ? "text-orange-600 dark:text-indigo-400" : "text-orange-500 dark:text-white/80"}`} />
+                                      <div className={`line-clamp-2 text-center text-[10px] font-bold leading-tight transition-colors duration-700 ${subcategoryId === sub._id ? "text-orange-900 dark:text-indigo-200" : "text-orange-900/60 dark:text-white/60"}`}>
+                                        {sub.name}
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
+
+              <ButtonPrimary
+                type="submit"
+                loading={saving}
+                disabled={!categoryId || !subcategoryId || !amount}
+                size="lg"
+                className="mt-3"
+              >
+                {saving ? "Zapisywanie..." : "Dodaj wydatek"}
+              </ButtonPrimary>
+            </div>
           </AppCard>
 
           {/* End of Form */}
-
-          <ButtonPrimary
-            type="submit"
-            loading={saving}
-            disabled={!categoryId || !subcategoryId || !amount}
-            size="lg"
-            className="mt-4"
-          >
-            {saving ? "Zapisywanie..." : "Dodaj wydatek"}
-          </ButtonPrimary>
         </form>
       ) : (
         <EmailInboxScreen

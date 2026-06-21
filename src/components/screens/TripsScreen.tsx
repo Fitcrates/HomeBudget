@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { CalendarDays, Check, ChevronLeft, Copy, Mail, Plane, Plus, Receipt, Share2, Trash2, UserPlus, Users } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, CloudUpload, Copy, FileText, Image as ImageIcon, Mail, Plane, Plus, Receipt, Share2, Trash2, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -11,11 +11,13 @@ import { ButtonSecondary } from "../ui/ButtonSecondary";
 import { FormInput } from "../ui/FormInput";
 import { ScreenHeader } from "../ui/ScreenHeader";
 import { Spinner } from "../ui/Spinner";
+import { prepareOcrUploads } from "../../lib/ocrUpload";
 
 interface Props {
   householdId?: Id<"households">;
   householdCurrency: string;
   initialTripId?: Id<"trips">;
+  onOcrCapture?: (storageIds: Id<"_storage">[], mimeTypes?: string[], target?: { type: "trip"; tripId: Id<"trips">; tripName?: string }) => void;
 }
 
 function tripInviteUrl(inviteCode: string) {
@@ -30,7 +32,7 @@ function memberName(members: any[], memberId: string) {
   return members.find((member) => String(member._id) === String(memberId))?.displayName ?? "Uczestnik";
 }
 
-export function TripsScreen({ householdId, householdCurrency, initialTripId }: Props) {
+export function TripsScreen({ householdId, householdCurrency, initialTripId, onOcrCapture }: Props) {
   const trips = useQuery(api.trips.listMine) as any[] | undefined;
   const categories = useQuery(
     api.categories.listForHousehold,
@@ -81,6 +83,7 @@ export function TripsScreen({ householdId, householdCurrency, initialTripId }: P
         tripId={selectedTripId}
         householdId={householdId}
         categories={categories}
+        onOcrCapture={onOcrCapture}
         onBack={() => setSelectedTripId(null)}
       />
     );
@@ -162,11 +165,13 @@ function TripDetails({
   tripId,
   householdId,
   categories,
+  onOcrCapture,
   onBack,
 }: {
   tripId: Id<"trips">;
   householdId?: Id<"households">;
   categories: any[] | undefined;
+  onOcrCapture?: (storageIds: Id<"_storage">[], mimeTypes?: string[], target?: { type: "trip"; tripId: Id<"trips">; tripName?: string }) => void;
   onBack: () => void;
 }) {
   const details = useQuery(api.trips.getDetails, { tripId }) as any | undefined;
@@ -174,6 +179,7 @@ function TripDetails({
   const createExpense = useMutation(api.trips.createExpense);
   const removeExpense = useMutation(api.trips.removeExpense);
   const exportMyShare = useMutation(api.trips.exportMyShare);
+  const generateUploadUrl = useMutation(api.expenses.generateUploadUrl);
   const [guestName, setGuestName] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
   const [description, setDescription] = useState("");
@@ -184,6 +190,7 @@ function TripDetails({
   const [categoryId, setCategoryId] = useState("");
   const [subcategoryId, setSubcategoryId] = useState("");
   const [busy, setBusy] = useState(false);
+  const [ocrUploading, setOcrUploading] = useState(false);
 
   const memberIdsKey = details?.members.map((member: any) => String(member._id)).join("|") ?? "";
   useEffect(() => {
@@ -244,6 +251,48 @@ function TripDetails({
       toast.error(error.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleTripOcrFiles(event: React.ChangeEvent<HTMLInputElement>) {
+    const rawFiles = Array.from(event.target.files ?? []);
+    const files = rawFiles.slice(0, 3);
+    if (files.length === 0) return;
+
+    if (rawFiles.length > 3) {
+      toast.warning("Maksymalnie 3 zdjęcia lub strony na jedno skanowanie. Użyto pierwszych 3.");
+    }
+    if (!householdId || !onOcrCapture) {
+      toast.error("OCR wyjazdu wymaga aktywnego domostwa.");
+      return;
+    }
+
+    setOcrUploading(true);
+    try {
+      const preparedUploads = (await prepareOcrUploads(files)).slice(0, 3);
+      const storageIds: Id<"_storage">[] = [];
+
+      for (const item of preparedUploads) {
+        const uploadUrl = await generateUploadUrl();
+        const res = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": item.type },
+          body: item.blob,
+        });
+        const { storageId } = await res.json();
+        storageIds.push(storageId as Id<"_storage">);
+      }
+
+      onOcrCapture(storageIds, preparedUploads.map((item) => item.type), {
+        type: "trip",
+        tripId,
+        tripName: trip.name,
+      });
+    } catch (error: any) {
+      toast.error(error?.message || "Błąd przesyłania paragonu.");
+    } finally {
+      setOcrUploading(false);
+      event.target.value = "";
     }
   }
 
@@ -348,6 +397,56 @@ function TripDetails({
           </button>
         </div>
       </AppCard>
+
+      {householdId && onOcrCapture && (
+        <AppCard padding="md" className="space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 p-2 text-white shadow-sm dark:from-indigo-500 dark:to-violet-600">
+              <CloudUpload className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-orange-950 dark:text-white">Zeskanuj rachunek do wyjazdu</h3>
+              <p className="text-[11px] font-bold text-orange-900/55 dark:text-white/45">
+                OCR rozpozna pozycje i dopisze je do wspólnego rachunku.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex min-h-[96px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-emerald-500/40 bg-emerald-50/60 px-2 py-4 text-emerald-700 transition hover:border-emerald-500 hover:bg-emerald-100/60 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20">
+              <ImageIcon className="h-6 w-6" />
+              <span className="text-xs font-bold">{ocrUploading ? "Przesyłanie..." : "Skanuj aparatem"}</span>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                multiple
+                className="hidden"
+                onChange={handleTripOcrFiles}
+                disabled={ocrUploading}
+              />
+            </label>
+
+            <label className="flex min-h-[96px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-orange-300 bg-white/60 px-2 py-4 text-orange-800 transition hover:border-orange-500 hover:bg-white dark:border-indigo-500/40 dark:bg-white/5 dark:text-white/70 dark:hover:bg-white/10">
+              <FileText className="h-6 w-6" />
+              <span className="text-xs font-bold">{ocrUploading ? "Przesyłanie..." : "Plik / PDF"}</span>
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                multiple
+                className="hidden"
+                onChange={handleTripOcrFiles}
+                disabled={ocrUploading}
+              />
+            </label>
+          </div>
+          {ocrUploading && (
+            <div className="flex items-center justify-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-bold text-orange-700 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              Przygotowanie OCR...
+            </div>
+          )}
+        </AppCard>
+      )}
 
       <AppCard padding="md" className="space-y-3">
         <div className="flex items-center gap-2">

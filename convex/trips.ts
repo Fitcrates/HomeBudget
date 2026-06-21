@@ -113,6 +113,27 @@ function calculateLedger(members: any[], expenses: any[]) {
   return { balances, settlements };
 }
 
+async function assertTripExpenseMembers(
+  ctx: any,
+  tripId: Id<"trips">,
+  paidByMemberId: Id<"trip_members">,
+  participantIds: Id<"trip_members">[]
+) {
+  const uniqueParticipantIds = Array.from(new Set(participantIds.map(String))) as unknown as Id<"trip_members">[];
+  if (uniqueParticipantIds.length === 0) throw new Error("Wybierz co najmniej jednego uczestnika.");
+
+  const memberIds = Array.from(new Set([String(paidByMemberId), ...uniqueParticipantIds.map(String)]));
+  const members = (await Promise.all(
+    memberIds.map((memberId) => ctx.db.get(memberId as Id<"trip_members">))
+  )) as Array<{ tripId: Id<"trips">; status: "active" | "invited" } | null>;
+
+  if (members.some((member) => !member || String(member.tripId) !== String(tripId) || member.status !== "active")) {
+    throw new Error("Uczestnik nie należy do tego wyjazdu.");
+  }
+
+  return uniqueParticipantIds;
+}
+
 export const listMine = query({
   args: {},
   handler: async (ctx) => {
@@ -320,6 +341,57 @@ export const createExpense = mutation({
       description: args.description.trim(),
       createdAt: Date.now(),
     });
+  },
+});
+
+export const createExpensesFromOcr = mutation({
+  args: {
+    tripId: v.id("trips"),
+    paidByMemberId: v.id("trip_members"),
+    participantIds: v.array(v.id("trip_members")),
+    items: v.array(v.object({
+      amount: v.number(),
+      date: v.number(),
+      description: v.string(),
+      receiptImageId: v.optional(v.id("_storage")),
+      ocrRawText: v.optional(v.string()),
+    })),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    await assertTripMember(ctx, args.tripId, userId);
+    const trip = await ctx.db.get(args.tripId);
+    if (!trip || trip.status !== "active") throw new Error("Ten wyjazd jest zamknięty.");
+    if (args.items.length === 0) return { insertedIds: [], insertedCount: 0 };
+
+    const participantIds = await assertTripExpenseMembers(ctx, args.tripId, args.paidByMemberId, args.participantIds);
+    const now = Date.now();
+    const insertedIds: Id<"trip_expenses">[] = [];
+
+    for (const item of args.items) {
+      if (!Number.isInteger(item.amount) || item.amount === 0) {
+        throw new Error("Każda pozycja OCR musi mieć kwotę inną niż zero.");
+      }
+      const description = item.description.trim();
+      if (!description) throw new Error("Każda pozycja OCR musi mieć opis.");
+
+      const insertedId = await ctx.db.insert("trip_expenses", {
+        tripId: args.tripId,
+        createdByUserId: userId,
+        paidByMemberId: args.paidByMemberId,
+        participantIds,
+        amount: item.amount,
+        date: item.date,
+        description,
+        receiptImageId: item.receiptImageId,
+        ocrRawText: item.ocrRawText,
+        createdAt: now,
+      });
+      insertedIds.push(insertedId);
+    }
+
+    return { insertedIds, insertedCount: insertedIds.length };
   },
 });
 

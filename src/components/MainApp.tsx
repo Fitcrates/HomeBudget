@@ -17,6 +17,10 @@ import { applyAppTheme, getInitialDarkMode } from "../lib/theme";
 
 type Screen = "dashboard" | "trips" | "add" | "household" | "ocr" | "reviewQueue" | "goals" | "chat";
 
+type OcrTarget =
+  | { type: "expense" }
+  | { type: "trip"; tripId: Id<"trips">; tripName?: string };
+
 interface Household {
   _id: Id<"households">;
   name: string;
@@ -39,6 +43,8 @@ export function MainApp({ household, households, onSwitchHousehold, initialScree
   const [dashboardInitialTab, setDashboardInitialTab] = useState<DashboardTab>("overview");
   const [ocrStorageIds, setOcrStorageIds] = useState<Id<"_storage">[]>([]);
   const [ocrMimeTypes, setOcrMimeTypes] = useState<string[]>([]);
+  const [ocrTarget, setOcrTarget] = useState<OcrTarget>({ type: "expense" });
+  const [selectedTripAfterOcr, setSelectedTripAfterOcr] = useState<Id<"trips"> | undefined>(initialTripId);
   const syncDefaultCatalog = useMutation(api.categories.syncDefaultCatalog);
 
   const [isDark, setIsDark] = useState(getInitialDarkMode);
@@ -54,9 +60,10 @@ export function MainApp({ household, households, onSwitchHousehold, initialScree
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [household._id]);
 
-  function handleOcrCapture(storageIds: Id<"_storage">[], mimeTypes: string[] = []) {
+  function handleOcrCapture(storageIds: Id<"_storage">[], mimeTypes: string[] = [], target: OcrTarget = { type: "expense" }) {
     setOcrStorageIds(storageIds);
     setOcrMimeTypes(mimeTypes);
+    setOcrTarget(target);
     setScreen("ocr");
   }
 
@@ -114,7 +121,8 @@ export function MainApp({ household, households, onSwitchHousehold, initialScree
               <TripsScreen
                 householdId={household._id}
                 householdCurrency={household.currency}
-                initialTripId={initialTripId}
+                initialTripId={selectedTripAfterOcr ?? initialTripId}
+                onOcrCapture={handleOcrCapture}
               />
             )}
             {screen === "add" && (
@@ -141,7 +149,13 @@ export function MainApp({ household, households, onSwitchHousehold, initialScree
                 storageIds={ocrStorageIds}
                 mimeTypes={ocrMimeTypes}
                 householdId={household._id}
+                tripTarget={ocrTarget.type === "trip" ? ocrTarget : undefined}
                 onDone={() => {
+                  if (ocrTarget.type === "trip") {
+                    setSelectedTripAfterOcr(ocrTarget.tripId);
+                    setScreen("trips");
+                    return;
+                  }
                   setDashboardInitialTab("history");
                   setScreen("dashboard");
                 }}

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -17,6 +17,7 @@ import {
   Save,
   Search,
   Sparkles,
+  Users,
   X,
 } from "lucide-react";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
@@ -40,6 +41,11 @@ interface Props {
   storageIds: Id<"_storage">[];
   mimeTypes?: string[];
   householdId: Id<"households">;
+  tripTarget?: {
+    type: "trip";
+    tripId: Id<"trips">;
+    tripName?: string;
+  };
   onDone: () => void;
   onOpenReviewQueue?: () => void;
   onAddMoreImages?: (ids: Id<"_storage">[]) => void;
@@ -198,7 +204,7 @@ const STAGE_LABELS: Record<ProcessingStage, string> = {
   done: "Gotowe!",
 };
 
-export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenReviewQueue }: Props) {
+export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDone, onOpenReviewQueue }: Props) {
   const [processing, setProcessing] = useState(false);
   const [processingStage, setProcessingStage] = useState<ProcessingStage>("idle");
   const [queuedNotice, setQueuedNotice] = useState<string | null>(null);
@@ -218,16 +224,33 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
   const [currentMimeTypes, setCurrentMimeTypes] = useState<string[]>(mimeTypes || []);
   const [pendingRemoveItemId, setPendingRemoveItemId] = useState<string | null>(null);
   const [openBulkMenuId, setOpenBulkMenuId] = useState<string | null>(null);
+  const [tripPaidByMemberId, setTripPaidByMemberId] = useState("");
+  const [tripParticipantIds, setTripParticipantIds] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processAI = useAction(api.ocr.processReceiptFastOrQueue);
+  const processAIDirect = useAction(api.ocr.processReceiptWithAI);
   const discardReceiptUploads = useAction(api.ocr.discardReceiptUploads);
   const getFileUrl = useAction(api.ocr.getFileUrl);
   const categories = useQuery(api.categories.listForHousehold, { householdId });
+  const tripDetails = useQuery(
+    api.trips.getDetails,
+    tripTarget ? { tripId: tripTarget.tripId } : "skip"
+  ) as any | undefined;
   const createExpensesMany = useMutation(api.expenses.createMany);
+  const createTripExpensesFromOcr = useMutation(api.trips.createExpensesFromOcr);
   const generateUploadUrl = useMutation(api.expenses.generateUploadUrl);
   const upsertMappingsBatch = useMutation(api.productMappings.upsertMappingsBatch);
   const hasSavedRef = useRef(false);
+  const isTripTarget = tripTarget?.type === "trip";
+
+  useEffect(() => {
+    if (!tripDetails) return;
+    setTripPaidByMemberId((current) => current || String(tripDetails.myMemberId));
+    setTripParticipantIds((current) =>
+      current.length > 0 ? current : tripDetails.members.map((member: any) => String(member._id))
+    );
+  }, [tripDetails]);
 
   const hasPdf = currentMimeTypes.some((t) => t === PDF_MIME) ||
     previewTypes.some((t) => t === PDF_MIME);
@@ -409,14 +432,23 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
       }
 
       setProcessingStage("ai");
-      const response = (await processAI({
-        storageIds: currentStorageIds,
-        mimeTypes: currentMimeTypes,
-        householdId,
-        isPdf: false,
-      })) as
-        | { status: "ready"; result: ProcessReceiptResult }
-        | { status: "queued"; pendingId: string; message: string };
+      const response = isTripTarget
+        ? ({
+            status: "ready" as const,
+            result: await processAIDirect({
+              storageIds: currentStorageIds,
+              householdId,
+              isPdf: false,
+            }) as ProcessReceiptResult,
+          })
+        : (await processAI({
+            storageIds: currentStorageIds,
+            mimeTypes: currentMimeTypes,
+            householdId,
+            isPdf: false,
+          })) as
+            | { status: "ready"; result: ProcessReceiptResult }
+            | { status: "queued"; pendingId: string; message: string };
 
       if (response.status === "queued") {
         hasSavedRef.current = true;
@@ -471,14 +503,19 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
         toast.error(`Pozycja ${pos} ("${item.description}"): uzupełnij kwotę inną niż 0.`);
         return;
       }
-      if (!item.categoryId) {
+      if (!isTripTarget && !item.categoryId) {
         toast.error(`Pozycja ${pos} ("${item.description}"): wybierz kategorię.`);
         return;
       }
-      if (!item.subcategoryId) {
+      if (!isTripTarget && !item.subcategoryId) {
         toast.error(`Pozycja ${pos} ("${item.description}"): wybierz podkategorię.`);
         return;
       }
+    }
+
+    if (isTripTarget && (!tripTarget || !tripDetails || !tripPaidByMemberId || tripParticipantIds.length === 0)) {
+      toast.error("Wybierz osobę płacącą i uczestników podziału.");
+      return;
     }
 
     setSaving(true);
@@ -492,9 +529,16 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
 
       let currentReceiptIndex: number | null = null;
 
-      const payloadItems: Array<{
+      const expenseItems: Array<{
         categoryId: Id<"categories">;
         subcategoryId: Id<"subcategories">;
+        amount: number;
+        date: number;
+        description: string;
+        receiptImageId?: Id<"_storage">;
+        ocrRawText?: string;
+      }> = [];
+      const tripItems: Array<{
         amount: number;
         date: number;
         description: string;
@@ -515,23 +559,40 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
         const receiptImageId = currentStorageIds[sourceIdx] || currentStorageIds[0];
         const amountNum = parseFloat(item.amount.replace(",", "."));
 
-        payloadItems.push({
-          categoryId: item.categoryId!,
-          subcategoryId: item.subcategoryId!,
+        const payloadItem = {
           amount: Math.round(amountNum * 100),
           date: new Date(date).getTime(),
           description: item.description,
           receiptImageId,
           ocrRawText: rawText,
-        });
+        };
+
+        if (isTripTarget) {
+          tripItems.push(payloadItem);
+        } else {
+          expenseItems.push({
+            ...payloadItem,
+            categoryId: item.categoryId!,
+            subcategoryId: item.subcategoryId!,
+          });
+        }
 
         successCount++;
       }
 
-      await createExpensesMany({
-        householdId,
-        items: payloadItems,
-      });
+      if (isTripTarget && tripTarget) {
+        await createTripExpensesFromOcr({
+          tripId: tripTarget.tripId,
+          paidByMemberId: tripPaidByMemberId as Id<"trip_members">,
+          participantIds: tripParticipantIds as Id<"trip_members">[],
+          items: tripItems,
+        });
+      } else {
+        await createExpensesMany({
+          householdId,
+          items: expenseItems,
+        });
+      }
 
       const correctedMappingItems = sortedItems.filter((item) =>
         Boolean(item.originalRawDescription) &&
@@ -544,22 +605,28 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
         )
       );
 
-      await upsertMappingsBatch({
-        householdId,
-        items: correctedMappingItems
-          .map((item) => ({
-            rawDescription: item.originalRawDescription!,
-            correctedDescription: item.description,
-            categoryId: item.categoryId!,
-            subcategoryId: item.subcategoryId!,
-          })),
-      });
+      if (!isTripTarget) {
+        await upsertMappingsBatch({
+          householdId,
+          items: correctedMappingItems
+            .map((item) => ({
+              rawDescription: item.originalRawDescription!,
+              correctedDescription: item.description,
+              categoryId: item.categoryId!,
+              subcategoryId: item.subcategoryId!,
+            })),
+        });
+      }
 
       hasSavedRef.current = true;
       const receiptLabel = processedReceipts > 1
         ? `${processedReceipts} paragonów`
         : "paragonu";
-      toast.success(`Zapisano pomyślnie ${successCount} wydatków z ${receiptLabel}!`);
+      if (isTripTarget) {
+        toast.success(`Dopisano ${successCount} pozycji z ${receiptLabel} do wyjazdu.`);
+      } else {
+        toast.success(`Zapisano pomyślnie ${successCount} wydatków z ${receiptLabel}!`);
+      }
       onDone();
     } catch (err: any) {
       toast.error(err.message);
@@ -614,6 +681,12 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
     setItems(items ? items.filter((i) => i.id !== id) : null);
   }
 
+  function toggleTripParticipant(memberId: string) {
+    setTripParticipantIds((current) =>
+      current.includes(memberId) ? current.filter((id) => id !== memberId) : [...current, memberId]
+    );
+  }
+
   const itemCount = items?.length ?? 0;
   const uncertainItemsCount = items?.filter((item) => isAmountUncertain(item.amount)).length ?? 0;
   const mappedItemsCount = items?.filter((item) => item.fromMapping).length ?? 0;
@@ -641,8 +714,12 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
     <div className="space-y-6 pb-4">
       <ScreenHeader
         icon={<ScannerIcon className="w-8 h-8 text-orange-600 dark:text-indigo-400 transition-colors duration-700" />}
-        title="Skaner Paragonów"
-        subtitle="Jeden prosty flow: dodaj plik, uruchom OCR i popraw wynik przed zapisem."
+        title={isTripTarget ? "Skaner rachunku wyjazdu" : "Skaner Paragonów"}
+        subtitle={
+          isTripTarget
+            ? `Dopisz pozycje z paragonu do wyjazdu${tripTarget?.tripName ? `: ${tripTarget.tripName}` : ""}.`
+            : "Jeden prosty flow: dodaj plik, uruchom OCR i popraw wynik przed zapisem."
+        }
         onBack={handleDiscardAndDone}
       />
 
@@ -908,6 +985,57 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
                   </ButtonSecondary>
                 </div>
               </div>
+
+              {isTripTarget && (
+                <div className="rounded-2xl border border-orange-200/60 bg-orange-50/80 p-3 dark:border-white/10 dark:bg-white/5">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Users className="h-4 w-4 text-orange-600 dark:text-indigo-400" />
+                    <p className="text-sm font-bold text-orange-950 dark:text-white">Dopisz do rachunku wyjazdu</p>
+                  </div>
+                  {!tripDetails ? (
+                    <Spinner className="py-3" size="sm" />
+                  ) : (
+                    <div className="space-y-3">
+                      <div>
+                        <FormLabel className="mb-1">Zapłacił(a)</FormLabel>
+                        <FormSelect
+                          selectSize="sm"
+                          value={tripPaidByMemberId}
+                          onChange={(event) => setTripPaidByMemberId(event.target.value)}
+                        >
+                          {tripDetails.members.map((member: any) => (
+                            <option key={member._id} value={member._id}>
+                              {member.displayName}
+                            </option>
+                          ))}
+                        </FormSelect>
+                      </div>
+                      <div>
+                        <FormLabel className="mb-2">Podziel pomiędzy</FormLabel>
+                        <div className="flex flex-wrap gap-2">
+                          {tripDetails.members.map((member: any) => {
+                            const selected = tripParticipantIds.includes(String(member._id));
+                            return (
+                              <button
+                                key={member._id}
+                                type="button"
+                                onClick={() => toggleTripParticipant(String(member._id))}
+                                className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+                                  selected
+                                    ? "bg-orange-500 text-white dark:bg-indigo-500"
+                                    : "bg-white/70 text-orange-800 dark:bg-white/5 dark:text-white/55"
+                                }`}
+                              >
+                                {member.displayName}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {expectedComparison && (
@@ -951,7 +1079,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
                       </div>
 
                       <div className="relative z-20 flex shrink-0 items-center gap-2">
-                        {items.length > 1 && (
+                        {!isTripTarget && items.length > 1 && (
                           <div className="relative">
                             <button
                               type="button"
@@ -1052,53 +1180,55 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
                       </p>
                     )}
 
-                    <div className="mt-3 grid grid-cols-1 gap-2">
-                      <div>
-                        <FormLabel className="mb-1">Kategoria</FormLabel>
-                        <FormSelect
-                          selectSize="sm"
-                          value={item.categoryId || ""}
-                          onChange={(e) =>
-                            updateItem(item.id, {
-                              categoryId: e.target.value as Id<"categories">,
-                              subcategoryId: null,
-                            })
-                          }
-                        >
-                          <option value="" disabled>
-                            Wybierz kategorię
-                          </option>
-                          {categories?.map((c) => (
-                            <option key={c._id} value={c._id}>
-                              {c.name}
+                    {!isTripTarget && (
+                      <div className="mt-3 grid grid-cols-1 gap-2">
+                        <div>
+                          <FormLabel className="mb-1">Kategoria</FormLabel>
+                          <FormSelect
+                            selectSize="sm"
+                            value={item.categoryId || ""}
+                            onChange={(e) =>
+                              updateItem(item.id, {
+                                categoryId: e.target.value as Id<"categories">,
+                                subcategoryId: null,
+                              })
+                            }
+                          >
+                            <option value="" disabled>
+                              Wybierz kategorię
                             </option>
-                          ))}
-                        </FormSelect>
-                      </div>
+                            {categories?.map((c) => (
+                              <option key={c._id} value={c._id}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </FormSelect>
+                        </div>
 
-                      <div>
-                        <FormLabel className="mb-1">Podkategoria</FormLabel>
-                        <FormSelect
-                          selectSize="sm"
-                          value={item.subcategoryId || ""}
-                          onChange={(e) =>
-                            updateItem(item.id, {
-                              subcategoryId: e.target.value as Id<"subcategories">,
-                            })
-                          }
-                          disabled={!item.categoryId}
-                        >
-                          <option value="" disabled>
-                            Wybierz podkategorię
-                          </option>
-                          {selectedCat?.subcategories.map((s: any) => (
-                            <option key={s._id} value={s._id}>
-                              {s.name}
+                        <div>
+                          <FormLabel className="mb-1">Podkategoria</FormLabel>
+                          <FormSelect
+                            selectSize="sm"
+                            value={item.subcategoryId || ""}
+                            onChange={(e) =>
+                              updateItem(item.id, {
+                                subcategoryId: e.target.value as Id<"subcategories">,
+                              })
+                            }
+                            disabled={!item.categoryId}
+                          >
+                            <option value="" disabled>
+                              Wybierz podkategorię
                             </option>
-                          ))}
-                        </FormSelect>
+                            {selectedCat?.subcategories.map((s: any) => (
+                              <option key={s._id} value={s._id}>
+                                {s.name}
+                              </option>
+                            ))}
+                          </FormSelect>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}
@@ -1208,7 +1338,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, onDone, onOpenRe
             icon={<Save className="h-4 w-4" />}
             className="mt-2"
           >
-            {saving ? "Poczekaj..." : `Zapisz ${items.length} wydatków`}
+            {saving ? "Poczekaj..." : isTripTarget ? `Dopisz ${items.length} pozycji do wyjazdu` : `Zapisz ${items.length} wydatków`}
           </ButtonPrimary>
         </div>
       )}

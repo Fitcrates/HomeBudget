@@ -76,6 +76,8 @@ const applicationTables = {
     amount: v.number(),
     date: v.number(),
     description: v.string(),
+    receiptImageId: v.optional(v.id("_storage")),
+    ocrRawText: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_trip", ["tripId"])
