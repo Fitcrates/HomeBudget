@@ -15,7 +15,7 @@
     "@lottiefiles/dotlottie-react": "^0.18.9",
     "@node-rs/bcrypt": "^1.10.7",
     "clsx": "^2.1.1",
-    "convex": "^1.31.2",
+    "convex": "^1.44.0",
     "groq-sdk": "^1.1.2",
     "lucide-react": "^1.7.0",
     "openai": "^6.32.0",
