@@ -956,7 +956,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDo
             <div className="mb-6 flex flex-col gap-4">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <FormLabel>Krok 2</FormLabel>
+                  <FormLabel>Krok 3</FormLabel>
                   <h3 className="mt-1 text-lg font-semibold text-orange-950 dark:text-white transition-colors duration-700">
                     Sprawdź wynik OCR ({items.length} pozycji)
                   </h3>

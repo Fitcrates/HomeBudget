@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { createContext, useContext, useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -16,18 +16,39 @@ type ChatTab = "chat" | "shopping";
 export function ChatScreen({ householdId }: Props) {
   const [tab, setTab] = useState<ChatTab>("chat");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Owned here, not in ChatMainView: the sidebar is a sibling of the main view,
+  // so keeping the selection lower down made switching sessions impossible.
+  const [activeSessionId, setActiveSessionId] = useState<Id<"chat_sessions"> | null>(null);
 
   const shoppingList = useQuery(api.shopping.listForHousehold, { householdId }) ?? [];
   const unboughtCount = shoppingList.filter(i => !i.isBought).length;
 
+  const selectSession = useCallback((sessionId: Id<"chat_sessions">) => {
+    setActiveSessionId(sessionId);
+    setSidebarOpen(false); // on mobile the drawer covers the chat
+  }, []);
+
   return (
-    <div className="flex h-[calc(100vh-80px)] w-full overflow-hidden rounded-[16px] bg-gradient-to-br from-[#fef8f0] to-[#f9ede0] dark:from-[#0a0a0a] dark:to-[#111] transition-colors duration-700">
+    // h-full, not 100vh: this sits inside MainApp's <main>, which already has a
+    // definite height. 100vh is the *largest* mobile viewport, so the composer
+    // ended up below the fold whenever the URL bar was showing.
+    <div className="relative flex h-full min-h-0 w-full overflow-hidden rounded-[16px] bg-gradient-to-br from-[#fef8f0] to-[#f9ede0] dark:from-[#0a0a0a] dark:to-[#111] transition-colors duration-700">
+      {/* Scrim — the drawer overlays the chat on narrow screens */}
+      {sidebarOpen && (
+        <div
+          className="absolute inset-0 z-20 bg-black/40 backdrop-blur-[1px] sm:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden
+        />
+      )}
+
       {/* SIDEBAR - Historia czatów / Lista zakupów */}
       <div
-        className={`flex-shrink-0 border-r border-orange-200 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur-sm transition-all duration-300 ${sidebarOpen ? 'w-72' : 'w-0'
-          } overflow-hidden`}
+        className={`absolute inset-y-0 left-0 z-30 w-[min(18rem,85%)] transform border-r border-orange-200 dark:border-white/10 bg-white/95 dark:bg-[#14141a]/95 backdrop-blur-sm transition-transform duration-300 sm:relative sm:z-auto sm:w-72 sm:translate-x-0 sm:bg-white/60 sm:dark:bg-white/5 sm:transition-all ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full sm:w-0 sm:overflow-hidden'
+        }`}
       >
-        <div className="flex h-full w-72 flex-col">
+        <div className="flex h-full w-full flex-col sm:w-72">
           {/* Sidebar Header */}
           <div className="border-b border-orange-200 dark:border-white/10 p-4 transition-colors duration-700">
             <div className="flex items-center justify-between">
@@ -46,7 +67,11 @@ export function ChatScreen({ householdId }: Props) {
           {/* Sidebar Content */}
           <div className="flex-1 overflow-y-auto">
             {tab === "chat" ? (
-              <ChatSidebar householdId={householdId} />
+              <ChatSidebar
+                householdId={householdId}
+                activeSessionId={activeSessionId}
+                onSelectSession={selectSession}
+              />
             ) : (
               <ShoppingSidebar householdId={householdId} items={shoppingList} />
             )}
@@ -55,18 +80,18 @@ export function ChatScreen({ householdId }: Props) {
       </div>
 
       {/* MAIN CONTENT AREA */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top Bar */}
         <div className="border-b border-orange-200 dark:border-white/10 bg-white/40 dark:bg-white/5 px-4 py-3 backdrop-blur-sm transition-colors duration-700">
           <div className="flex items-center gap-3">
-            {!sidebarOpen && (
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="rounded-xl p-2 text-orange-900/60 dark:text-white/50 hover:bg-orange-100/50 dark:hover:bg-white/10 transition-colors duration-700"
-              >
-                <Menu className="h-5 w-5" />
-              </button>
-            )}
+            <button
+              onClick={() => setSidebarOpen((open) => !open)}
+              aria-label={sidebarOpen ? "Zamknij panel" : "Otwórz panel"}
+              aria-expanded={sidebarOpen}
+              className="rounded-xl p-2 text-orange-900/60 dark:text-white/50 hover:bg-orange-100/50 dark:hover:bg-white/10 transition-colors duration-700"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 dark:from-indigo-500 dark:to-violet-600 shadow-sm transition-colors duration-700">
               <Bot className="h-5 w-5 text-white" />
             </div>
@@ -107,9 +132,13 @@ export function ChatScreen({ householdId }: Props) {
         </div>
 
         {/* Main View */}
-        <div className="flex-1 overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-hidden">
           {tab === "chat" ? (
-            <ChatMainView householdId={householdId} />
+            <ChatMainView
+              householdId={householdId}
+              activeSessionId={activeSessionId}
+              onSelectSession={setActiveSessionId}
+            />
           ) : (
             <ShoppingMainView householdId={householdId} items={shoppingList} />
           )}
@@ -119,12 +148,48 @@ export function ChatScreen({ householdId }: Props) {
   );
 }
 
+/** Identifies which message a rendered markdown list item belongs to, so its
+ *  ticked state can be persisted instead of resetting on every re-render. */
+const MarkdownMessageContext = createContext<string>("");
+
+const CHECKED_ITEMS_KEY = "homebudget_chat_checked";
+
+function readCheckedItems(): Record<string, boolean> {
+  try {
+    return JSON.parse(window.localStorage.getItem(CHECKED_ITEMS_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writeCheckedItem(key: string, value: boolean) {
+  try {
+    const all = readCheckedItems();
+    if (value) all[key] = true;
+    else delete all[key];
+    window.localStorage.setItem(CHECKED_ITEMS_KEY, JSON.stringify(all));
+  } catch {
+    /* private mode / quota — ticking just will not persist */
+  }
+}
+
 function InteractiveListItem({ children, ...props }: any) {
-  const [done, setDone] = useState(false);
+  const messageId = useContext(MarkdownMessageContext);
+  // Keyed by message + item text so it survives remounts of the markdown tree.
+  const itemKey = `${messageId}:${String(children ?? "").slice(0, 80)}`;
+  const [done, setDone] = useState(() => Boolean(readCheckedItems()[itemKey]));
+
+  function toggle() {
+    setDone((prev) => {
+      writeCheckedItem(itemKey, !prev);
+      return !prev;
+    });
+  }
+
   return (
     <li
       {...props}
-      onClick={() => setDone(!done)}
+      onClick={toggle}
       className={`cursor-pointer transition-all hover:bg-orange-500/10 dark:hover:bg-indigo-500/10 p-1.5 rounded-xl list-none flex items-start gap-2.5 -ml-4 mb-1.5 ${done ? 'opacity-40' : ''} border border-transparent hover:border-orange-500/20 dark:hover:border-indigo-500/20 active:scale-[0.98] select-none touch-manipulation`}
     >
       <span className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded-full border-[2px] transition-all flex items-center justify-center ${done ? 'bg-orange-500 dark:bg-indigo-500 border-orange-500 dark:border-indigo-500' : 'border-orange-500/40 dark:border-indigo-500/40'}`}>
@@ -162,19 +227,45 @@ function generateChatTitle(firstMessage: string): string {
 }
 
 // SIDEBAR - Historia czatów
-function ChatSidebar({ householdId }: { householdId: Id<"households"> }) {
+function ChatSidebar({
+  householdId,
+  activeSessionId,
+  onSelectSession,
+}: {
+  householdId: Id<"households">;
+  activeSessionId: Id<"chat_sessions"> | null;
+  onSelectSession: (sessionId: Id<"chat_sessions">) => void;
+}) {
   const sessions = useQuery(api.chat.listSessions, { householdId });
   const createSession = useMutation(api.chat.createSession);
   const deleteSession = useMutation(api.chat.deleteSession);
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<Id<"chat_sessions"> | null>(null);
+  const [creating, setCreating] = useState(false);
 
   async function handleNewChat() {
-    await createSession({ householdId, title: "Nowa rozmowa" });
+    if (creating) return;
+    setCreating(true);
+    try {
+      // Select what we just created — otherwise the new chat appears in the
+      // list while the main view keeps showing the previous conversation.
+      const sessionId = await createSession({ householdId, title: "Nowa rozmowa" });
+      onSelectSession(sessionId);
+    } catch {
+      toast.error("Nie udało się utworzyć rozmowy");
+    } finally {
+      setCreating(false);
+    }
   }
 
   async function handleDeleteSession(sessionId: Id<"chat_sessions">) {
     try {
       await deleteSession({ householdId, sessionId });
+      // Deleting the open conversation would otherwise leave the main view
+      // querying a session that no longer exists.
+      if (sessionId === activeSessionId) {
+        const next = sessions?.find((candidate) => candidate._id !== sessionId);
+        if (next) onSelectSession(next._id);
+      }
       toast.success("Czat usunięty");
     } catch (err: any) {
       toast.error("Nie udało się usunąć");
@@ -186,7 +277,8 @@ function ChatSidebar({ householdId }: { householdId: Id<"households"> }) {
       <div className="p-3">
         <button
           onClick={handleNewChat}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-400 to-orange-600 dark:from-indigo-500 dark:to-violet-600 px-4 py-3 text-sm font-black text-white shadow-md transition-all hover:shadow-lg active:scale-95 duration-700"
+          disabled={creating}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-400 to-orange-600 dark:from-indigo-500 dark:to-violet-600 px-4 py-3 text-sm font-black text-white shadow-md transition-all hover:shadow-lg active:scale-95 disabled:opacity-60 duration-700"
         >
           <Plus className="h-4 w-4" />
           Nowa rozmowa
@@ -201,30 +293,45 @@ function ChatSidebar({ householdId }: { householdId: Id<"households"> }) {
           </div>
         )}
 
-        {sessions?.map((session) => (
-          <div
-            key={session._id}
-            className="group relative rounded-xl border border-transparent bg-white/40 dark:bg-white/5 transition-all hover:bg-white/70 dark:hover:bg-white/10 duration-700"
-          >
-            <div className="px-3 py-2.5">
-              <p className="truncate text-sm font-bold text-orange-950 dark:text-white transition-colors duration-700">
-                {session.title}
-              </p>
-              <p className="mt-0.5 text-xs text-orange-900/60 dark:text-white/50 transition-colors duration-700">
-                {new Date(session.updatedAt).toLocaleDateString('pl-PL', {
-                  day: 'numeric',
-                  month: 'short'
-                })}
-              </p>
-            </div>
-            <button
-              onClick={() => setPendingDeleteSessionId(session._id)}
-              className="absolute right-2 top-2 rounded-md p-1 text-orange-900/60 dark:text-white/50 opacity-0 transition-opacity hover:bg-red-100 dark:hover:bg-red-500/10 hover:text-red-500 group-hover:opacity-100"
+        {sessions?.map((session) => {
+          const isActive = session._id === activeSessionId;
+          return (
+            <div
+              key={session._id}
+              className={`group relative rounded-xl border transition-all duration-700 ${
+                isActive
+                  ? "border-orange-400 dark:border-indigo-400/60 bg-orange-100/70 dark:bg-indigo-500/15"
+                  : "border-transparent bg-white/40 dark:bg-white/5 hover:bg-white/70 dark:hover:bg-white/10"
+              }`}
             >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        ))}
+              {/* The row itself is the control — previously only the delete
+                  button was clickable, so a conversation could never be opened. */}
+              <button
+                type="button"
+                onClick={() => onSelectSession(session._id)}
+                aria-current={isActive ? "true" : undefined}
+                className="w-full px-3 py-2.5 pr-10 text-left"
+              >
+                <p className="truncate text-sm font-bold text-orange-950 dark:text-white transition-colors duration-700">
+                  {session.title}
+                </p>
+                <p className="mt-0.5 text-xs text-orange-900/60 dark:text-white/50 transition-colors duration-700">
+                  {new Date(session.updatedAt).toLocaleDateString('pl-PL', {
+                    day: 'numeric',
+                    month: 'short'
+                  })}
+                </p>
+              </button>
+              <button
+                onClick={() => setPendingDeleteSessionId(session._id)}
+                aria-label="Usuń rozmowę"
+                className="absolute right-2 top-2 rounded-md p-1.5 text-orange-900/60 dark:text-white/50 transition-opacity hover:bg-red-100 dark:hover:bg-red-500/10 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       <ConfirmDialog
@@ -321,16 +428,25 @@ function ShoppingSidebar({ householdId, items }: { householdId: Id<"households">
 }
 
 // MAIN VIEW - Czat
-function ChatMainView({ householdId }: { householdId: Id<"households"> }) {
+function ChatMainView({
+  householdId,
+  activeSessionId,
+  onSelectSession,
+}: {
+  householdId: Id<"households">;
+  activeSessionId: Id<"chat_sessions"> | null;
+  onSelectSession: (sessionId: Id<"chat_sessions">) => void;
+}) {
   const sessions = useQuery(api.chat.listSessions, { householdId });
   const updateSessionTitle = useMutation(api.chat.updateSessionTitle);
-  const [activeSessionId, setActiveSessionId] = useState<Id<"chat_sessions"> | null>(null);
 
   useEffect(() => {
-    if (sessions && sessions.length > 0 && !activeSessionId) {
-      setActiveSessionId(sessions[0]._id);
-    }
-  }, [sessions, activeSessionId]);
+    if (!sessions || sessions.length === 0) return;
+    // Fall back to the newest session both on first load and when the selected
+    // one disappears (deleted here or from another device).
+    const stillExists = activeSessionId && sessions.some((s) => s._id === activeSessionId);
+    if (!stillExists) onSelectSession(sessions[0]._id);
+  }, [sessions, activeSessionId, onSelectSession]);
 
   if (!activeSessionId || !sessions || sessions.length === 0) {
     return (
@@ -354,7 +470,7 @@ function ChatMainView({ householdId }: { householdId: Id<"households"> }) {
       sessionId={activeSessionId}
       onFirstMessage={(text) => {
         const title = generateChatTitle(text);
-        updateSessionTitle({ householdId, sessionId: activeSessionId, title });
+        void updateSessionTitle({ householdId, sessionId: activeSessionId, title });
       }}
     />
   );
@@ -374,7 +490,9 @@ function ShoppingMainView({ householdId, items }: { householdId: Id<"households"
     try {
       await add({ householdId, name: newItem.trim(), addedByAction: "User" });
       setNewItem("");
-    } catch (err) { }
+    } catch (err: any) {
+      toast.error(err?.message || "Nie udało się dodać produktu.");
+    }
   }
 
   const unbought = items.filter(i => !i.isBought);
@@ -503,19 +621,24 @@ function ActiveChatSession({
   const [isTyping, setIsTyping] = useState(false);
   const [hasSetTitle, setHasSetTitle] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const addItem = useMutation(api.shopping.add);
 
   const isLimitReached = (messages?.length ?? 0) >= 30;
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
+    // scrollIntoView walks up and scrolls every ancestor scroller, which yanked
+    // the whole screen. Drive the message list's own scrollTop instead.
+    const list = listRef.current;
+    if (!list) return;
+    list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
   }, [messages, isTyping]);
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
-    if (!input.trim() || isTyping || isLimitReached) return;
+    const text = input.trim();
+    if (!text || isTyping || isLimitReached) return;
 
-    const text = input;
     setInput("");
     setIsTyping(true);
 
@@ -527,7 +650,9 @@ function ActiveChatSession({
     try {
       await sendMessage({ householdId, sessionId, text });
     } catch (err) {
-      toast.error("Błąd podczas wysyłania");
+      // Give the message back rather than making the user retype it.
+      setInput((current) => (current ? current : text));
+      toast.error("Nie udało się wysłać wiadomości. Spróbuj ponownie.");
     } finally {
       setIsTyping(false);
     }
@@ -536,7 +661,7 @@ function ActiveChatSession({
   return (
     <div className="flex h-full flex-col bg-white/30 dark:bg-white/5 transition-colors duration-700">
       {/* Messages Area */}
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
+      <div ref={listRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
         {messages?.length === 0 && !isTyping && (
           <div className="flex h-full min-h-[300px] flex-col items-center justify-center text-center">
             <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-xl bg-gradient-to-br from-orange-100 to-orange-300 dark:from-indigo-900/50 dark:to-violet-900/50 transition-colors duration-700">
@@ -569,9 +694,11 @@ function ActiveChatSession({
                     <span className="text-sm font-medium leading-relaxed">{msg.text}</span>
                   ) : (
                     <div className="prose prose-sm max-w-none text-sm leading-relaxed text-orange-950 dark:text-white/90 transition-colors duration-700">
-                      <ReactMarkdown components={{ li: InteractiveListItem }}>
-                        {msg.text}
-                      </ReactMarkdown>
+                      <MarkdownMessageContext.Provider value={String(msg._id)}>
+                        <ReactMarkdown components={{ li: InteractiveListItem }}>
+                          {msg.text}
+                        </ReactMarkdown>
+                      </MarkdownMessageContext.Provider>
                     </div>
                   )}
                 </div>

@@ -11,7 +11,10 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
   <link rel="manifest" href="/site.webmanifest" />
   <meta name="theme-color" content="#fcf8f2" id="theme-color" />
-  <meta name="color-scheme" content="light dark" />
+  <!-- Committed to a single scheme by the script below. "light dark" would let the
+       OS preference decide the UA chrome, which paints white status-bar glyphs over
+       the app in light mode whenever the phone itself is in dark mode. -->
+  <meta name="color-scheme" content="light" id="color-scheme" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" id="apple-status-bar-style" />
@@ -21,6 +24,9 @@
       const color = isDark ? "#0a0a0a" : "#fcf8f2";
       document.documentElement.classList.toggle("dark", isDark);
       document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+      document
+        .getElementById("color-scheme")
+        .setAttribute("content", isDark ? "dark" : "light");
       document.documentElement.style.backgroundColor = color;
       document.getElementById("theme-color").setAttribute("content", color);
       document

@@ -40,6 +40,11 @@ export function applyAppTheme(isDark: boolean) {
   document.body.style.backgroundColor = color;
 
   document.getElementById("theme-color")?.setAttribute("content", color);
+  // The app themes itself manually, so the UA must be told which scheme is in
+  // force rather than being left to infer one from the OS preference.
+  document
+    .getElementById("color-scheme")
+    ?.setAttribute("content", isDark ? "dark" : "light");
   document
     .getElementById("apple-status-bar-style")
     ?.setAttribute("content", isDark ? "black" : "default");
