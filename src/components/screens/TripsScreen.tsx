@@ -552,7 +552,7 @@ function TripDetails({
               <button type="button" onClick={async () => {
                 try { await removeExpense({ expenseId: expense._id }); toast.success("Wydatek usunięty."); }
                 catch (error: any) { toast.error(error.message); }
-              }} className="rounded-full p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10" aria-label="Usuń wydatek">
+              }} className="rounded-full p-1.5 text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10" aria-label="Usuń wydatek">
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>

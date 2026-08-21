@@ -3,6 +3,11 @@ import { v } from "convex/values";
 import { api } from "./_generated/api";
 import { Groq } from "groq-sdk";
 
+// Groq retired llama-3.3-70b-versatile (the endpoint now 404s), so the assistant
+// runs on gpt-oss-120b — the strongest general chat model Groq still serves.
+// Overridable so the next deprecation is a config change, not a code change.
+const CHAT_MODEL = process.env.GROQ_CHAT_MODEL || "openai/gpt-oss-120b";
+
 export const sendMessage = action({
   args: {
     householdId: v.id("households"),
@@ -114,9 +119,13 @@ Nigdy nie wymieniaj w bloku JSON elementów, które już są na liście zakupów
 
     try {
       const completion = await groq.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
+        model: CHAT_MODEL,
         messages,
         temperature: 0.6,
+        // gpt-oss is a reasoning model: keep the thinking budget small so replies
+        // stay fast, and leave enough room that a recipe + <JSON> block still fits.
+        reasoning_effort: "low",
+        max_completion_tokens: 2048,
       });
 
       const reply = completion.choices[0]?.message?.content || "";

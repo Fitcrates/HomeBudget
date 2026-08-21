@@ -1,9 +1,21 @@
 "use node";
 
-// Tier 1: fast, low-cost vision extraction model.
-export const VISION_MODEL = "gemini-2.5-flash-lite";
-// Tier 2: stronger model used only for targeted recovery when totals are materially wrong.
-export const VISION_MODEL_SMART = "gemini-2.5-pro";
+// Tier 1: fast vision extraction model, runs on every scan.
+// Env-overridable so a rollback to gemini-2.5-flash-lite is a config change:
+// 3.5-flash-lite bills ~7.6x more per receipt (3x token price AND ~2.9x more
+// image tokens for the same picture — measured 1304 vs 452 prompt tokens).
+export const VISION_MODEL = process.env.GEMINI_VISION_MODEL || "gemini-3.5-flash-lite";
+// Tier 2: stronger model, used only for targeted recovery when totals are
+// materially wrong and for the audit pass. Replaces gemini-2.5-pro: measured
+// ~2x cheaper per call and ~5x faster (1.5-2.3s vs 9-12s), which matters
+// because this tier shares a 30s timeout budget.
+export const VISION_MODEL_SMART = process.env.GEMINI_VISION_MODEL_SMART || "gemini-3.7-flash";
+
+// Gemini 3.x models think by default. reasoning_effort "none" is rejected with
+// HTTP 400 by this endpoint, so "low" is the floor — it measurably cuts latency
+// (3.7-flash: 2.4-2.8s -> 1.5-2.3s) and keeps thinking tokens from eating into
+// the max_tokens budget the OCR pipeline allocates for the JSON payload.
+export const VISION_REASONING_EFFORT = "low";
 
 export const SYSTEM_PROMPT = `You are an expert OCR for reading receipts and invoices.
 Extract EVERY visible product line. Never skip items. Return valid JSON only.`;

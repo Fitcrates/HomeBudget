@@ -150,7 +150,7 @@ export function BadgesScreen({ householdId }: Props) {
                             <button
                               key={badge.id}
                               onClick={() => setSelectedBadge({ badge, earned: true })}
-                              className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/30 backdrop-blur-sm border border-white/40 hover:bg-white/50 transition-all active:scale-95"
+                              className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/30 dark:bg-white/5 backdrop-blur-sm border border-white/40 dark:border-white/10 hover:bg-white/50 dark:hover:bg-white/10 transition-all active:scale-95"
                             >
                               <BadgeEmblem
                                 tier={badge.tier}
@@ -342,7 +342,7 @@ export function BadgesScreen({ householdId }: Props) {
                           {badge.name}
                         </p>
                         {isEarned && (
-                          <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                          <CheckCircle className="w-3.5 h-3.5 text-green-500 dark:text-emerald-400" />
                         )}
                       </button>
                     );
@@ -452,8 +452,8 @@ function BadgeDetailModal({
         {/* Earned indicator */}
         {earned ? (
           <div className="flex items-center gap-1.5 mt-3">
-            <CheckCircle className="w-4 h-4 text-green-500" />
-            <span className="text-xs font-bold text-green-600">Zdobyta!</span>
+            <CheckCircle className="w-4 h-4 text-green-500 dark:text-emerald-400" />
+            <span className="text-xs font-bold text-green-600 dark:text-emerald-400">Zdobyta!</span>
           </div>
         ) : (
           <div className="flex items-center gap-1.5 mt-3">

@@ -18,13 +18,13 @@ export function CatLoader({ message, size = "md" }: CatLoaderProps) {
   return (
     <div className="flex flex-col items-center justify-center gap-4 py-6">
       <div
-        className={`relative flex ${s.outer} items-center justify-center rounded-full border border-[#f2d6bf] bg-[#fff8f2] shadow-inner`}
+        className={`relative flex ${s.outer} items-center justify-center rounded-full border border-[#f2d6bf] dark:border-white/10 bg-[#fff8f2] dark:bg-white/5 shadow-inner transition-colors duration-700`}
       >
         <div
-          className={`absolute inset-0 animate-spin rounded-full ${s.border} border-[#de9241] border-t-transparent`}
+          className={`absolute inset-0 animate-spin rounded-full ${s.border} border-[#de9241] dark:border-indigo-400 border-t-transparent dark:border-t-transparent`}
         />
         <div
-          className={`absolute ${s.innerInset} animate-spin rounded-full ${s.border} border-[#ca782a] border-b-transparent`}
+          className={`absolute ${s.innerInset} animate-spin rounded-full ${s.border} border-[#ca782a] dark:border-violet-400 border-b-transparent dark:border-b-transparent`}
           style={{ animationDirection: "reverse" }}
         />
         <div className={`absolute ${s.inner} overflow-hidden rounded-full`}>
@@ -32,7 +32,7 @@ export function CatLoader({ message, size = "md" }: CatLoaderProps) {
         </div>
       </div>
       {message && (
-        <p className="animate-pulse text-sm font-bold text-[#8a7262]">{message}</p>
+        <p className="animate-pulse text-sm font-bold text-[#8a7262] dark:text-white/50">{message}</p>
       )}
     </div>
   );

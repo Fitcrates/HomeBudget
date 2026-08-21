@@ -249,7 +249,7 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
                         <IconTrashButton
                           onClick={() => setPendingDeleteCatId(cat._id)}
                           title="Usuń limit"
-                          className="h-8 w-8 text-red-400 hover:bg-red-50 hover:text-red-500"
+                          className="h-8 w-8 text-red-400 hover:bg-red-50 dark:hover:bg-red-500/15 hover:text-red-500 dark:hover:text-red-300"
                         />
                       )}
                       <button
@@ -353,7 +353,7 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
                         <IconTrashButton
                           onClick={() => setPendingDeleteUserId(member.userId)}
                           title="Usuń budżet osobisty"
-                          className="h-8 w-8 text-red-400 hover:bg-red-50 hover:text-red-500"
+                          className="h-8 w-8 text-red-400 hover:bg-red-50 dark:hover:bg-red-500/15 hover:text-red-500 dark:hover:text-red-300"
                         />
                       )}
                       <button

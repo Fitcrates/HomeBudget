@@ -224,7 +224,7 @@ export function HouseholdScreen({ household, households, onSwitchHousehold, onOp
                           <IconTrashButton
                             onClick={() => setPendingRemoveUserId(m.userId)}
                             title="Usuń członka"
-                            className="absolute -top-1 -right-1 h-7 w-7 rounded-full border border-red-200 bg-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+                            className="absolute -top-1 -right-1 h-7 w-7 rounded-full border border-red-200 dark:border-red-500/40 bg-white dark:bg-[#1a1a22] opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
                           />
                         )}
                       </div>

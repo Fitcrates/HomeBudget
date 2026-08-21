@@ -15,17 +15,17 @@ const heightMap = { sm: "h-2", md: "h-3.5" } as const;
 function resolveColor(value: number, color: ProgressBarProps["color"]) {
   if (color && color !== "auto") {
     const map = {
-      green: "bg-gradient-to-r from-[#67c48a] to-[#4aad6f]",
-      yellow: "bg-yellow-400",
-      red: "bg-red-400",
-      orange: "bg-gradient-to-r from-[#de9241] to-[#ca782a]",
+      green: "bg-gradient-to-r from-[#67c48a] to-[#4aad6f] dark:from-emerald-400 dark:to-emerald-500",
+      yellow: "bg-yellow-400 dark:bg-amber-400",
+      red: "bg-red-400 dark:bg-red-400",
+      orange: "bg-gradient-to-r from-[#de9241] to-[#ca782a] dark:from-indigo-400 dark:to-violet-500",
     } as const;
     return map[color];
   }
   // auto
-  if (value >= 100) return "bg-red-400";
-  if (value >= 80) return "bg-yellow-400";
-  return "bg-[#67c48a]";
+  if (value >= 100) return "bg-red-400 dark:bg-red-400";
+  if (value >= 80) return "bg-yellow-400 dark:bg-amber-400";
+  return "bg-[#67c48a] dark:bg-emerald-400";
 }
 
 export function ProgressBar({
@@ -40,14 +40,14 @@ export function ProgressBar({
 
   return (
     <div className={className}>
-      <div className={`${heightMap[height]} w-full bg-[#f5e5cf] rounded-full overflow-hidden`}>
+      <div className={`${heightMap[height]} w-full bg-[#f5e5cf] dark:bg-white/10 rounded-full overflow-hidden transition-colors duration-700`}>
         <div
           className={`h-full rounded-full transition-all duration-500 ${barColor}`}
           style={{ width: `${Math.max(clampedValue, 2)}%` }}
         />
       </div>
       {showLabel && (
-        <span className="text-[11px] font-bold text-[#cf833f] mt-1 block">
+        <span className="text-[11px] font-bold text-[#cf833f] dark:text-indigo-300 mt-1 block">
           {clampedValue.toFixed(1)}%
         </span>
       )}

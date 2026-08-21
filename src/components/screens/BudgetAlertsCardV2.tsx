@@ -76,11 +76,11 @@ export function BudgetAlertsCard({ householdId, currency, dateFrom, dateTo }: Pr
             const isOver = alert.pct >= 100;
             const isWarning = alert.pct >= 80 && !isOver;
             const statusIcon = isOver ? (
-              <AlertTriangle className="w-4 h-4 text-red-500" />
+              <AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400" />
             ) : isWarning ? (
-              <AlertTriangle className="w-4 h-4 text-yellow-500" />
+              <AlertTriangle className="w-4 h-4 text-yellow-500 dark:text-amber-400" />
             ) : (
-              <CheckCircle className="w-4 h-4 text-green-500" />
+              <CheckCircle className="w-4 h-4 text-green-500 dark:text-emerald-400" />
             );
 
             return (

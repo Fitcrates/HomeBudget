@@ -2,6 +2,7 @@
 
 import OpenAI from "openai";
 import { sleep } from "./utils";
+import { VISION_REASONING_EFFORT } from "./prompt";
 
 // Keep OCR responsive. A timed out vision call is already too slow for the scan flow,
 // so callers can opt into a retry only where the extra latency is worth it.
@@ -10,8 +11,12 @@ const AI_CLIENT_TIMEOUT_MS = 35000;
 const DEFAULT_MAX_ATTEMPTS = 2;
 const GROQ_FALLBACK_TIMEOUT_MS = 22000;
 const GROQ_FALLBACK_MAX_TOKENS = 8192;
+// Groq retired meta-llama/llama-4-scout-17b-16e-instruct (the endpoint now 404s),
+// which silently killed this fallback. qwen3.6-27b is the vision-capable model
+// Groq still serves; it wraps replies in <think> blocks, which the JSON extractor
+// in ./utils strips before parsing.
 const GROQ_VISION_MODEL =
-  process.env.GROQ_VISION_MODEL || "meta-llama/llama-4-scout-17b-16e-instruct";
+  process.env.GROQ_VISION_MODEL || "qwen/qwen3.6-27b";
 
 let cachedGeminiClient: OpenAI | null = null;
 let cachedGroqClient: OpenAI | null = null;
@@ -89,6 +94,14 @@ function isRetriableError(error: any): boolean {
   );
 }
 
+function buildGeminiRequest(
+  request: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
+): OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming {
+  // Gemini 3.x thinks by default; cap it unless a caller asked for something else.
+  if (request.reasoning_effort) return request;
+  return { ...request, reasoning_effort: VISION_REASONING_EFFORT };
+}
+
 function buildGroqFallbackRequest(
   request: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
 ): OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming {
@@ -96,8 +109,12 @@ function buildGroqFallbackRequest(
     ? request.max_tokens
     : GROQ_FALLBACK_MAX_TOKENS;
 
+  // Drop reasoning_effort: it is tuned for Gemini and Groq's vision model
+  // rejects values it does not recognise.
+  const { reasoning_effort: _ignored, ...rest } = request;
+
   return {
-    ...request,
+    ...rest,
     model: GROQ_VISION_MODEL,
     max_tokens: Math.min(requestedMaxTokens, GROQ_FALLBACK_MAX_TOKENS),
   };
@@ -132,7 +149,7 @@ export async function createVisionCompletionWithRetry(
   while (attempt <= maxAttempts || (Date.now() - startedAt < minTotalMs && isRetriableError(lastError))) {
     try {
       return await withTimeout(
-        getGemini().chat.completions.create(request),
+        getGemini().chat.completions.create(buildGeminiRequest(request)),
         timeoutMs,
         label
       );

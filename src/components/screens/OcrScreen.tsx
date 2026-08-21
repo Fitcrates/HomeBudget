@@ -771,7 +771,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDo
                     setCurrentStorageIds((p) => p.filter((_, idx) => idx !== i));
                     setCurrentMimeTypes((p) => p.filter((_, idx) => idx !== i));
                   }}
-                  className="absolute -top-1.5 -right-1.5 bg-white text-red-500 rounded-full w-5 h-5 flex items-center justify-center text-xs border border-red-200 shadow-sm"
+                  className="absolute -top-1.5 -right-1.5 bg-white dark:bg-[#1a1a22] text-red-500 dark:text-red-400 rounded-full w-5 h-5 flex items-center justify-center text-xs border border-red-200 dark:border-red-500/40 shadow-sm"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -1120,7 +1120,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDo
                         <IconTrashButton
                           onClick={() => setPendingRemoveItemId(item.id)}
                           title="Usuń pozycję"
-                          className="h-8 w-8 shrink-0 self-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-500"
+                          className="h-8 w-8 shrink-0 self-center rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-500/15 hover:text-red-500 dark:hover:text-red-300"
                         />
                       </div>
                     </div>
@@ -1281,7 +1281,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDo
                   return (
                     <div
                       key={receipt.receiptIndex}
-                      className="bg-[#f8f1e8] border border-[#ead8c5] rounded-xl p-3 text-xs font-bold text-[#7e6149]"
+                      className="bg-[#f8f1e8] dark:bg-white/5 border border-[#ead8c5] dark:border-white/10 rounded-xl p-3 text-xs font-bold text-[#7e6149] dark:text-white/60 transition-colors duration-700"
                     >
                       {receipt.receiptLabel || `Paragon ${receipt.receiptIndex + 1}`}: brak wykrytej sumy końcowej. Sprawdź pozycje ręcznie.
                     </div>

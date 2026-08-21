@@ -3,14 +3,14 @@ import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
 import { SignOutButton } from "./SignOutButton";
 import { Toaster, toast } from "sonner";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import { Moon, Sun } from "lucide-react";
 import { HouseholdSetup } from "./components/HouseholdSetup";
 import { MainApp } from "./components/MainApp";
 import { HomeIcon } from "./components/ui/icons/HomeIcon";
 import { TripsScreen } from "./components/screens/TripsScreen";
 import { Id } from "../convex/_generated/dataModel";
-import { applyAppTheme, getInitialDarkMode } from "./lib/theme";
+import { applyAppTheme, getInitialDarkMode, isDarkModeActive, subscribeToTheme } from "./lib/theme";
 
 function getTripInviteCode() {
   if (typeof window === "undefined") return null;
@@ -24,9 +24,13 @@ function removeTripInviteFromUrl() {
 }
 
 export default function App() {
+  // Toasts are portalled outside the themed tree, so Sonner needs the theme
+  // handed to it explicitly — the `dark` class on <html> never reaches it.
+  const isDark = useSyncExternalStore(subscribeToTheme, isDarkModeActive, () => false);
+
   return (
     <div className="min-h-dvh w-full overflow-x-hidden flex flex-col">
-      <Toaster position="top-center" richColors />
+      <Toaster position="top-center" richColors theme={isDark ? "dark" : "light"} />
       <Authenticated>
         <div className="w-full mx-auto">
           <AuthenticatedApp />

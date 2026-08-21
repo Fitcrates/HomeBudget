@@ -37,6 +37,9 @@
   --surface-input-focus: rgba(255, 255, 255, 0.92);
   --surface-warm: #fdf9f1;
   --surface-overlay: rgba(46, 30, 15, 0.45);
+  --surface-avatar-fallback: linear-gradient(145deg, #fdf0e0, #f8e0c8);
+  --surface-logo-tile: linear-gradient(145deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.25));
+  --surface-segmented-track: rgba(207, 131, 63, 0.08);
 
   /* ── Borders ── */
   --border-card: rgba(255, 255, 255, 0.5);
@@ -91,6 +94,76 @@
   --progress-green: #67c48a;
   --progress-yellow: #f59e0b;
   --progress-red: #ef4444;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   DESIGN TOKENS — DARK THEME
+   Mirrors :root exactly. Every token above must be redefined here,
+   otherwise components that read tokens (HouseholdSetup, .app-card,
+   .auth-*, badge overlay) keep rendering the warm light palette on
+   a near-black background.
+   ══════════════════════════════════════════════════════════════ */
+html.dark {
+  /* ── Brand ── */
+  --color-light: #0a0a0a;
+  --color-app-top: #141419;
+  --color-dark: #818cf8;
+
+  /* ── Text ── */
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.72);
+  --text-muted: rgba(255, 255, 255, 0.55);
+  --text-faint: rgba(255, 255, 255, 0.40);
+  --text-placeholder: rgba(255, 255, 255, 0.30);
+
+  /* ── Accent (indigo/violet, matching the dark: Tailwind variants) ── */
+  --accent: #818cf8;
+  --accent-dark: #7c3aed;
+  --accent-light: #6366f1;
+  --accent-hover: #a5b4fc;
+
+  /* ── Surfaces ── */
+  --surface-card: rgba(255, 255, 255, 0.05);
+  --surface-card-inner: rgba(255, 255, 255, 0.07);
+  --surface-input: rgba(255, 255, 255, 0.05);
+  --surface-input-focus: rgba(255, 255, 255, 0.10);
+  --surface-warm: #121216;
+  --surface-overlay: rgba(0, 0, 0, 0.65);
+  --surface-avatar-fallback: linear-gradient(145deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.05));
+  --surface-logo-tile: linear-gradient(145deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.04));
+  --surface-segmented-track: rgba(255, 255, 255, 0.06);
+
+  /* ── Borders ── */
+  --border-card: rgba(255, 255, 255, 0.10);
+  --border-card-inner: rgba(255, 255, 255, 0.10);
+  --border-input: rgba(255, 255, 255, 0.12);
+  --border-input-focus: var(--accent);
+  --border-subtle: rgba(255, 255, 255, 0.12);
+  --border-divider: rgba(255, 255, 255, 0.08);
+
+  /* ── Status (lifted for contrast on near-black) ── */
+  --color-success: #4ade80;
+  --color-success-light: #86efac;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+  --color-danger-dark: #ef4444;
+  --color-info: #60a5fa;
+
+  /* ── Shadows ── */
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --shadow-card-hover: 0 12px 40px rgba(0, 0, 0, 0.55);
+  --shadow-card-sm: 0 2px 12px rgba(0, 0, 0, 0.35);
+  --shadow-cta: 0 4px 20px rgba(99, 102, 241, 0.35);
+  --shadow-cta-hover: 0 6px 28px rgba(99, 102, 241, 0.45);
+  --shadow-input-focus: 0 0 0 3px rgba(129, 140, 248, 0.20);
+  --shadow-tab: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-soft: 0 1px 4px rgba(0, 0, 0, 0.3);
+
+  /* ── Progress ── */
+  --progress-bg: rgba(255, 255, 255, 0.10);
+  --progress-green: #4ade80;
+  --progress-yellow: #fbbf24;
+  --progress-red: #f87171;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -171,8 +244,8 @@ h6,
 }
 
 .auth-input-field:hover {
-  border-color: rgba(207, 131, 63, 0.35);
-  background: rgba(255, 255, 255, 0.82);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  background: var(--surface-input-focus);
 }
 
 .auth-input-field:focus {
@@ -759,4 +832,45 @@ h6,
 .badge-detail-card {
   cursor: default;
   animation: badgeCardEnter 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   DARK THEME — COMPONENT OVERRIDES
+   Rules above that bake in the warm light palette instead of
+   reading a token need an explicit dark counterpart.
+   ══════════════════════════════════════════════════════════════ */
+
+html.dark .badge-overlay-backdrop {
+  background: rgba(0, 0, 0, 0.82);
+}
+
+html.dark .badge-overlay-card {
+  background: linear-gradient(145deg, #1a1a24, #12121a);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+html.dark .badge-overlay-name {
+  color: #ffffff;
+}
+
+html.dark .badge-overlay-desc {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+html.dark .badge-overlay-remaining {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+html.dark .badge-overlay-dismiss {
+  background: linear-gradient(135deg, #6366f1, #7c3aed);
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+}
+
+html.dark .badge-overlay-dismiss:hover {
+  box-shadow: 0 6px 24px rgba(99, 102, 241, 0.55);
+}
+
+html.dark .badge-emblem--locked {
+  filter: grayscale(0.9) brightness(0.8);
+  opacity: 0.35;
 }

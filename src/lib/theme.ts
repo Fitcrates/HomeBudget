@@ -3,6 +3,25 @@ export const DARK_THEME_COLOR = "#0a0a0a";
 
 const THEME_STORAGE_KEY = "homebudget_theme";
 
+/**
+ * Anything outside the React tree that has to follow the theme (portalled
+ * toasts, for example) subscribes here — applyAppTheme is the single place
+ * the theme actually changes.
+ */
+const listeners = new Set<() => void>();
+
+export function subscribeToTheme(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+export function isDarkModeActive() {
+  if (typeof document === "undefined") return false;
+  return document.documentElement.classList.contains("dark");
+}
+
 export function getInitialDarkMode() {
   if (typeof window === "undefined") return false;
   const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
@@ -26,4 +45,6 @@ export function applyAppTheme(isDark: boolean) {
     ?.setAttribute("content", isDark ? "black" : "default");
 
   window.localStorage.setItem(THEME_STORAGE_KEY, isDark ? "dark" : "light");
+
+  listeners.forEach((listener) => listener());
 }

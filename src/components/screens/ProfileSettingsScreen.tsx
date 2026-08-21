@@ -238,7 +238,7 @@ export function ProfileSettingsScreen({ householdId }: Props) {
                 <IconTrashButton
                   onClick={() => setShowRemoveAvatarModal(true)}
                   title="Usuń zdjęcie"
-                  className="h-10 w-10 rounded-xl border border-red-200/60 bg-white/60 text-red-500 hover:border-red-400/80 hover:bg-red-50"
+                  className="h-10 w-10 rounded-xl border border-red-200/60 dark:border-red-500/30 bg-white/60 dark:bg-white/5 text-red-500 dark:text-red-400 hover:border-red-400/80 dark:hover:border-red-400/60 hover:bg-red-50 dark:hover:bg-red-500/15"
                 />
               </div>
             )}
@@ -333,7 +333,7 @@ export function ProfileSettingsScreen({ householdId }: Props) {
               error={!!(confirmPassword && confirmPassword !== newPassword)}
               className={`pr-12 ${
                 confirmPassword && confirmPassword === newPassword
-                  ? "border-green-300 focus:border-green-400"
+                  ? "border-green-300 dark:border-emerald-500/50 focus:border-green-400 dark:focus:border-emerald-400"
                   : ""
               }`}
               autoComplete="new-password"
@@ -347,10 +347,10 @@ export function ProfileSettingsScreen({ householdId }: Props) {
             </button>
           </div>
           {confirmPassword && confirmPassword !== newPassword && (
-            <p className="text-[11px] font-bold text-red-500 ml-1 mt-1">Hasła nie są zgodne</p>
+            <p className="text-[11px] font-bold text-red-500 dark:text-red-400 ml-1 mt-1">Hasła nie są zgodne</p>
           )}
           {confirmPassword && confirmPassword === newPassword && newPassword.length >= 8 && (
-            <p className="text-[11px] font-bold text-green-600 ml-1 mt-1">✓ Hasła są zgodne</p>
+            <p className="text-[11px] font-bold text-green-600 dark:text-emerald-400 ml-1 mt-1">✓ Hasła są zgodne</p>
           )}
         </div>
 

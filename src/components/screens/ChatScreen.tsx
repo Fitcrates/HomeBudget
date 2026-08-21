@@ -257,7 +257,7 @@ function ShoppingSidebar({ householdId, items }: { householdId: Id<"households">
         <div className="border-b border-orange-200 dark:border-white/10 p-3 transition-colors duration-700">
           <button
             onClick={() => clearBought({ householdId })}
-            className="w-full rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-500 transition-colors hover:bg-red-100"
+            className="w-full rounded-xl bg-red-50 dark:bg-red-500/10 px-3 py-2 text-xs font-bold text-red-500 dark:text-red-300 transition-colors hover:bg-red-100 dark:hover:bg-red-500/20"
           >
             Wyczyść kupione ({bought.length})
           </button>
@@ -582,7 +582,7 @@ function ActiveChatSession({
                       {msg.pendingAction.type === "clear_shopping_list" && (
                         <>
                           <div className="flex items-center gap-2">
-                            <Trash2 className="h-4 w-4 text-red-500" />
+                            <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
                             <p className="text-xs font-bold text-orange-600 dark:text-indigo-400 transition-colors duration-700">
                               Wyczyścić listę zakupów?
                             </p>
@@ -635,12 +635,12 @@ function ActiveChatSession({
                       )}
                     </div>
                     {msg.pendingAction.status === "approved" && (
-                      <div className="mt-2 flex w-max items-center gap-1 rounded-xl bg-green-50 px-2 py-1 text-xs font-bold text-green-600">
+                      <div className="mt-2 flex w-max items-center gap-1 rounded-xl bg-green-50 dark:bg-emerald-500/10 px-2 py-1 text-xs font-bold text-green-600 dark:text-emerald-300">
                         <Check className="h-3 w-3" /> Zaakceptowano
                       </div>
                     )}
                     {msg.pendingAction.status === "rejected" && (
-                      <div className="mt-2 flex w-max items-center gap-1 rounded-xl bg-red-50 px-2 py-1 text-xs font-bold text-red-500">
+                      <div className="mt-2 flex w-max items-center gap-1 rounded-xl bg-red-50 dark:bg-red-500/10 px-2 py-1 text-xs font-bold text-red-500 dark:text-red-300">
                         <X className="h-3 w-3" /> Odrzucono
                       </div>
                     )}
@@ -690,7 +690,7 @@ function ActiveChatSession({
           </button>
         </form>
         {isLimitReached && (
-          <p className="mt-2 text-center text-xs font-semibold text-red-500">
+          <p className="mt-2 text-center text-xs font-semibold text-red-500 dark:text-red-400">
             Limit 30 wiadomości. Rozpocznij nowy czat.
           </p>
         )}

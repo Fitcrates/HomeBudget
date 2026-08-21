@@ -75,7 +75,13 @@ export function extractJsonBlock(text: string): string {
 }
 
 export function extractJsonBlockWithMeta(text: string): ExtractJsonResult {
-  const trimmed = text.trim();
+  // Reasoning models (Groq's qwen fallback, Gemini thinking modes) prefix the
+  // answer with a <think> block. Its prose can contain braces, which would
+  // otherwise poison the first-{ / last-} slice below.
+  const trimmed = text
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/^[\s\S]*?<\/think>/i, "")
+    .trim();
   if (!trimmed) return { json: "", wasTruncated: false };
 
   const clean = trimmed

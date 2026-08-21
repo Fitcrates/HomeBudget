@@ -218,9 +218,9 @@ export function EmailInboxScreen({ householdId, currency, onBack, hideHeader }: 
         <Spinner className="py-12" />
       ) : pending.length === 0 ? (
         <AppCard className="text-center py-10">
-          <Mail className="mx-auto mb-4 h-14 w-14 text-[#b89b87]" />
-          <p className="text-[#3e2815] font-bold mb-1">Nic tu jeszcze nie czeka</p>
-          <p className="text-xs font-medium text-[#8a7262]">
+          <Mail className="mx-auto mb-4 h-14 w-14 text-[#b89b87] dark:text-white/30" />
+          <p className="text-[#3e2815] dark:text-white font-bold mb-1">Nic tu jeszcze nie czeka</p>
+          <p className="text-xs font-medium text-[#8a7262] dark:text-white/50">
             Zrób forward rachunku na adres gospodarstwa, a po chwili pojawi się tutaj do akceptacji.
           </p>
         </AppCard>
@@ -256,54 +256,54 @@ export function EmailInboxScreen({ householdId, currency, onBack, hideHeader }: 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         {isProcessing ? (
-                          <RefreshCw className="h-5 w-5 shrink-0 animate-spin text-[#c76823]" />
+                          <RefreshCw className="h-5 w-5 shrink-0 animate-spin text-[#c76823] dark:text-indigo-300" />
                         ) : isManualScan ? (
-                          <FileImage className="h-5 w-5 shrink-0 text-[#c76823]" />
+                          <FileImage className="h-5 w-5 shrink-0 text-[#c76823] dark:text-indigo-300" />
                         ) : (
-                          <Mail className="h-5 w-5 shrink-0 text-[#c76823]" />
+                          <Mail className="h-5 w-5 shrink-0 text-[#c76823] dark:text-indigo-300" />
                         )}
-                        <p className="truncate text-[15px] font-medium text-[#2b180a]">
+                        <p className="truncate text-[15px] font-medium text-[#2b180a] dark:text-white">
                           {isManualScan ? "Skan paragonu" : item.emailSubject || "(bez tematu)"}
                         </p>
                       </div>
 
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold text-[#8a7262]">
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold text-[#8a7262] dark:text-white/50">
                         <span>{item.emailFrom}</span>
                         <span>→</span>
                         <span>{item.emailTo}</span>
                       </div>
 
                       <div className="mt-2 flex flex-wrap gap-2">
-                        <span className="rounded-full bg-[#fff2e2] px-2.5 py-1 text-[10px] font-bold text-[#b86a28]">
+                        <span className="rounded-full bg-[#fff2e2] dark:bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-[#b86a28] dark:text-amber-300">
                           {item.detectedBy === "ocr" ? "OCR / załączniki" : item.detectedBy === "text" ? "Parser tekstu" : "Do sprawdzenia"}
                         </span>
-                        <span className="rounded-full bg-[#eef4ff] px-2.5 py-1 text-[10px] font-bold text-[#3856a8]">
+                        <span className="rounded-full bg-[#eef4ff] dark:bg-indigo-500/15 px-2.5 py-1 text-[10px] font-bold text-[#3856a8] dark:text-indigo-300">
                           {item.attachmentNames.length} załącznik(i)
                         </span>
                         {isFailed && (
-                          <span className="rounded-full bg-[#fff0f0] px-2.5 py-1 text-[10px] font-bold text-[#c84f4f]">
+                          <span className="rounded-full bg-[#fff0f0] dark:bg-red-500/10 px-2.5 py-1 text-[10px] font-bold text-[#c84f4f] dark:text-red-300">
                             Do wpisania ręcznie
                           </span>
                         )}
-                        <span className="rounded-full bg-[#f7f1ff] px-2.5 py-1 text-[10px] font-bold text-[#7b4bb3]">
+                        <span className="rounded-full bg-[#f7f1ff] dark:bg-violet-500/15 px-2.5 py-1 text-[10px] font-bold text-[#7b4bb3] dark:text-violet-300">
                           {new Date(item.emailReceivedAt).toLocaleString("pl-PL")}
                         </span>
                       </div>
                     </div>
 
                     <div className="shrink-0 text-right">
-                      <p className="text-base font-medium text-[#cf833f]">
+                      <p className="text-base font-medium text-[#cf833f] dark:text-indigo-300">
                         {isProcessing ? "W toku" : formatAmount(totalAmount, currency)}
                       </p>
-                      <p className="text-[10px] font-bold text-[#b89b87]">{isProcessing ? "przetwarzanie" : `${item.items.length} pozycji`}</p>
+                      <p className="text-[10px] font-bold text-[#b89b87] dark:text-white/40">{isProcessing ? "przetwarzanie" : `${item.items.length} pozycji`}</p>
                     </div>
                   </div>
                 </button>
 
                 {isExpanded && review && (
-                  <div className="space-y-4 border-t border-[#ebd8c8]/50 px-5 pb-5 pt-4">
+                  <div className="space-y-4 border-t border-[#ebd8c8]/50 dark:border-white/10 px-5 pb-5 pt-4">
                     {item.sourceSummary && (
-                      <div className="rounded-xl border border-[#dfead2] bg-[#f6fff1] p-3 text-[12px] font-medium text-[#4d6b3c]">
+                      <div className="rounded-xl border border-[#dfead2] dark:border-emerald-500/25 bg-[#f6fff1] dark:bg-emerald-500/10 p-3 text-[12px] font-medium text-[#4d6b3c] dark:text-emerald-200">
                         {item.sourceSummary}
                       </div>
                     )}
@@ -323,7 +323,7 @@ export function EmailInboxScreen({ householdId, currency, onBack, hideHeader }: 
                       <button
                         type="button"
                         onClick={() => downloadOcrDebugJson(item)}
-                        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#d8c4ff] bg-[#fbf8ff] px-4 text-sm font-bold text-[#6d44b8] transition-colors hover:bg-[#f4edff]"
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#d8c4ff] dark:border-violet-500/30 bg-[#fbf8ff] dark:bg-violet-500/10 px-4 text-sm font-bold text-[#6d44b8] dark:text-violet-300 transition-colors hover:bg-[#f4edff] dark:hover:bg-violet-500/20"
                       >
                         <Download className="h-4 w-4" />
                         Pobierz JSON OCR
@@ -340,7 +340,7 @@ export function EmailInboxScreen({ householdId, currency, onBack, hideHeader }: 
                               href={url || undefined}
                               target="_blank"
                               rel="noreferrer"
-                              className="flex items-center gap-2 rounded-xl border border-[#ead8c5] bg-[#fffaf4] px-3 py-3 text-sm font-bold text-[#6d4d38] transition-colors hover:border-[#cf833f] hover:text-[#cf833f]"
+                              className="flex items-center gap-2 rounded-xl border border-[#ead8c5] dark:border-white/10 bg-[#fffaf4] dark:bg-white/5 px-3 py-3 text-sm font-bold text-[#6d4d38] dark:text-white/70 transition-colors hover:border-[#cf833f] dark:hover:border-indigo-400/60 hover:text-[#cf833f] dark:hover:text-indigo-300"
                             >
                               {item.attachmentNames[index]?.toLowerCase().endsWith(".pdf") ? (
                                 <FileText className="h-4 w-4 shrink-0" />
@@ -354,17 +354,17 @@ export function EmailInboxScreen({ householdId, currency, onBack, hideHeader }: 
                       </div>
                     )}
 
-                    <div className="rounded-2xl border border-[#f2dfcb] bg-[#fffaf4]">
-                      <div className="flex items-center justify-between gap-3 border-b border-[#f2dfcb] px-4 py-3">
+                    <div className="rounded-2xl border border-[#f2dfcb] dark:border-white/10 bg-[#fffaf4] dark:bg-white/5 transition-colors duration-700">
+                      <div className="flex items-center justify-between gap-3 border-b border-[#f2dfcb] dark:border-white/10 px-4 py-3">
                         <div>
-                          <p className="text-sm font-bold text-[#2b180a]">Pozycje do zatwierdzenia</p>
-                          <p className="text-[11px] font-medium text-[#8a7262]">Popraw nazwy, kwoty i kategorie przed zapisem.</p>
+                          <p className="text-sm font-bold text-[#2b180a] dark:text-white">Pozycje do zatwierdzenia</p>
+                          <p className="text-[11px] font-medium text-[#8a7262] dark:text-white/50">Popraw nazwy, kwoty i kategorie przed zapisem.</p>
                         </div>
                         <div className="shrink-0 text-right">
-                          <p className="text-sm font-bold text-[#cf833f]">
+                          <p className="text-sm font-bold text-[#cf833f] dark:text-indigo-300">
                             {formatAmount(review.reduce((sum, row) => sum + row.amount, 0), currency)}
                           </p>
-                          <p className="text-[10px] font-bold text-[#b89b87]">{review.length} pozycji</p>
+                          <p className="text-[10px] font-bold text-[#b89b87] dark:text-white/40">{review.length} pozycji</p>
                         </div>
                       </div>
 
@@ -381,20 +381,20 @@ export function EmailInboxScreen({ householdId, currency, onBack, hideHeader }: 
                         return (
                           <div
                             key={`${item._id}-${index}`}
-                            className="border-b border-[#ebd8c8]/60 px-4 py-4 last:border-0"
+                            className="border-b border-[#ebd8c8]/60 dark:border-white/10 px-4 py-4 last:border-0"
                           >
                             <div className="mb-3 flex items-center justify-between gap-2">
                               <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                                <span className="inline-flex h-8 items-center justify-center rounded-lg bg-[#f5e5cf]/80 px-2.5 text-xs font-bold text-[#8a7262]">
+                                <span className="inline-flex h-8 items-center justify-center rounded-lg bg-[#f5e5cf]/80 dark:bg-white/10 px-2.5 text-xs font-bold text-[#8a7262] dark:text-white/60">
                                   #{index + 1}
                                 </span>
                                 {isDiscountRow && (
-                                  <span className="rounded-lg border border-[#9bd1af] bg-[#e8f6ed] px-2 py-1 text-[10px] font-bold text-[#2c7a4b]">
+                                  <span className="rounded-lg border border-[#9bd1af] dark:border-emerald-500/30 bg-[#e8f6ed] dark:bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-[#2c7a4b] dark:text-emerald-300">
                                     Rabat / opust
                                   </span>
                                 )}
                                 {needsReview && (
-                                  <span className="rounded-lg border border-[#f0c47f] bg-[#fff5df] px-2 py-1 text-[10px] font-bold text-[#a7651e]">
+                                  <span className="rounded-lg border border-[#f0c47f] dark:border-amber-500/30 bg-[#fff5df] dark:bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-[#a7651e] dark:text-amber-300">
                                     Do sprawdzenia
                                   </span>
                                 )}
@@ -403,7 +403,7 @@ export function EmailInboxScreen({ householdId, currency, onBack, hideHeader }: 
                               <button
                                 type="button"
                                 onClick={() => removeReviewItem(item._id, index)}
-                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-red-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-red-400 transition-colors hover:bg-red-50 dark:hover:bg-red-500/15 hover:text-red-500 dark:hover:text-red-300"
                                 aria-label="Usuń pozycję"
                               >
                                 <XCircle className="h-4 w-4" />
@@ -443,10 +443,10 @@ export function EmailInboxScreen({ householdId, currency, onBack, hideHeader }: 
                                     })
                                   }
                                   placeholder="0.00"
-                                  className={`w-full rounded-xl border bg-white/60 px-3 py-2 text-right text-sm font-bold tabular-nums outline-none ${
+                                  className={`w-full rounded-xl border bg-white/60 dark:bg-white/5 px-3 py-2 text-right text-sm font-bold tabular-nums outline-none transition-colors duration-700 ${
                                     isDiscountRow
-                                      ? "border-[#9bd1af] text-[#2c7a4b] focus:border-[#4f9a6e]"
-                                      : "border-[#f5e5cf] text-[#cf833f] focus:border-[#cf833f]"
+                                      ? "border-[#9bd1af] dark:border-emerald-500/40 text-[#2c7a4b] dark:text-emerald-300 focus:border-[#4f9a6e] dark:focus:border-emerald-400"
+                                      : "border-[#f5e5cf] dark:border-white/10 text-[#cf833f] dark:text-indigo-300 focus:border-[#cf833f] dark:focus:border-indigo-400"
                                   }`}
                                 />
                               </div>
@@ -503,11 +503,11 @@ export function EmailInboxScreen({ householdId, currency, onBack, hideHeader }: 
                         );
                       })}
 
-                      <div className="border-t border-[#f2dfcb] p-4">
+                      <div className="border-t border-[#f2dfcb] dark:border-white/10 p-4">
                         <button
                           type="button"
                           onClick={() => addReviewItem(item._id)}
-                          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#cf833f]/60 bg-[#fffaf4] px-3 py-3 text-sm font-bold text-[#b86a28] transition-colors hover:bg-[#fff2e2]"
+                          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#cf833f]/60 dark:border-white/20 bg-[#fffaf4] dark:bg-white/5 px-3 py-3 text-sm font-bold text-[#b86a28] dark:text-white/60 transition-colors hover:bg-[#fff2e2] dark:hover:bg-white/10"
                         >
                           <Plus className="h-4 w-4" />
                           Dodaj kolejną pozycję ręcznie
@@ -517,12 +517,12 @@ export function EmailInboxScreen({ householdId, currency, onBack, hideHeader }: 
 
                     {item.rawEmailText && (
                       <details className="group">
-                        <summary className="flex cursor-pointer items-center gap-1 text-[11px] font-bold text-[#b89b87] hover:text-[#8a7262]">
+                        <summary className="flex cursor-pointer items-center gap-1 text-[11px] font-bold text-[#b89b87] dark:text-white/40 hover:text-[#8a7262] dark:hover:text-white/70">
                           <FileText className="h-3 w-3" />
                           Pokaż treść maila
                         </summary>
-                        <div className="mt-2 rounded-xl border border-[#ebd8c8] bg-[#fffdf9] p-3">
-                          <p className="max-h-40 overflow-y-auto whitespace-pre-wrap font-mono text-[10px] leading-relaxed text-[#6d4d38]">
+                        <div className="mt-2 rounded-xl border border-[#ebd8c8] dark:border-white/10 bg-[#fffdf9] dark:bg-white/5 p-3">
+                          <p className="max-h-40 overflow-y-auto whitespace-pre-wrap font-mono text-[10px] leading-relaxed text-[#6d4d38] dark:text-white/60">
                             {item.rawEmailText}
                           </p>
                         </div>
@@ -533,7 +533,7 @@ export function EmailInboxScreen({ householdId, currency, onBack, hideHeader }: 
                       <button
                         type="button"
                         onClick={() => handleReject(item._id)}
-                        className="flex-1 rounded-xl border border-[#ffd2d2] bg-[#fffdf9] py-3 text-sm font-bold text-[#e65a5a] transition-colors hover:bg-[#ffeaea]"
+                        className="flex-1 rounded-xl border border-[#ffd2d2] dark:border-red-500/30 bg-[#fffdf9] dark:bg-red-500/10 py-3 text-sm font-bold text-[#e65a5a] dark:text-red-300 transition-colors hover:bg-[#ffeaea] dark:hover:bg-red-500/20"
                       >
                         <span className="flex items-center justify-center gap-1.5">
                           <XCircle className="h-4 w-4" />
@@ -560,7 +560,7 @@ export function EmailInboxScreen({ householdId, currency, onBack, hideHeader }: 
         </div>
       )}
 
-      <div className="rounded-xl border border-white/50 bg-white/30 p-4 text-[12px] font-medium leading-relaxed text-[#8a7262]">
+      <div className="rounded-xl border border-white/50 dark:border-white/10 bg-white/30 dark:bg-white/5 p-4 text-[12px] font-medium leading-relaxed text-[#8a7262] dark:text-white/50 transition-colors duration-700">
         Najlepiej działają forwardowane PDF-y z tekstem oraz zdjęcia/skany rachunków. Jeśli parser czegoś nie odczyta
         idealnie, poprawiasz to tutaj przed zapisaniem do kosztów.
       </div>

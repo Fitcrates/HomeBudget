@@ -137,13 +137,13 @@ export function HouseholdSetup({ onCreated }: Props) {
             <div
               className="relative flex items-center justify-center w-20 h-20 rounded-[22px]"
               style={{
-                background: "linear-gradient(145deg, rgba(255,255,255,0.6), rgba(255,255,255,0.25))",
-                boxShadow: "var(--shadow-card), inset 0 1px 0 rgba(255,255,255,0.5)",
-                border: "1px solid rgba(255,255,255,0.45)",
+                background: "var(--surface-logo-tile)",
+                boxShadow: "var(--shadow-card), inset 0 1px 0 var(--border-card)",
+                border: "1px solid var(--border-card)",
                 backdropFilter: "blur(20px)",
               }}
             >
-              <HomeIcon className="w-11 h-11 text-[#c76823]" />
+              <HomeIcon className="w-11 h-11 text-[#c76823] dark:text-indigo-300 transition-colors duration-700" />
             </div>
           </div>
           <h1
@@ -163,7 +163,7 @@ export function HouseholdSetup({ onCreated }: Props) {
         {/* ── Household Card ───────────────────────────── */}
         <div className="app-card overflow-hidden animate-fade-in-up stagger-2">
           {/* Tab switcher */}
-          <div className="flex p-1.5 m-3 mb-0 rounded-[14px]" style={{ background: "rgba(207, 131, 63, 0.08)" }}>
+          <div className="flex p-1.5 m-3 mb-0 rounded-[14px]" style={{ background: "var(--surface-segmented-track)" }}>
             <div className="relative flex flex-1">
               {/* Animated indicator */}
               <div
@@ -284,7 +284,7 @@ export function HouseholdSetup({ onCreated }: Props) {
                 <div
                   className="h-16 w-16 rounded-[16px] flex items-center justify-center text-xl font-semibold"
                   style={{
-                    background: "linear-gradient(145deg, #fdf0e0, #f8e0c8)",
+                    background: "var(--surface-avatar-fallback)",
                     border: "2px solid var(--border-subtle)",
                     color: "var(--accent-hover)",
                   }}
