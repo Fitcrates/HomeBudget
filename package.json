@@ -11,6 +11,7 @@
     "lint": "tsc -p convex -noEmit --pretty false && tsc -p . -noEmit --pretty false && convex dev --once && vite build"
   },
   "dependencies": {
+    "@auth/core": "^0.37.0",
     "@convex-dev/auth": "^0.0.80",
     "@lottiefiles/dotlottie-react": "^0.18.9",
     "@node-rs/bcrypt": "^1.10.7",
