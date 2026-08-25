@@ -351,7 +351,7 @@ export function AddExpenseScreen({ householdId, currency, initialTab = "fresh", 
           </div>
 
           {/* CTA zawsze w zasiegu kciuka — nie trzeba scrollowac na sam dol */}
-          <div className="sticky bottom-0 z-20 -mx-3 bg-gradient-to-t from-[#fcf8f2] via-[#fcf8f2] to-transparent px-3 pb-1 pt-4 transition-colors duration-700 dark:from-[#0a0a0a] dark:via-[#0a0a0a] sm:-mx-4 sm:px-4">
+          <div className="sticky bottom-0 z-20 -mx-3 bg-gradient-to-t from-[#fcf8f2] via-[#fcf8f2] to-transparent px-3 pb-0 pt-3 transition-colors duration-700 dark:from-[#0a0a0a] dark:via-[#0a0a0a] sm:-mx-4 sm:px-4">
             {missing.length > 0 && (
               <p className="mb-2 text-center text-[11px] font-bold text-orange-900/55 dark:text-white/45 transition-colors duration-700">
                 Uzupełnij {missing.join(" i ")}, aby zapisać

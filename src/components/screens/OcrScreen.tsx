@@ -928,7 +928,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDo
           )}
 
           {!queuedNotice && (
-            <div className="sticky bottom-0 z-20 -mx-3 bg-gradient-to-t from-[#fcf8f2] via-[#fcf8f2] to-transparent px-3 pb-1 pt-4 transition-colors duration-700 dark:from-[#0a0a0a] dark:via-[#0a0a0a] sm:-mx-4 sm:px-4">
+            <div className="sticky bottom-0 z-20 -mx-3 bg-gradient-to-t from-[#fcf8f2] via-[#fcf8f2] to-transparent px-3 pb-0 pt-3 transition-colors duration-700 dark:from-[#0a0a0a] dark:via-[#0a0a0a] sm:-mx-4 sm:px-4">
               <p className="mb-2 text-center text-[11px] font-bold text-orange-900/55 transition-colors duration-700 dark:text-white/45">
                 {currentStorageIds.length === 0
                   ? "Dodaj zdjęcie lub PDF, aby uruchomić analizę"
@@ -1345,7 +1345,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDo
           </AppCard>
 
           {/* Zapis zawsze pod kciukiem — bez scrollowania na koniec listy. */}
-          <div className="sticky bottom-0 z-20 -mx-3 bg-gradient-to-t from-[#fcf8f2] via-[#fcf8f2] to-transparent px-3 pb-1 pt-4 transition-colors duration-700 dark:from-[#0a0a0a] dark:via-[#0a0a0a] sm:-mx-4 sm:px-4">
+          <div className="sticky bottom-0 z-20 -mx-3 bg-gradient-to-t from-[#fcf8f2] via-[#fcf8f2] to-transparent px-3 pb-0 pt-3 transition-colors duration-700 dark:from-[#0a0a0a] dark:via-[#0a0a0a] sm:-mx-4 sm:px-4">
             {attentionCount > 0 && (
               <p className="mb-2 text-center text-[11px] font-bold text-red-600 transition-colors duration-700 dark:text-red-400">
                 {attentionCount} {attentionCount === 1 ? "pozycja wymaga" : "pozycje wymagają"} uzupełnienia

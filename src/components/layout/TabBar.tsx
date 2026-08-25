@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useLayoutEffect, useRef } from "react";
 import { PiggyBank, Bot, Plane } from "lucide-react";
 import { DashboardIcon } from "../ui/icons/DashboardIcon";
 
@@ -10,10 +10,42 @@ interface TabBarProps {
 }
 
 export function TabBar({ currentScreen, onNavigate }: TabBarProps) {
+  const navRef = useRef<HTMLElement>(null);
+  const fabRef = useRef<HTMLButtonElement>(null);
+
+  // Ile miejsca zajmuje dolny chrome (pasek + wystajacy FAB + safe-area).
+  // Ekrany czytaja to jako --bottom-chrome-h, zamiast zgadywac stala wartosc:
+  // na telefonach z gestami safe-area potrafi dodac kilkadziesiat pikseli,
+  // przez co zgadniete pb-28 zostawialo martwe pole nad nawigacja.
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    const fab = fabRef.current;
+    if (!nav || !fab) return;
+
+    function publish() {
+      const navRect = nav!.getBoundingClientRect();
+      const fabRect = fab!.getBoundingClientRect();
+      const height = navRect.bottom - Math.min(navRect.top, fabRect.top);
+      document.documentElement.style.setProperty("--bottom-chrome-h", `${Math.round(height)}px`);
+    }
+
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(nav);
+    window.addEventListener("resize", publish);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", publish);
+    };
+  }, []);
+
   return (
-    <div className="fixed bottom-0 left-0 w-full z-50 transition-all duration-700">
+    /* absolute, nie fixed: fixed kotwiczy sie do layout viewportu, a powloka
+       aplikacji ma h-dvh — gdy te dwie wysokosci sie roznily (pasek adresu,
+       gesty), nawigacja siadala nizej niz koniec <main> i robila sie dziura. */
+    <div className="absolute bottom-0 left-0 w-full z-50 transition-all duration-700">
       {/* Docked Glassmorphism Container */}
-      <nav className="w-full flex items-center justify-between px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] rounded-t-[28px] bg-white/80 dark:bg-[#111111]/90 backdrop-blur-2xl border-t border-orange-200/50 dark:border-white/10 shadow-[0_-8px_32px_rgba(200,120,50,0.1)] dark:shadow-[0_-8px_32px_rgba(0,0,0,0.5)] transition-all duration-700">
+      <nav ref={navRef} className="w-full flex items-center justify-between px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] rounded-t-[28px] bg-white/80 dark:bg-[#111111]/90 backdrop-blur-2xl border-t border-orange-200/50 dark:border-white/10 shadow-[0_-8px_32px_rgba(200,120,50,0.1)] dark:shadow-[0_-8px_32px_rgba(0,0,0,0.5)] transition-all duration-700">
         
         <NavBtn
           icon={<DashboardIcon className="w-6 h-6" />}
@@ -28,6 +60,7 @@ export function TabBar({ currentScreen, onNavigate }: TabBarProps) {
         
         {/* Floating Add Button */}
         <button
+          ref={fabRef}
           onClick={() => onNavigate("add")}
           className="relative w-[56px] h-[56px] -mt-8 rounded-full flex flex-col items-center justify-center text-white transition-all duration-300 hover:scale-110 active:scale-95 group"
         >

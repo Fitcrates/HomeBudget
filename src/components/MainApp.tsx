@@ -109,7 +109,13 @@ export function MainApp({ household, households, onSwitchHousehold, initialScree
             onToggleTheme={() => setIsDark(!isDark)}
           />
 
-          <main className="flex-1 overflow-y-auto overflow-x-hidden pt-2 pb-28 px-3 sm:px-4 space-y-5 scrollbar-hide relative z-10">
+          {/* Dol wyliczany z realnej wysokosci nawigacji (--bottom-chrome-h ustawia
+              TabBar), nie ze stalego pb-28 — inaczej na telefonach z safe-area
+              zostawal pas martwej przestrzeni, a sticky CTA wisialo za wysoko. */}
+          <main
+            className="flex-1 overflow-y-auto overflow-x-hidden pt-2 px-3 sm:px-4 space-y-5 scrollbar-hide relative z-10"
+            style={{ paddingBottom: "calc(var(--bottom-chrome-h, 7rem) + 0.5rem)" }}
+          >
             {screen === "dashboard" && (
               <DashboardScreen
                 householdId={household._id}
