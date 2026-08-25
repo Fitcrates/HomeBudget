@@ -16,6 +16,8 @@ import {
 import { buildCompactCategoryList, resolveHeuristicCategory } from "./ocr/categories";
 import { parseAndNormalizeResponse } from "./ocr/parser";
 import { buildAuditPrompt, buildPrompt, SYSTEM_PROMPT, VISION_MODEL, VISION_MODEL_SMART } from "./ocr/prompt";
+import { getMarketPack, MarketPack } from "./markets";
+import { HouseholdOcrSettings, resolveHouseholdOcrSettings } from "./ocr/parser";
 import { ProcessReceiptResult, ProcessedReceiptItem, ReceiptSummary } from "./ocr/types";
 import { normalizeDescriptionKey } from "./ocr/utils";
 
@@ -335,6 +337,8 @@ async function processImagesWithAI(
   compactCategories: string,
   categoriesArray: any[],
   processOptions?: {
+    /** Waluta docelowa, gdy skan trafia do wyjazdu rozliczanego inaczej niz dom. */
+    targetCurrency?: string;
     fastTimeoutMs?: number;
     fastMultiImageTimeoutMs?: number;
     fastMinTotalMs?: number;
@@ -380,6 +384,11 @@ async function processImagesWithAI(
   }
 
   const pipelineStart = Date.now();
+  // Jeden odczyt ustawien na caly przebieg: prompt, leksykon i przeliczenie
+  // waluty musza pochodzic z tego samego zrodla, a pipeline i tak walczy
+  // z 30-sekundowym budzetem.
+  const runContext = await getOcrRunContext(ctx, householdId, processOptions?.targetCurrency);
+  const market = runContext.market;
   const analyzeBatch = async (
     batch: ImageInput[],
     traceLabel: string,
@@ -392,7 +401,12 @@ async function processImagesWithAI(
     const enableAuditPass = options?.enableAuditPass ?? false;
     const batchStart = Date.now();
     const promptStart = Date.now();
-    const prompt = buildPrompt(compactCategories);
+    const prompt = buildPrompt(
+      compactCategories,
+      undefined,
+      market.promptHints,
+      runContext.settings.targetCurrency
+    );
     const promptMs = Date.now() - promptStart;
     const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
       { type: "text", text: prompt },
@@ -458,7 +472,8 @@ async function processImagesWithAI(
       content,
       categoriesArray,
       response.model || VISION_MODEL,
-      `${traceLabel}:initial`
+      `${traceLabel}:initial`,
+      runContext.settings
     );
     const initialParseMs = Date.now() - initialParseStart;
     let retryUsed = false;
@@ -496,7 +511,8 @@ async function processImagesWithAI(
         content,
         categoriesArray,
         response.model || VISION_MODEL,
-        `${traceLabel}:truncation-retry`
+        `${traceLabel}:truncation-retry`,
+        runContext.settings
       );
     }
 
@@ -588,7 +604,8 @@ async function processImagesWithAI(
           content,
           categoriesArray,
           response.model || VISION_MODEL_SMART,
-          `${traceLabel}:retry`
+          `${traceLabel}:retry`,
+          runContext.settings
         );
         const retryParseMs = Date.now() - retryParseStart;
         const retryPreferred = shouldPreferRecoveryCandidate(parsed, retryCandidate);
@@ -642,7 +659,7 @@ async function processImagesWithAI(
         ctx,
         householdId,
         batch,
-        compactCategories,
+        runContext,
         categoriesArray,
         content,
         parsed,
@@ -689,6 +706,9 @@ async function processImagesWithAI(
     let deposit = 0;
     let receiptOffset = 0;
     let retryUsed = false;
+    // Kontekst walutowy jest wspolny dla calego skanu (waluta gospodarstwa +
+    // waluta paragonu), wiec bierzemy pierwszy niepusty zamiast go scalac.
+    const mergedCurrency = results.find((entry) => entry.currency)?.currency;
 
     for (let index = 0; index < results.length; index++) {
       const result = results[index];
@@ -767,6 +787,7 @@ async function processImagesWithAI(
         totalAmount: singleSummary.totalAmount,
         payableAmount: singleSummary.payableAmount,
         depositTotal: singleSummary.depositTotal,
+        currency: mergedCurrency,
         modelUsed: VISION_MODEL,
         receiptCount: 1,
         receiptSummaries: enrichReceiptSummariesWithValidation([singleSummary], dedupedItems),
@@ -780,6 +801,7 @@ async function processImagesWithAI(
       totalAmount: total > 0 ? total.toFixed(2) : "",
       payableAmount: payable > 0 ? payable.toFixed(2) : "",
       depositTotal: deposit > 0 ? deposit.toFixed(2) : "",
+      currency: mergedCurrency,
       modelUsed: VISION_MODEL,
       receiptCount: Math.max(1, mergedSummaries.length),
       receiptSummaries: enrichReceiptSummariesWithValidation(mergedSummaries, mergedItems),
@@ -908,7 +930,7 @@ async function auditReceiptWithAI(
   ctx: any,
   householdId: Id<"households">,
   imageDataList: ImageInput[],
-  compactCategories: string,
+  runContext: OcrRunContext,
   categoriesArray: any[],
   previousJson: string,
   parsed: ProcessReceiptResult,
@@ -919,7 +941,12 @@ async function auditReceiptWithAI(
   const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
     {
       type: "text",
-      text: buildAuditPrompt(compactCategories, previousJson, suspiciousDuplicateReceipts),
+      text: buildAuditPrompt(
+        previousJson,
+        suspiciousDuplicateReceipts,
+        runContext.market.auditLines,
+        runContext.settings.targetCurrency
+      ),
     },
   ];
 
@@ -964,7 +991,8 @@ async function auditReceiptWithAI(
     content,
     categoriesArray,
     VISION_MODEL_SMART,
-    traceLabel
+    traceLabel,
+    runContext.settings
   );
   const parseMs = Date.now() - parseStart;
 
@@ -990,10 +1018,17 @@ async function processTextWithAI(
   householdId: Id<"households">,
   text: string,
   compactCategories: string,
-  categoriesArray: any[]
+  categoriesArray: any[],
+  targetCurrency?: string
 ): Promise<ProcessReceiptResult & { retryUsed: boolean }> {
   const promptStart = Date.now();
-  const prompt = buildPrompt(compactCategories, text);
+  const runContext = await getOcrRunContext(ctx, householdId, targetCurrency);
+  const prompt = buildPrompt(
+    compactCategories,
+    text,
+    runContext.market.promptHints,
+    runContext.settings.targetCurrency
+  );
   const promptMs = Date.now() - promptStart;
   logOcrTiming("ocr:text", "prompt_ready", {
     promptLength: prompt.length,
@@ -1024,7 +1059,8 @@ async function processTextWithAI(
     content,
     categoriesArray,
     VISION_MODEL,
-    "ocr:text"
+    "ocr:text",
+    runContext.settings
   );
   const parseMs = Date.now() - parseStart;
   logOcrTiming("ocr:text", "pipeline_completed", {
@@ -1034,6 +1070,25 @@ async function processTextWithAI(
     receiptGroups: parsed.receiptSummaries.length,
   });
   return { ...parsed, retryUsed: false };
+}
+
+/**
+ * Market pack gospodarstwa. Prompt i leksykon musza pochodzic z tego samego
+ * zrodla co parser, inaczej model dostawalby wskazowki dla innego rynku niz
+ * ten, wedlug ktorego pozniej interpretujemy odpowiedz.
+ */
+interface OcrRunContext {
+  settings: HouseholdOcrSettings;
+  market: MarketPack;
+}
+
+async function getOcrRunContext(
+  ctx: any,
+  householdId: Id<"households">,
+  targetCurrency?: string
+): Promise<OcrRunContext> {
+  const settings = await resolveHouseholdOcrSettings(ctx, householdId, targetCurrency);
+  return { settings, market: getMarketPack(settings.country) };
 }
 
 async function listCategoriesForHouseholdInternal(ctx: any, householdId: Id<"households">) {
@@ -1490,7 +1545,10 @@ function toPendingReviewItems(result: ProcessReceiptResult, storageIds: Id<"_sto
 function buildQueuedScanSummary(result: ProcessReceiptResult) {
   const mismatchedReceipts = result.receiptSummaries.filter((receipt) => receipt.mismatchType !== "ok");
   const mismatchCount = mismatchedReceipts.length;
-  const total = result.totalAmount ? ` Suma z paragonu: ${result.totalAmount} PLN.` : "";
+  // Kwoty sa juz w walucie gospodarstwa, wiec i etykieta musi z niej pochodzic
+  // zamiast zakladac zlotowki.
+  const currencyCode = result.currency?.targetCurrency || "PLN";
+  const total = result.totalAmount ? ` Suma z paragonu: ${result.totalAmount} ${currencyCode}.` : "";
   const adjustmentCount = result.items.filter((item) =>
     item.originalRawDescription === "OCR_MISSING_DISCOUNT_ADJUSTMENT"
   ).length;
@@ -1504,7 +1562,7 @@ function buildQueuedScanSummary(result: ProcessReceiptResult) {
       const expected = Number.parseFloat(receipt.totalAmount || "0");
       const diff = Number.parseFloat(receipt.difference || "0");
       if (!(expected > 0)) return null;
-      return ` suma pozycji ${itemsTotal.toFixed(2)} vs paragon ${expected.toFixed(2)} (roznica ${diff.toFixed(2)} PLN)`;
+      return ` suma pozycji ${itemsTotal.toFixed(2)} vs paragon ${expected.toFixed(2)} (roznica ${diff.toFixed(2)} ${currencyCode})`;
     })
     .filter(Boolean)
     .join(";");
@@ -1841,6 +1899,8 @@ export const processReceiptWithAI = action({
     storageIds: v.array(v.id("_storage")),
     householdId: v.id("households"),
     isPdf: v.optional(v.boolean()),
+    // Skan dopisywany do wyjazdu rozlicza sie w walucie wyjazdu, a nie domu.
+    targetCurrency: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<ProcessReceiptResult> => {
     const startTime = Date.now();
@@ -1875,7 +1935,8 @@ export const processReceiptWithAI = action({
         args.householdId,
         imageDataList,
         compactCategories,
-        categoriesArray
+        categoriesArray,
+        { targetCurrency: args.targetCurrency }
       );
       logOcrTiming("ocr:action", "ai_completed", {
         imageCount: imageDataList.length,

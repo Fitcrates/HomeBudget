@@ -6,6 +6,7 @@ import { Id } from "../../convex/_generated/dataModel";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { HomeIcon } from "./ui/icons/HomeIcon";
 import { Camera, LogOut } from "lucide-react";
+import { detectBrowserLocale } from "../lib/locale";
 
 interface Props {
   onCreated: (id: string) => void;
@@ -61,7 +62,14 @@ export function HouseholdSetup({ onCreated }: Props) {
     if (!name.trim()) return;
     setLoading(true);
     try {
-      const id = await createHousehold({ name: name.trim() });
+      // Locale przeglądarki jako domyślne: decyduje o języku etykiet katalogu
+      // i o tym, który market pack obsłuży OCR.
+      const locale = detectBrowserLocale();
+      const id = await createHousehold({
+        name: name.trim(),
+        language: locale.language,
+        country: locale.country,
+      });
       toast.success("Gospodarstwo domowe utworzone!");
       sessionStorage.removeItem(HOUSEHOLD_INTENT_KEY);
       onCreated(id);

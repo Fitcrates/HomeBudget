@@ -243,33 +243,20 @@ export function stripDiacritics(value: string): string {
     .replace(/ż/g, "z");
 }
 
-export function tokenizeDescription(description: string): string[] {
+export function tokenizeDescription(description: string, stopWords: string[] = []): string[] {
   const normalized = stripDiacritics(description)
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   if (!normalized) return [];
 
-  const stopWords = new Set([
-    "rabat",
-    "promocja",
-    "promocji",
-    "opust",
-    "kupon",
-    "aplikacja",
-    "aplikacji",
-    "program",
-    "klienta",
-    "karta",
-    "minus",
-    "znizka",
-    "bonifikata",
-    "paragon",
-  ]);
+  // Slowa rabatowe pochodza z market packa — bez nich "Rabat Lidl Plus"
+  // dopasowalby sie do dowolnej pozycji zawierajacej slowo "rabat".
+  const skip = new Set(stopWords);
 
   return normalized
     .split(" ")
-    .filter((token) => token.length >= 3 && !stopWords.has(token));
+    .filter((token) => token.length >= 3 && !skip.has(token));
 }
 
 export function normalizeDescriptionKey(description: string): string {

@@ -199,6 +199,10 @@ export const createMany = mutation({
       ocrRawText: v.optional(v.string()),
       tags: v.optional(v.array(v.string())),
       isSubscription: v.optional(v.boolean()),
+      originalAmount: v.optional(v.number()),
+      originalCurrency: v.optional(v.string()),
+      exchangeRate: v.optional(v.number()),
+      exchangeRateDate: v.optional(v.string()),
     })),
   },
   handler: async (ctx, args) => {
@@ -315,6 +319,10 @@ export const createMany = mutation({
         ocrRawText: item.ocrRawText,
         tags: item.tags,
         isSubscription: item.isSubscription,
+        originalAmount: item.originalAmount,
+        originalCurrency: item.originalCurrency,
+        exchangeRate: item.exchangeRate,
+        exchangeRateDate: item.exchangeRateDate,
       });
 
       insertedIds.push(insertedId);

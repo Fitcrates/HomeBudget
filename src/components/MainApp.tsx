@@ -25,6 +25,7 @@ interface Household {
   _id: Id<"households">;
   name: string;
   currency: string;
+  country?: string;
   inviteCode: string;
   role: "owner" | "member";
   financialRole?: "parent" | "partner" | "child";
@@ -155,6 +156,8 @@ export function MainApp({ household, households, onSwitchHousehold, initialScree
                 storageIds={ocrStorageIds}
                 mimeTypes={ocrMimeTypes}
                 householdId={household._id}
+                currency={household.currency}
+                country={household.country}
                 tripTarget={ocrTarget.type === "trip" ? ocrTarget : undefined}
                 onDone={() => {
                   if (ocrTarget.type === "trip") {

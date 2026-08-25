@@ -1,6 +1,7 @@
 "use node";
 
 import { ProcessedReceiptItem, ReceiptSummary } from "./types";
+import { MarketLexicon } from "../markets/types";
 import {
   asString,
   cleanupReceiptLineDescription,
@@ -10,28 +11,28 @@ import {
   tokenizeDescription,
 } from "./utils";
 
-export function isDiscountLikeDescription(description: string): boolean {
-  const text = stripDiacritics(description);
-  return /(rabat|opust|kupon|coupon|bonifikat|znizk|obnizk|taniej|minus|przecen)/i.test(text);
+// Slownictwo przychodzi z market packa wybranego po kraju gospodarstwa —
+// "Rabatt" i "Pfand" musza dzialac tak samo jak "rabat" i "kaucja".
+export function isDiscountLikeDescription(description: string, lexicon: MarketLexicon): boolean {
+  return lexicon.discount.test(stripDiacritics(description));
 }
 
-export function isDepositLikeDescription(description: string): boolean {
-  const text = stripDiacritics(description);
-  return /(kaucj|opakowan(?:ie|ia)?\s+zwrotn|zwrotn(?:a|e)?\s+(?:butelk|puszk|opakowan))/i.test(text);
+export function isDepositLikeDescription(description: string, lexicon: MarketLexicon): boolean {
+  return lexicon.deposit.test(stripDiacritics(description));
 }
 
-export function isTechnicalLine(description: string): boolean {
-  const text = stripDiacritics(description);
-  return /(suma|podsuma|sprzedaz|sprzedaz opodatkowana|ptu|rozliczenie|platnosc|karta|gotowka|paragon|fiskalny|nip|adres|zaoszczedzono|wykorzystane kupony|miejsce zakupu|dziekujemy)/i.test(text);
+export function isTechnicalLine(description: string, lexicon: MarketLexicon): boolean {
+  return lexicon.technical.test(stripDiacritics(description));
 }
 
 export function findBestDiscountCandidate(
   normalizedItems: ProcessedReceiptItem[],
   receiptIndex: number,
   discountDescription: string,
-  discountInPln: number
+  discountAmount: number,
+  lexicon: MarketLexicon
 ): ProcessedReceiptItem | null {
-  const discountTokens = tokenizeDescription(discountDescription);
+  const discountTokens = tokenizeDescription(discountDescription, lexicon.stopWords);
 
   let bestCandidate: ProcessedReceiptItem | null = null;
   let bestScore = Number.NEGATIVE_INFINITY;
@@ -41,16 +42,16 @@ export function findBestDiscountCandidate(
     if (candidate.receiptIndex !== receiptIndex) continue;
 
     const candidateAmount = Number.parseFloat(candidate.amount);
-    if (!(candidateAmount > discountInPln + 0.001)) continue;
+    if (!(candidateAmount > discountAmount + 0.001)) continue;
 
-    const candidateTokens = tokenizeDescription(candidate.originalRawDescription || candidate.description);
+    const candidateTokens = tokenizeDescription(candidate.originalRawDescription || candidate.description, lexicon.stopWords);
     const overlap = discountTokens.length > 0
       ? discountTokens.filter((token) => candidateTokens.includes(token)).length
       : 0;
 
     const distanceFromEnd = normalizedItems.length - 1 - i;
     const recencyBonus = Math.max(0, 5 - distanceFromEnd) * 0.5;
-    const amountClosenessBonus = Math.max(0, 3 - Math.abs(candidateAmount - discountInPln));
+    const amountClosenessBonus = Math.max(0, 3 - Math.abs(candidateAmount - discountAmount));
     const score = overlap * 10 + recencyBonus + amountClosenessBonus;
 
     if (score > bestScore) {
@@ -74,22 +75,32 @@ export function buildDiscountLineItem(
   receiptLabel: string,
   sourceImageIndex: number | null,
   discountDescription: string,
-  discountInPln: number
+  discountAmount: number,
+  lexicon: MarketLexicon,
+  /** Kwota sprzed przeliczenia — bez niej wiersz rabatowy traci slad waluty. */
+  originalDiscount?: { amount: number; currency: string }
 ): ProcessedReceiptItem | null {
-  if (!(discountInPln > 0)) return null;
+  if (!(discountAmount > 0)) return null;
 
   const matchedCandidate = findBestDiscountCandidate(
     normalizedItems,
     receiptIndex,
     discountDescription,
-    discountInPln
+    discountAmount,
+    lexicon
   );
   const cleanedDescription = cleanupReceiptLineDescription(discountDescription) || "Rabat / opust";
 
   return {
     description: `Rabat: ${cleanedDescription}`,
     originalRawDescription: cleanedDescription,
-    amount: (-discountInPln).toFixed(2),
+    amount: (-discountAmount).toFixed(2),
+    ...(originalDiscount
+      ? {
+        originalAmount: (-originalDiscount.amount).toFixed(2),
+        originalCurrency: originalDiscount.currency,
+      }
+      : {}),
     categoryId: matchedCandidate?.categoryId ?? null,
     subcategoryId: matchedCandidate?.subcategoryId ?? null,
     fromMapping: false,
@@ -211,7 +222,8 @@ export function parseAuditedTranscribedLines(
   receiptIndex: number,
   receiptLabel: string,
   sourceImageIndex: number | null,
-  exchangeRate: number
+  exchangeRate: number,
+  lexicon: MarketLexicon
 ): ProcessedReceiptItem[] {
   const items: ProcessedReceiptItem[] = [];
 
@@ -220,23 +232,24 @@ export function parseAuditedTranscribedLines(
     if (!line) continue;
 
     const normalizedLine = line.replace(/\s+/g, " ").trim();
-    if (!normalizedLine || isTechnicalLine(normalizedLine) || isDepositLikeDescription(normalizedLine)) {
+    if (!normalizedLine || isTechnicalLine(normalizedLine, lexicon) || isDepositLikeDescription(normalizedLine, lexicon)) {
       continue;
     }
 
-    const discountMatch = normalizedLine.match(/^opust\s+(.+?)\s+(-?\d+[.,]\d{2})$/i);
+    const discountMatch = normalizedLine.match(lexicon.discountLine);
     if (discountMatch) {
       const discountDescription = cleanupReceiptLineDescription(discountMatch[1] || "");
       const discountAbs = Math.abs(parseAmountNumber(discountMatch[2]) || 0);
       if (discountAbs > 0) {
-        const discountInPln = exchangeRate !== 1 ? discountAbs * exchangeRate : discountAbs;
+        const discountAmount = exchangeRate !== 1 ? discountAbs * exchangeRate : discountAbs;
         const discountItem = buildDiscountLineItem(
           items,
           receiptIndex,
           receiptLabel,
           sourceImageIndex,
           discountDescription,
-          discountInPln
+          discountAmount,
+          lexicon
         );
         if (discountItem) {
           items.push(discountItem);
@@ -255,9 +268,9 @@ export function parseAuditedTranscribedLines(
       if (
         nextLine &&
         /^-?\d+[.,]\d{2}[A-Z]?$/.test(nextLine) &&
-        !isTechnicalLine(normalizedLine) &&
-        !isDiscountLikeDescription(normalizedLine) &&
-        !isDepositLikeDescription(normalizedLine)
+        !isTechnicalLine(normalizedLine, lexicon) &&
+        !isDiscountLikeDescription(normalizedLine, lexicon) &&
+        !isDepositLikeDescription(normalizedLine, lexicon)
       ) {
         pricedLine = {
           description: cleanupReceiptLineDescription(normalizedLine),
@@ -271,9 +284,9 @@ export function parseAuditedTranscribedLines(
       continue;
     }
     if (
-      isDiscountLikeDescription(pricedLine.description) ||
-      isDepositLikeDescription(pricedLine.description) ||
-      isTechnicalLine(pricedLine.description)
+      isDiscountLikeDescription(pricedLine.description, lexicon) ||
+      isDepositLikeDescription(pricedLine.description, lexicon) ||
+      isTechnicalLine(pricedLine.description, lexicon)
     ) {
       continue;
     }
@@ -301,7 +314,8 @@ export function parseAuditedProductLines(
   receiptIndex: number,
   receiptLabel: string,
   sourceImageIndex: number | null,
-  exchangeRate: number
+  exchangeRate: number,
+  lexicon: MarketLexicon
 ): ProcessedReceiptItem[] {
   const items: ProcessedReceiptItem[] = [];
 
@@ -312,7 +326,7 @@ export function parseAuditedProductLines(
     const amount = parseAmountNumber(row.total);
 
     if (!description || amount === null || amount <= 0) continue;
-    if (isTechnicalLine(description) || isDepositLikeDescription(description) || isDiscountLikeDescription(description)) {
+    if (isTechnicalLine(description, lexicon) || isDepositLikeDescription(description, lexicon) || isDiscountLikeDescription(description, lexicon)) {
       continue;
     }
 

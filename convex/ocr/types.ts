@@ -11,6 +11,10 @@ export interface ProcessedReceiptItem {
   receiptIndex: number;
   receiptLabel?: string;
   sourceImageIndex?: number | null;
+  /** Kwota sprzed przeliczenia — zapisywana tylko gdy waluty sie roznily. */
+  originalAmount?: string;
+  originalCurrency?: string;
+  exchangeRate?: number;
 }
 
 export interface ReceiptSummary {
@@ -25,6 +29,16 @@ export interface ReceiptSummary {
   mismatchType?: "ok" | "missing_items" | "missing_discounts" | "unknown";
 }
 
+export interface CurrencyContext {
+  /** Waluta odczytana z paragonu (pusta = zalozono walute gospodarstwa). */
+  receiptCurrency: string;
+  targetCurrency: string;
+  exchangeRate: number;
+  exchangeRateDate: string;
+  /** Kurs byl potrzebny, ale nie udalo sie go pobrac — kwoty zostaly w walucie paragonu. */
+  conversionFailed: boolean;
+}
+
 export interface ProcessReceiptResult {
   items: ProcessedReceiptItem[];
   rawText: string;
@@ -34,6 +48,7 @@ export interface ProcessReceiptResult {
   modelUsed: string;
   receiptCount: number;
   receiptSummaries: ReceiptSummary[];
+  currency?: CurrencyContext;
 }
 
 export type AuditedLineCandidate = {

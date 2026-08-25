@@ -40,6 +40,10 @@ interface Props {
   storageIds: Id<"_storage">[];
   mimeTypes?: string[];
   householdId: Id<"households">;
+  /** Waluta gospodarstwa — kwoty z paragonu sa do niej przeliczane. */
+  currency: string;
+  /** Kraj gospodarstwa — wybiera market pack, wiec wchodzi do klucza cache. */
+  country?: string;
   tripTarget?: {
     type: "trip";
     tripId: Id<"trips">;
@@ -81,6 +85,9 @@ interface ParsedItem {
   receiptIndex: number;
   receiptLabel?: string;
   sourceImageIndex?: number | null;
+  originalAmount?: string;
+  originalCurrency?: string;
+  exchangeRate?: number;
 }
 
 interface ReceiptSummary {
@@ -107,6 +114,9 @@ interface ProcessReceiptResult {
     receiptIndex?: number;
     receiptLabel?: string;
     sourceImageIndex?: number | null;
+    originalAmount?: string;
+    originalCurrency?: string;
+    exchangeRate?: number;
   }>;
   rawText?: string;
   totalAmount?: string;
@@ -115,6 +125,15 @@ interface ProcessReceiptResult {
   modelUsed?: string;
   receiptCount?: number;
   receiptSummaries?: ReceiptSummary[];
+  currency?: CurrencyContext;
+}
+
+interface CurrencyContext {
+  receiptCurrency: string;
+  targetCurrency: string;
+  exchangeRate: number;
+  exchangeRateDate: string;
+  conversionFailed: boolean;
 }
 
 const PDF_MIME = "application/pdf";
@@ -211,7 +230,7 @@ const STAGE_LABELS: Record<ProcessingStage, string> = {
   done: "Gotowe!",
 };
 
-export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDone, onOpenReviewQueue }: Props) {
+export function OcrScreen({ storageIds, mimeTypes, householdId, currency, country, tripTarget, onDone, onOpenReviewQueue }: Props) {
   const [processing, setProcessing] = useState(false);
   const [processingStage, setProcessingStage] = useState<ProcessingStage>("idle");
   const [queuedNotice, setQueuedNotice] = useState<string | null>(null);
@@ -219,6 +238,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDo
   const [items, setItems] = useState<ParsedItem[] | null>(null);
   const [expectedTotal, setExpectedTotal] = useState<string>("");
   const [receiptSummaries, setReceiptSummaries] = useState<ReceiptSummary[]>([]);
+  const [currencyInfo, setCurrencyInfo] = useState<CurrencyContext | null>(null);
   const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [saving, setSaving] = useState(false);
   const initialPreviews = storageIds.map((id, index) => {
@@ -261,6 +281,11 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDo
     );
   }, [tripDetails]);
 
+  const tripCurrency: string | undefined = isTripTarget
+    ? (tripDetails?.trip?.currency as string | undefined)
+    : undefined;
+  const targetCurrency = tripCurrency || currency;
+
   const hasPdf = currentMimeTypes.some((t) => t === PDF_MIME) ||
     previewTypes.some((t) => t === PDF_MIME);
 
@@ -278,6 +303,8 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDo
     // No need to re-download images just to hash them.
     const parts: string[] = [
       `household:${String(householdId)}`,
+      `currency:${targetCurrency}`,
+      `country:${country || ""}`,
       `categories:${categoriesChecksum}`,
       `count:${currentStorageIds.length}`,
       ...currentStorageIds.map((id, i) => {
@@ -294,6 +321,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDo
     setRawText(result?.rawText || "");
     setExpectedTotal(result?.totalAmount || "");
     setReceiptSummaries(Array.isArray(result?.receiptSummaries) ? result.receiptSummaries : []);
+    setCurrencyInfo(result?.currency ?? null);
 
     if (detectedItems.length === 0) {
       toast.error(fromCache ? "Brak pozycji w zapisanym wyniku OCR." : "AI nie znalazło żadnych dopasowań.");
@@ -328,6 +356,9 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDo
       receiptIndex: Number.isFinite(row.receiptIndex) ? (row.receiptIndex as number) : 0,
       receiptLabel: row.receiptLabel,
       sourceImageIndex: row.sourceImageIndex ?? null,
+      originalAmount: row.originalAmount,
+      originalCurrency: row.originalCurrency,
+      exchangeRate: row.exchangeRate,
     }));
     setItems(generatedItems);
 
@@ -449,6 +480,9 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDo
               storageIds: currentStorageIds,
               householdId,
               isPdf: false,
+              // Wyjazd rozlicza sie we wlasnej walucie — bez tego kwoty
+              // wpadalyby do niego przeliczone na walute domu.
+              targetCurrency: tripCurrency,
             }) as ProcessReceiptResult,
           })
         : (await processAI({
@@ -547,6 +581,10 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDo
         description: string;
         receiptImageId?: Id<"_storage">;
         ocrRawText?: string;
+        originalAmount?: number;
+        originalCurrency?: string;
+        exchangeRate?: number;
+        exchangeRateDate?: string;
       }> = [];
       const tripItems: Array<{
         amount: number;
@@ -569,6 +607,10 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDo
         const receiptImageId = currentStorageIds[sourceIdx] || currentStorageIds[0];
         const amountNum = parseFloat(item.amount.replace(",", "."));
 
+        const originalAmountNum = item.originalAmount
+          ? parseFloat(item.originalAmount.replace(",", "."))
+          : null;
+
         const payloadItem = {
           amount: Math.round(amountNum * 100),
           date: new Date(date).getTime(),
@@ -578,12 +620,22 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDo
         };
 
         if (isTripTarget) {
+          // Wydatki wyjazdowe nie maja jeszcze sladu walutowego w schemacie,
+          // wiec ida bez niego — inaczej mutacja odrzucilaby nieznane pola.
           tripItems.push(payloadItem);
         } else {
           expenseItems.push({
             ...payloadItem,
             categoryId: item.categoryId!,
             subcategoryId: item.subcategoryId!,
+            ...(originalAmountNum !== null && !isNaN(originalAmountNum) && item.originalCurrency
+              ? {
+                originalAmount: Math.round(originalAmountNum * 100),
+                originalCurrency: item.originalCurrency,
+                exchangeRate: item.exchangeRate,
+                exchangeRateDate: currencyInfo?.exchangeRateDate || undefined,
+              }
+              : {}),
           });
         }
 
@@ -729,6 +781,7 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDo
   function resetToCapture() {
     setItems(null);
     setReceiptSummaries([]);
+    setCurrencyInfo(null);
     setOpenBulkMenuId(null);
     setOnlyIssues(false);
   }
@@ -949,6 +1002,24 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, tripTarget, onDo
       ) : (
         /* ── FAZA 2: weryfikacja wyniku ───────────────────────────── */
         <>
+          {/* Waluta paragonu vs waluta gospodarstwa — kwoty w liscie sa juz przeliczone. */}
+          {currencyInfo?.conversionFailed && (
+            <AlertBanner variant="error" icon={<AlertTriangle />}>
+              Nie udało się pobrać kursu {currencyInfo.receiptCurrency} → {currencyInfo.targetCurrency}.
+              Kwoty poniżej są w {currencyInfo.receiptCurrency} i tak zostaną zapisane — przy każdej pozycji
+              zapiszemy też walutę oryginału, więc da się to później poprawić. Możesz zamiast tego przeliczyć
+              je ręcznie albo spróbować skanu ponownie.
+            </AlertBanner>
+          )}
+          {!currencyInfo?.conversionFailed && currencyInfo && currencyInfo.exchangeRate !== 1 && (
+            <AlertBanner variant="info">
+              Paragon w {currencyInfo.receiptCurrency}, przeliczony na {currencyInfo.targetCurrency} po kursie{" "}
+              {currencyInfo.exchangeRate.toFixed(4)}
+              {currencyInfo.exchangeRateDate ? ` z ${currencyInfo.exchangeRateDate}` : ""}.
+              Oryginalne kwoty zapisujemy razem z wydatkiem.
+            </AlertBanner>
+          )}
+
           {/* Werdykt na gorze: to on decyduje, czy w ogole trzeba czegos szukac w liscie. */}
           {expectedComparison && (
             expectedComparison.isMismatch ? (

@@ -3,6 +3,7 @@
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { resolveCategoryNames, resolveHeuristicCategory } from "./categories";
+import { GENERIC_SUBCATEGORY_SUFFIXES, resolveFallback } from "./categories/constants";
 import {
   buildDiscountLineItem,
   collapseLikelyDuplicateItems,
@@ -13,46 +14,39 @@ import {
   parseAuditedTranscribedLines,
   enrichReceiptSummariesWithValidation,
 } from "./normalization";
-import { AuditedLineCandidate, ProcessReceiptResult, ProcessedReceiptItem, ReceiptSummary } from "./types";
+import { fetchExchangeRate } from "./exchangeRates";
+import { getMarketPack } from "../markets";
+import { AuditedLineCandidate, CurrencyContext, ProcessReceiptResult, ProcessedReceiptItem, ReceiptSummary } from "./types";
 import { asString, extractJsonBlockWithMeta, normalizeExpectedTotals, parseAmountNumber, stripDiacritics } from "./utils";
 
-const EXCHANGE_RATE_TIMEOUT_MS = 2500;
-const EXCHANGE_RATE_CACHE_TTL_MS = 60 * 60 * 1000;
-const exchangeRateCache = new Map<string, { rate: number; expiresAt: number }>();
+/** Nazwy z katalogu sprzed kluczy — uzywane tylko dla niezmigrowanych wierszy. */
+const LEGACY_GENERIC_SUBCATEGORY_NAMES = new Set([
+  "supermarket",
+  "dyskont",
+  "delikatesy",
+  "higiena osobista",
+  "wyposazenie",
+  "marketplace",
+  "rozne",
+]);
 
-async function fetchExchangeRate(currencyCode: string): Promise<number> {
-  const code = currencyCode.toUpperCase();
-  if (code === "PLN" || !code) return 1;
-
-  const cached = exchangeRateCache.get(code);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.rate;
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), EXCHANGE_RATE_TIMEOUT_MS);
-  try {
-    const response = await fetch(`https://api.nbp.pl/api/exchangerates/rates/a/${code}/?format=json`, {
-      signal: controller.signal,
-    });
-    if (!response.ok) return 1;
-
-    const data = await response.json();
-    const rate = Number(data?.rates?.[0]?.mid);
-    if (Number.isFinite(rate) && rate > 0) {
-      exchangeRateCache.set(code, {
-        rate,
-        expiresAt: Date.now() + EXCHANGE_RATE_CACHE_TTL_MS,
-      });
-      return rate;
-    }
-    return 1;
-  } catch (error) {
-    console.error(`Failed to fetch exchange rate for ${code}`, error);
-    return 1;
-  } finally {
-    clearTimeout(timeout);
-  }
+/**
+ * Ustawienia OCR gospodarstwa. `targetCurrency` moze byc nadpisana, gdy skan
+ * trafia do wyjazdu rozliczanego w innej walucie niz dom.
+ */
+export async function resolveHouseholdOcrSettings(
+  ctx: any,
+  householdId: Id<"households">,
+  targetCurrencyOverride?: string
+): Promise<HouseholdOcrSettings> {
+  const settings = await ctx.runQuery(internal.households.getSettingsInternal, { householdId });
+  const currency = (settings?.currency || "PLN").toUpperCase();
+  const override = (targetCurrencyOverride || "").trim().toUpperCase();
+  return {
+    currency,
+    country: settings?.country || "PL",
+    targetCurrency: /^[A-Z]{3}$/.test(override) ? override : currency,
+  };
 }
 
 function shouldPreferAuditedItems(
@@ -80,54 +74,58 @@ function shouldPreferAuditedItems(
     auditedItems.length > preliminaryItems.length;
 }
 
-const GENERIC_HEURISTIC_SUBCATEGORY_NAMES = new Set([
-  "supermarket",
-  "dyskont",
-  "delikatesy",
-  "higiena osobista",
-  "wyposazenie",
-  "marketplace",
-  "rozne",
-]);
-
 function findFallbackCategory(categoriesArray: any[]): { categoryId: string | null; subcategoryId: string | null } {
-  const category =
-    categoriesArray.find((entry: any) => stripDiacritics(asString(entry?.name)) === "inne") ??
-    categoriesArray[categoriesArray.length - 1];
-  const subcategories = Array.isArray(category?.subcategories) ? category.subcategories : [];
-  const subcategory =
-    subcategories.find((entry: any) => stripDiacritics(asString(entry?.name)) === "rozne") ??
-    subcategories[0];
-
-  return {
-    categoryId: category?._id ?? null,
-    subcategoryId: subcategory?._id ?? null,
-  };
+  return resolveFallback(categoriesArray);
 }
 
-function findSubcategoryNameById(categoriesArray: any[], subcategoryId: string | null | undefined): string | null {
+function findSubcategoryWithParent(
+  categoriesArray: any[],
+  subcategoryId: string | null | undefined
+): { category: any; subcategory: any } | null {
   if (!subcategoryId) return null;
 
   for (const category of categoriesArray) {
     const subcategories = Array.isArray(category?.subcategories) ? category.subcategories : [];
     const match = subcategories.find((entry: any) => String(entry?._id) === String(subcategoryId));
-    if (match?.name) {
-      return asString(match.name) || null;
-    }
+    if (match) return { category, subcategory: match };
   }
 
   return null;
 }
 
+/**
+ * Rozpoznaje trafienia zbyt ogolne, by uznac je za pewna kategoryzacje.
+ * Po kluczu, nie po nazwie — inaczej lista dzialalaby tylko dla polskiego
+ * katalogu. Nazwa zostaje jako awaryjne dopasowanie dla wierszy bez klucza.
+ */
 function isGenericHeuristicFallback(categoriesArray: any[], subcategoryId: string | null | undefined): boolean {
-  const subcategoryName = findSubcategoryNameById(categoriesArray, subcategoryId);
+  const found = findSubcategoryWithParent(categoriesArray, subcategoryId);
+  if (!found) return false;
+
+  const subcategoryKeyValue = asString(found.subcategory?.key);
+  const categoryKeyValue = asString(found.category?.key);
+  // Sufiks liczony wzgledem klucza kategorii, nie pierwszego podkreslnika —
+  // inaczej klucz kategorii zawierajacy "_" po cichu rozjechalby dopasowanie.
+  const prefix = categoryKeyValue + "_";
+  if (subcategoryKeyValue && categoryKeyValue && subcategoryKeyValue.startsWith(prefix)) {
+    return GENERIC_SUBCATEGORY_SUFFIXES.has(subcategoryKeyValue.slice(prefix.length));
+  }
+
+  const subcategoryName = asString(found.subcategory?.name);
   if (!subcategoryName) return false;
-  return GENERIC_HEURISTIC_SUBCATEGORY_NAMES.has(stripDiacritics(subcategoryName));
+  return LEGACY_GENERIC_SUBCATEGORY_NAMES.has(stripDiacritics(subcategoryName));
 }
 
 function isNonFinancialNegativeMeasurement(description: string): boolean {
   const text = stripDiacritics(description);
   return /\b(moc\s+soczewk|dioptr|sfera|cylinder|cyl\b|axis\b|os\b|bc\b|dia\b|add\b|kontaktow)\b/i.test(text);
+}
+
+export interface HouseholdOcrSettings {
+  currency: string;
+  country: string;
+  /** Waluta docelowa przeliczenia — dla wyjazdu waluta wyjazdu, nie domu. */
+  targetCurrency: string;
 }
 
 export async function parseAndNormalizeResponse(
@@ -136,7 +134,9 @@ export async function parseAndNormalizeResponse(
   content: string,
   categoriesArray: any[],
   modelUsed: string,
-  traceLabel = "ocr"
+  traceLabel = "ocr",
+  /** Podane przez pipeline, zeby nie odpytywac o to samo przy kazdej odpowiedzi. */
+  providedSettings?: HouseholdOcrSettings
 ): Promise<ProcessReceiptResult & { wasTruncated: boolean }> {
   const parseStart = Date.now();
   try {
@@ -214,8 +214,26 @@ export async function parseAndNormalizeResponse(
     const jsonParseMs = Date.now() - jsonParseStart;
 
     const exchangeRateStart = Date.now();
-    const currency = asString(parsed?.currency).toUpperCase();
-    const exchangeRate = await fetchExchangeRate(currency);
+    const receiptCurrency = asString(parsed?.currency).toUpperCase();
+    const householdSettings = providedSettings
+      ?? await resolveHouseholdOcrSettings(ctx, householdId);
+    const targetCurrency = householdSettings.targetCurrency.toUpperCase();
+    // Kwoty ida do bazy w walucie gospodarstwa. Nieudane pobranie kursu zostawia
+    // je nieprzeliczone i podnosi flage — lepiej pokazac ostrzezenie niz zapisac
+    // obca kwote jako swoja.
+    // Pakiet rynku wybiera slownictwo rabatow, kaucji i linii technicznych.
+    // Kraj bez pakietu dostaje pakiet generyczny — pipeline dziala dalej.
+    const market = getMarketPack(householdSettings.country);
+    const lexicon = market.lexicon;
+    const conversion = await fetchExchangeRate(receiptCurrency, targetCurrency);
+    const exchangeRate = conversion?.rate ?? 1;
+    const currencyContext: CurrencyContext = {
+      receiptCurrency,
+      targetCurrency,
+      exchangeRate,
+      exchangeRateDate: conversion?.date ?? "",
+      conversionFailed: conversion === null,
+    };
     const exchangeRateMs = Date.now() - exchangeRateStart;
 
     const auditedLineCandidates: AuditedLineCandidate[] = (auditProductLines.length > 0 || auditTranscribedLines.length > 0)
@@ -233,14 +251,16 @@ export async function parseAndNormalizeResponse(
           0,
           fallbackLabel,
           fallbackSourceImageIndex,
-          exchangeRate
+          exchangeRate,
+          lexicon
         );
         const parsedTranscribedLines = parseAuditedTranscribedLines(
           auditTranscribedLines,
           0,
           fallbackLabel,
           fallbackSourceImageIndex,
-          exchangeRate
+          exchangeRate,
+          lexicon
         );
         const selectedAuditItems = parsedProductLines.length > 0 ? parsedProductLines : parsedTranscribedLines;
 
@@ -264,7 +284,7 @@ export async function parseAndNormalizeResponse(
     const payableAmount = normalizedTopLevelTotals.payableAmount;
     const depositTotal = normalizedTopLevelTotals.depositTotal;
 
-    console.log(`AI returned ${parsedItems.length} raw items (Currency: ${currency}, Rate: ${exchangeRate}, Total: ${totalAmount}, Payable: ${payableAmount}, Deposit: ${depositTotal}, Truncated: ${wasTruncated})`);
+    console.log(`AI returned ${parsedItems.length} raw items (Currency: ${receiptCurrency} -> ${targetCurrency}, Rate: ${exchangeRate}, Total: ${totalAmount}, Payable: ${payableAmount}, Deposit: ${depositTotal}, Truncated: ${wasTruncated})`);
 
     const normalizedItems: ProcessedReceiptItem[] = [];
 
@@ -276,10 +296,10 @@ export async function parseAndNormalizeResponse(
       if (parsedAmount === null || parsedAmount === 0) continue;
       if (parsedAmount < 0 && isNonFinancialNegativeMeasurement(originalRawDesc)) continue;
 
-      const isDiscountLine = isDiscountLikeDescription(originalRawDesc) || parsedAmount < 0;
+      const isDiscountLine = isDiscountLikeDescription(originalRawDesc, lexicon) || parsedAmount < 0;
       if (isDiscountLine) {
         const discountAbs = Math.abs(parsedAmount);
-        const discountInPln = exchangeRate !== 1 ? discountAbs * exchangeRate : discountAbs;
+        const discountAmount = exchangeRate !== 1 ? discountAbs * exchangeRate : discountAbs;
 
         const discountItem = buildDiscountLineItem(
           normalizedItems,
@@ -287,7 +307,11 @@ export async function parseAndNormalizeResponse(
           entry.receiptLabel,
           entry.sourceImageIndex,
           originalRawDesc,
-          discountInPln
+          discountAmount,
+          lexicon,
+          exchangeRate !== 1 || currencyContext.conversionFailed
+            ? { amount: discountAbs, currency: receiptCurrency }
+            : undefined
         );
         if (discountItem) {
           normalizedItems.push(discountItem);
@@ -295,7 +319,7 @@ export async function parseAndNormalizeResponse(
         continue;
       }
 
-      if (isDepositLikeDescription(originalRawDesc)) {
+      if (isDepositLikeDescription(originalRawDesc, lexicon)) {
         continue;
       }
 
@@ -305,14 +329,30 @@ export async function parseAndNormalizeResponse(
       }
 
       const resolvedDescription = originalRawDesc;
-      const description = exchangeRate !== 1
-        ? `${resolvedDescription} (${Math.abs(parsedAmount).toFixed(2)} ${currency})`
+      const converted = exchangeRate !== 1;
+      // Gdy kursu nie udalo sie pobrac, kwota zostaje w walucie paragonu.
+      // Zapisujemy to jawnie, inaczej w bazie wyglada jak kwota w walucie domu.
+      const unconvertedForeign = currencyContext.conversionFailed;
+      const description = converted
+        ? `${resolvedDescription} (${Math.abs(parsedAmount).toFixed(2)} ${receiptCurrency})`
         : resolvedDescription;
 
       normalizedItems.push({
         description,
         originalRawDescription: originalRawDesc,
         amount: amount.toFixed(2),
+        ...(converted
+          ? {
+            originalAmount: parsedAmount.toFixed(2),
+            originalCurrency: receiptCurrency,
+            exchangeRate,
+          }
+          : unconvertedForeign
+            ? {
+              originalAmount: parsedAmount.toFixed(2),
+              originalCurrency: receiptCurrency,
+            }
+            : {}),
         categoryId: null,
         subcategoryId: null,
         fromMapping: false,
@@ -470,7 +510,8 @@ export async function parseAndNormalizeResponse(
           ),
           item.receiptIndex,
           item.originalRawDescription || item.description,
-          Math.abs(amountValue)
+          Math.abs(amountValue),
+          lexicon
         );
 
         if (linkedCandidate?.categoryId) {
@@ -593,6 +634,7 @@ export async function parseAndNormalizeResponse(
       totalAmount: totalAmount || "",
       payableAmount: payableAmount || "",
       depositTotal: depositTotal || "",
+      currency: currencyContext,
       modelUsed,
       receiptCount: Math.max(1, receiptSummaries.length),
       receiptSummaries,

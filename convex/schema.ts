@@ -8,6 +8,11 @@ const applicationTables = {
     ownerId: v.id("users"),
     currency: v.string(),
     inviteCode: v.string(),
+    // Locale gospodarstwa. Brak wartosci = "pl"/"PL", czyli zachowanie sprzed
+    // wprowadzenia wielorynkowosci. `language` steruje etykietami katalogu,
+    // `country` wyborem market packa w pipeline OCR.
+    language: v.optional(v.string()),
+    country: v.optional(v.string()),
   })
     .index("by_owner", ["ownerId"])
     .index("by_invite_code", ["inviteCode"]),
@@ -96,6 +101,10 @@ const applicationTables = {
 
   categories: defineTable({
     householdId: v.optional(v.id("households")),
+    // Stabilny identyfikator z katalogu (np. "food"). Nazwa jest tylko
+    // prezentacja — logika porownuje wylacznie klucze. Puste dla kategorii
+    // zalozonych recznie przez uzytkownika.
+    key: v.optional(v.string()),
     name: v.string(),
     icon: v.string(),
     color: v.string(),
@@ -108,6 +117,8 @@ const applicationTables = {
   subcategories: defineTable({
     categoryId: v.id("categories"),
     householdId: v.optional(v.id("households")),
+    /** Zlozony klucz `${categoryKey}_${suffix}`, np. "food_supermarket". */
+    key: v.optional(v.string()),
     name: v.string(),
     icon: v.string(),
     isSystem: v.boolean(),
@@ -135,6 +146,13 @@ const applicationTables = {
     ocrRawText: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
     isSubscription: v.optional(v.boolean()),
+    // Slad po przeliczeniu waluty: `amount` jest w walucie gospodarstwa, a te
+    // pola pozwalaja odtworzyc, skad sie wzial. Puste dla wydatkow w walucie
+    // gospodarstwa.
+    originalAmount: v.optional(v.number()),
+    originalCurrency: v.optional(v.string()),
+    exchangeRate: v.optional(v.number()),
+    exchangeRateDate: v.optional(v.string()),
     sourcePendingEmailExpenseId: v.optional(v.id("pending_email_expenses")),
     sourceProviderMessageId: v.optional(v.string()),
     sourceTripExportId: v.optional(v.id("trip_exports")),

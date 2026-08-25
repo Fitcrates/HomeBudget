@@ -1,7 +1,8 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
+import { DEFAULT_COUNTRY, DEFAULT_LANGUAGE, resolveLanguage } from "./catalog/defaultCatalog";
 
 export type FinancialRole = "parent" | "partner" | "child";
 
@@ -44,18 +45,41 @@ export function getEffectiveFinancialRole(membership: {
   return membership.financialRole ?? "partner";
 }
 
+/**
+ * ISO 3166-1 alpha-2. Brak wartosci = domyslny kraj, ale wartosc bledna jest
+ * odrzucana zamiast po cichu zamieniana na Polske — cicha podmiana wybralaby
+ * polski market pack dla paragonow z zupelnie innego rynku.
+ */
+function normalizeCountry(country: string | null | undefined): string {
+  const raw = (country ?? "").trim();
+  if (!raw) return DEFAULT_COUNTRY;
+  const normalized = raw.toUpperCase();
+  if (!/^[A-Z]{2}$/.test(normalized)) {
+    throw new Error(`Invalid country code: ${raw}. Expected ISO 3166-1 alpha-2, e.g. "PL".`);
+  }
+  return normalized;
+}
+
 export const create = mutation({
-  args: { name: v.string(), currency: v.optional(v.string()) },
+  args: {
+    name: v.string(),
+    currency: v.optional(v.string()),
+    language: v.optional(v.string()),
+    country: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
     const inviteCode = await generateUniqueHouseholdInviteCode(ctx);
+    const language = resolveLanguage(args.language);
     const householdId = await ctx.db.insert("households", {
       name: args.name,
       ownerId: userId,
       currency: args.currency ?? "PLN",
       inviteCode,
+      language,
+      country: normalizeCountry(args.country),
     });
 
     await ctx.db.insert("memberships", {
@@ -390,3 +414,57 @@ export async function assertCanManageSharedBudgets(
 
   throw new Error("Brak uprawnień do zarządzania budżetami gospodarstwa.");
 }
+
+/**
+ * Zmiana jezyka/kraju gospodarstwa. Przesianie katalogu tlumaczy istniejace
+ * kategorie w miejscu (dopasowanie po kluczu), wiec historia wydatkow zostaje
+ * nienaruszona — zmieniaja sie tylko etykiety.
+ */
+export const updateLocale = mutation({
+  args: {
+    householdId: v.id("households"),
+    language: v.optional(v.string()),
+    country: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const membership = await assertMember(ctx, args.householdId, userId);
+    if (membership.role !== "owner" && membership.financialRole !== "parent") {
+      throw new Error("Only the owner or a parent can change household locale");
+    }
+
+    const patch: { language?: string; country?: string } = {};
+    if (args.language !== undefined) patch.language = resolveLanguage(args.language);
+    if (args.country !== undefined) patch.country = normalizeCountry(args.country);
+    if (Object.keys(patch).length === 0) return { ok: true };
+
+    await ctx.db.patch(args.householdId, patch);
+
+    if (patch.language) {
+      await ctx.runMutation(internal.seed.syncDefaultCategoriesForHousehold, {
+        householdId: args.householdId,
+      });
+    }
+
+    return { ok: true };
+  },
+});
+
+/**
+ * Ustawienia gospodarstwa dla pipeline'u OCR: waluta docelowa przeliczen oraz
+ * locale, ktore wybiera market pack. Internal, bo woła to akcja, nie klient.
+ */
+export const getSettingsInternal = internalQuery({
+  args: { householdId: v.id("households") },
+  handler: async (ctx, args) => {
+    const household = await ctx.db.get(args.householdId);
+    if (!household) return null;
+    return {
+      currency: household.currency || "PLN",
+      language: household.language || DEFAULT_LANGUAGE,
+      country: household.country || DEFAULT_COUNTRY,
+    };
+  },
+});
