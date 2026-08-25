@@ -187,35 +187,37 @@ export function BudgetSettingsScreen({ householdId, currency, onBack }: Props) {
 
       <TabBar tabs={BUDGET_TABS} value={mode} onChange={setMode} />
 
+      {/* Etykiety sa wezsze niz kafelek na telefonie, wiec ikona idzie nad tekst,
+          a napis lamie sie zamiast wychodzic poza karte. */}
       {mode === "people" && (
-        <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-[16px] border border-white/50 dark:border-white/10 bg-white/50 dark:bg-white/5 p-2 shadow-sm transition-colors duration-700">
-            <div className="flex items-center gap-2 text-orange-600 dark:text-indigo-400 mb-2 transition-colors duration-700">
-              <TrendingUp className="w-4 h-4" />
-              <span className="text-[11px] font-bold uppercase tracking-wider">Najwięcej wydaje</span>
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <div className="min-w-0 rounded-[16px] border border-white/50 bg-white/50 p-2.5 shadow-sm transition-colors duration-700 dark:border-white/10 dark:bg-white/5">
+            <div className="mb-1.5 flex flex-col gap-1 text-orange-600 transition-colors duration-700 dark:text-indigo-400">
+              <TrendingUp className="h-4 w-4 shrink-0" />
+              <span className="text-[10px] font-bold uppercase leading-tight break-words">Najwięcej wydaje</span>
             </div>
-            <p className="text-sm font-bold text-orange-950 dark:text-white truncate transition-colors duration-700">{highestSpender?.displayName ?? "-"}</p>
-            <p className="text-xs font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">
+            <p className="truncate text-sm font-bold text-orange-950 transition-colors duration-700 dark:text-white">{highestSpender?.displayName ?? "-"}</p>
+            <p className="truncate text-xs font-bold text-orange-900/60 transition-colors duration-700 dark:text-white/50">
               {highestSpender ? formatAmount(highestSpender.monthlySpent, currency) : "-"}
             </p>
           </div>
 
-          <div className="rounded-[16px] border border-white/50 dark:border-white/10 bg-white/50 dark:bg-white/5 p-2 shadow-sm transition-colors duration-700">
-            <div className="flex items-center gap-2 text-orange-600 dark:text-indigo-400 mb-2 transition-colors duration-700">
-              <ShieldAlert className="w-4 h-4" />
-              <span className="text-[11px] font-bold uppercase tracking-wider">Przekroczone</span>
+          <div className="min-w-0 rounded-[16px] border border-white/50 bg-white/50 p-2.5 shadow-sm transition-colors duration-700 dark:border-white/10 dark:bg-white/5">
+            <div className="mb-1.5 flex flex-col gap-1 text-orange-600 transition-colors duration-700 dark:text-indigo-400">
+              <ShieldAlert className="h-4 w-4 shrink-0" />
+              <span className="text-[10px] font-bold uppercase leading-tight break-words">Przekroczone</span>
             </div>
-            <p className="text-lg font-bold text-orange-950 dark:text-white transition-colors duration-700">{overBudgetCount}</p>
-            <p className="text-xs font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">osób ponad limit</p>
+            <p className="text-lg font-bold leading-tight text-orange-950 transition-colors duration-700 dark:text-white">{overBudgetCount}</p>
+            <p className="text-xs font-bold leading-tight text-orange-900/60 transition-colors duration-700 dark:text-white/50">osób ponad limit</p>
           </div>
 
-          <div className="rounded-[16px] border border-white/50 dark:border-white/10 bg-white/50 dark:bg-white/5 p-2 shadow-sm transition-colors duration-700">
-            <div className="flex items-center gap-2 text-orange-600 dark:text-indigo-400 mb-2 transition-colors duration-700">
-              <Users className="w-4 h-4" />
-              <span className="text-[11px] font-bold uppercase tracking-wider">Aktywne limity</span>
+          <div className="min-w-0 rounded-[16px] border border-white/50 bg-white/50 p-2.5 shadow-sm transition-colors duration-700 dark:border-white/10 dark:bg-white/5">
+            <div className="mb-1.5 flex flex-col gap-1 text-orange-600 transition-colors duration-700 dark:text-indigo-400">
+              <Users className="h-4 w-4 shrink-0" />
+              <span className="text-[10px] font-bold uppercase leading-tight break-words">Aktywne limity</span>
             </div>
-            <p className="text-lg font-bold text-orange-950 dark:text-white transition-colors duration-700">{activePersonBudgets}</p>
-            <p className="text-xs font-bold text-orange-900/60 dark:text-white/50 transition-colors duration-700">budżetów osobistych</p>
+            <p className="text-lg font-bold leading-tight text-orange-950 transition-colors duration-700 dark:text-white">{activePersonBudgets}</p>
+            <p className="text-xs font-bold leading-tight text-orange-900/60 transition-colors duration-700 dark:text-white/50">budżetów osobistych</p>
           </div>
         </div>
       )}

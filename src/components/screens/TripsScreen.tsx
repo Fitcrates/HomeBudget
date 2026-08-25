@@ -493,11 +493,19 @@ function TripDetails({
             <FormInput value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Np. kolacja" />
             <FormInput inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Kwota" />
           </div>
+          {/* "Imie zapłacił(a)" nie miescilo sie w polowie szerokosci — rola pola
+              jest teraz w etykiecie, a w liscie zostaje samo imie. */}
           <div className="grid grid-cols-2 gap-2">
-            <select value={paidByMemberId} onChange={(event) => setPaidByMemberId(event.target.value)} className="rounded-xl border border-orange-200/60 bg-white/70 px-3 py-2 text-sm font-bold text-orange-950 outline-none dark:border-white/10 dark:bg-white/5 dark:text-white">
-              {members.map((member: any) => <option key={member._id} value={member._id}>{member.displayName} zapłacił(a)</option>)}
-            </select>
-            <FormInput type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+            <div className="min-w-0">
+              <p className="mb-1 ml-1 text-[10px] font-bold uppercase tracking-[0.12em] text-orange-900/50 dark:text-white/40">Zapłacił(a)</p>
+              <select value={paidByMemberId} onChange={(event) => setPaidByMemberId(event.target.value)} className="w-full truncate rounded-xl border border-orange-200/60 bg-white/70 px-3 py-2 text-sm font-bold text-orange-950 outline-none dark:border-white/10 dark:bg-white/5 dark:text-white">
+                {members.map((member: any) => <option key={member._id} value={member._id}>{member.displayName}</option>)}
+              </select>
+            </div>
+            <div className="min-w-0">
+              <p className="mb-1 ml-1 text-[10px] font-bold uppercase tracking-[0.12em] text-orange-900/50 dark:text-white/40">Data</p>
+              <FormInput type="date" value={date} onChange={(event) => setDate(event.target.value)} inputSize="sm" />
+            </div>
           </div>
           <div>
             <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-orange-900/50 dark:text-white/40">Podziel pomiędzy</p>
@@ -523,11 +531,15 @@ function TripDetails({
             <Check className="h-4 w-4" /> Wszystkie rachunki są wyrównane.
           </div>
         ) : settlements.map((settlement: any, index: number) => (
-          <div key={`${settlement.fromMemberId}-${settlement.toMemberId}-${index}`} className="rounded-2xl border border-orange-200/50 bg-white/60 px-3 py-3 text-sm dark:border-white/10 dark:bg-white/5">
-            <span className="font-bold text-orange-950 dark:text-white">{memberName(members, settlement.fromMemberId)}</span>
-            <span className="text-orange-900/50 dark:text-white/45"> oddaje </span>
-            <span className="font-bold text-orange-950 dark:text-white">{memberName(members, settlement.toMemberId)}</span>
-            <span className="float-right font-bold text-orange-600 dark:text-indigo-300">{formatAmount(settlement.amount, trip.currency)}</span>
+          // float-right wypychal kwote do osobnej linii przy dluzszych nickach —
+          // teraz kwota ma stala kolumne, a nazwiska sie skracaja.
+          <div key={`${settlement.fromMemberId}-${settlement.toMemberId}-${index}`} className="flex items-center justify-between gap-3 rounded-2xl border border-orange-200/50 bg-white/60 px-3 py-3 text-sm dark:border-white/10 dark:bg-white/5">
+            <p className="min-w-0 flex-1">
+              <span className="font-bold text-orange-950 dark:text-white">{memberName(members, settlement.fromMemberId)}</span>
+              <span className="text-orange-900/50 dark:text-white/45"> oddaje </span>
+              <span className="font-bold text-orange-950 dark:text-white">{memberName(members, settlement.toMemberId)}</span>
+            </p>
+            <span className="shrink-0 whitespace-nowrap font-bold text-orange-600 dark:text-indigo-300">{formatAmount(settlement.amount, trip.currency)}</span>
           </div>
         ))}
       </AppCard>

@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useRef, useEffect, useCallback } f
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
-import { Bot, ShoppingCart, Send, Plus, Check, Square, X, MessageCircle, Trash2, Loader2, Menu } from "lucide-react";
+import { Bot, ShoppingCart, Send, Plus, Check, ChevronDown, Square, X, MessageCircle, Trash2, Loader2, Menu } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
@@ -480,9 +480,14 @@ function ChatMainView({
 function ShoppingMainView({ householdId, items }: { householdId: Id<"households">; items: any[] }) {
   const [newItem, setNewItem] = useState("");
   const [pendingDeleteItemId, setPendingDeleteItemId] = useState<Id<"shopping_items"> | null>(null);
+  const [pendingBulk, setPendingBulk] = useState<"bought" | "all" | null>(null);
+  // Kupione zwykle tylko zasmiecaja widok — domyslnie zwiniete, licznik zostaje.
+  const [boughtOpen, setBoughtOpen] = useState(false);
   const add = useMutation(api.shopping.add);
   const toggle = useMutation(api.shopping.toggleBuy);
   const remove = useMutation(api.shopping.remove);
+  const clearBought = useMutation(api.shopping.clearBought);
+  const clearAll = useMutation(api.shopping.clearAll);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -504,6 +509,20 @@ function ShoppingMainView({ householdId, items }: { householdId: Id<"households"
       toast.success("Produkt usunięty");
     } catch (err: any) {
       toast.error("Nie udało się usunąć");
+    }
+  }
+
+  async function handleBulkClear(scope: "bought" | "all") {
+    try {
+      if (scope === "bought") {
+        await clearBought({ householdId });
+        toast.success(`Usunięto kupione (${bought.length})`);
+      } else {
+        await clearAll({ householdId });
+        toast.success("Lista wyczyszczona");
+      }
+    } catch (err: any) {
+      toast.error("Nie udało się wyczyścić listy");
     }
   }
 
@@ -570,20 +589,54 @@ function ShoppingMainView({ householdId, items }: { householdId: Id<"households"
 
         {bought.length > 0 && (
           <div className="space-y-2">
-            <h4 className="text-xs font-black uppercase tracking-wider text-orange-900/60 dark:text-white/50 transition-colors duration-700">
-              Kupione ({bought.length})
-            </h4>
-            {bought.map(item => (
-              <div key={item._id} className="flex items-center justify-between rounded-xl border border-orange-200/50 dark:border-white/5 bg-white/50 dark:bg-white/5 p-3 opacity-60 transition-colors duration-700">
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setBoughtOpen((open) => !open)}
+                className="flex min-w-0 items-center gap-1.5 text-xs font-black uppercase tracking-wider text-orange-900/60 transition-colors duration-700 dark:text-white/50"
+              >
+                <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform duration-300 ${boughtOpen ? "rotate-180" : ""}`} />
+                Kupione ({bought.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setPendingBulk("bought")}
+                className="flex shrink-0 items-center gap-1.5 rounded-xl bg-red-50 px-2.5 py-1.5 text-[11px] font-bold text-red-500 transition-colors hover:bg-red-100 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Wyczyść kupione
+              </button>
+            </div>
+
+            {boughtOpen && bought.map(item => (
+              <div key={item._id} className="flex items-center justify-between gap-2 rounded-xl border border-orange-200/50 bg-white/50 p-3 opacity-70 transition-colors duration-700 dark:border-white/5 dark:bg-white/5">
                 <div className="flex min-w-0 flex-1 cursor-pointer items-center gap-3" onClick={() => toggle({ householdId, itemId: item._id, isBought: false })}>
                   <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-xl bg-green-500 dark:bg-green-600">
                     <Check className="h-4 w-4 text-white" />
                   </div>
-                  <span className="truncate text-sm font-bold text-orange-950 dark:text-white line-through transition-colors duration-700">{item.name}</span>
+                  <span className="truncate text-sm font-bold text-orange-950 line-through transition-colors duration-700 dark:text-white">{item.name}</span>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setPendingDeleteItemId(item._id)}
+                  aria-label={`Usuń ${item.name}`}
+                  className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl text-orange-900/30 transition-colors hover:bg-red-50 hover:text-red-400 dark:text-white/30 dark:hover:bg-red-500/10"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             ))}
           </div>
+        )}
+
+        {items.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setPendingBulk("all")}
+            className="w-full rounded-xl border border-orange-200/60 py-2.5 text-xs font-bold text-orange-900/50 transition-colors hover:border-red-300 hover:text-red-500 dark:border-white/10 dark:text-white/40 dark:hover:border-red-500/40 dark:hover:text-red-300"
+          >
+            Wyczyść całą listę ({items.length})
+          </button>
         )}
       </div>
 
@@ -597,6 +650,23 @@ function ShoppingMainView({ householdId, items }: { householdId: Id<"households"
           if (!pendingDeleteItemId) return;
           void handleDeleteItem(pendingDeleteItemId);
           setPendingDeleteItemId(null);
+        }}
+      />
+
+      <ConfirmDialog
+        open={Boolean(pendingBulk)}
+        title={pendingBulk === "all" ? "Wyczyścić całą listę?" : "Usunąć kupione produkty?"}
+        description={
+          pendingBulk === "all"
+            ? `Usuniemy wszystkie pozycje (${items.length}), także te jeszcze niekupione.`
+            : `Z listy zniknie ${bought.length} odhaczonych pozycji. Tej operacji nie da się cofnąć.`
+        }
+        confirmLabel={pendingBulk === "all" ? "Wyczyść wszystko" : "Usuń kupione"}
+        onCancel={() => setPendingBulk(null)}
+        onConfirm={() => {
+          if (!pendingBulk) return;
+          void handleBulkClear(pendingBulk);
+          setPendingBulk(null);
         }}
       />
     </div>
@@ -661,7 +731,7 @@ function ActiveChatSession({
   return (
     <div className="flex h-full flex-col bg-white/30 dark:bg-white/5 transition-colors duration-700">
       {/* Messages Area */}
-      <div ref={listRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
+      <div ref={listRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 py-4 sm:px-4">
         {messages?.length === 0 && !isTyping && (
           <div className="flex h-full min-h-[300px] flex-col items-center justify-center text-center">
             <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-xl bg-gradient-to-br from-orange-100 to-orange-300 dark:from-indigo-900/50 dark:to-violet-900/50 transition-colors duration-700">
@@ -677,15 +747,17 @@ function ActiveChatSession({
         {messages?.map((msg) => {
           const isMe = msg.role === "user";
           return (
-            <div key={msg._id} className={`flex gap-3 ${isMe ? "justify-end" : "justify-start"}`}>
+            <div key={msg._id} className={`flex gap-2 sm:gap-3 ${isMe ? "justify-end" : "justify-start"}`}>
+              {/* Awatary tylko od sm w gore — na telefonie zabieraly szerokosc banki,
+                  a nadawce i tak rozpoznac po stronie i kolorze. */}
               {!isMe && (
-                <div className="mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-gray-800 to-gray-900 dark:from-indigo-600 dark:to-violet-700 shadow-sm transition-colors duration-700">
+                <div className="mt-1 hidden h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-gray-800 to-gray-900 shadow-sm transition-colors duration-700 dark:from-indigo-600 dark:to-violet-700 sm:flex">
                   <Bot className="h-5 w-5 text-white" />
                 </div>
               )}
-              <div className={`flex max-w-[75%] flex-col gap-2 ${isMe ? "items-end" : "items-start"}`}>
+              <div className={`flex max-w-[94%] flex-col gap-2 sm:max-w-[78%] ${isMe ? "items-end" : "items-start"}`}>
                 <div
-                  className={`rounded-xl px-4 py-3 shadow-sm ${isMe
+                  className={`rounded-xl px-3.5 py-3 shadow-sm sm:px-4 ${isMe
                       ? "rounded-br-sm bg-gradient-to-br from-orange-400 to-orange-600 dark:from-indigo-500 dark:to-violet-600 text-white"
                       : "rounded-bl-sm border border-orange-200 dark:border-white/10 bg-white dark:bg-white/5 text-orange-950 dark:text-white"
                     }`}
@@ -775,7 +847,7 @@ function ActiveChatSession({
                 )}
               </div>
               {isMe && (
-                <div className="mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-300 to-orange-500 dark:from-indigo-400 dark:to-violet-500 shadow-sm transition-colors duration-700">
+                <div className="mt-1 hidden h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-300 to-orange-500 shadow-sm transition-colors duration-700 dark:from-indigo-400 dark:to-violet-500 sm:flex">
                   <span className="text-xs font-black text-white">Ty</span>
                 </div>
               )}
@@ -785,7 +857,7 @@ function ActiveChatSession({
 
         {isTyping && (
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-gray-800 to-gray-900 dark:from-indigo-600 dark:to-violet-700 shadow-sm transition-colors duration-700">
+            <div className="hidden h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-gray-800 to-gray-900 shadow-sm transition-colors duration-700 dark:from-indigo-600 dark:to-violet-700 sm:flex">
               <Bot className="h-5 w-5 text-white" />
             </div>
             <div className="flex items-center gap-2 rounded-xl rounded-bl-sm border border-orange-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-3 transition-colors duration-700">
