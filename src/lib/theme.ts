@@ -1,5 +1,12 @@
 export const LIGHT_THEME_COLOR = "#fcf8f2";
 export const DARK_THEME_COLOR = "#0a0a0a";
+/**
+ * Pasek statusu trzymamy ciemny w obu motywach. Chrome na Androidzie ustala go
+ * z theme_color manifestu przy starcie PWA i nie reaguje na pozniejsze zmiany
+ * <meta name="theme-color">, wiec w dark mode zostawal jasny pasek nad ciemna
+ * aplikacja. Jeden staly kolor jest przewidywalny na kazdej platformie.
+ */
+export const STATUS_BAR_COLOR = DARK_THEME_COLOR;
 
 const THEME_STORAGE_KEY = "homebudget_theme";
 
@@ -39,15 +46,14 @@ export function applyAppTheme(isDark: boolean) {
   root.style.backgroundColor = color;
   document.body.style.backgroundColor = color;
 
-  document.getElementById("theme-color")?.setAttribute("content", color);
+  document
+    .getElementById("theme-color")
+    ?.setAttribute("content", STATUS_BAR_COLOR);
   // The app themes itself manually, so the UA must be told which scheme is in
   // force rather than being left to infer one from the OS preference.
   document
     .getElementById("color-scheme")
     ?.setAttribute("content", isDark ? "dark" : "light");
-  document
-    .getElementById("apple-status-bar-style")
-    ?.setAttribute("content", isDark ? "black" : "default");
 
   window.localStorage.setItem(THEME_STORAGE_KEY, isDark ? "dark" : "light");
 

@@ -10,14 +10,17 @@
   <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
   <link rel="manifest" href="/site.webmanifest" />
-  <meta name="theme-color" content="#fcf8f2" id="theme-color" />
+  <!-- Pasek statusu zostaje ciemny w obu motywach: Chrome na Androidzie bierze
+       kolor paska z manifestu i nie odswieza go, gdy zmieni sie ta meta, wiec w
+       dark mode zostawal jasny pasek. Jeden staly ciemny kolor jest spojny. -->
+  <meta name="theme-color" content="#0a0a0a" id="theme-color" />
   <!-- Committed to a single scheme by the script below. "light dark" would let the
        OS preference decide the UA chrome, which paints white status-bar glyphs over
        the app in light mode whenever the phone itself is in dark mode. -->
   <meta name="color-scheme" content="light" id="color-scheme" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" id="apple-status-bar-style" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" id="apple-status-bar-style" />
   <script>
     try {
       const isDark = localStorage.getItem("homebudget_theme") === "dark";
@@ -28,10 +31,6 @@
         .getElementById("color-scheme")
         .setAttribute("content", isDark ? "dark" : "light");
       document.documentElement.style.backgroundColor = color;
-      document.getElementById("theme-color").setAttribute("content", color);
-      document
-        .getElementById("apple-status-bar-style")
-        .setAttribute("content", isDark ? "black" : "default");
     } catch {}
   </script>
 

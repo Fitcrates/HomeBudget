@@ -7,7 +7,6 @@ import { ScannerIcon } from "../ui/icons/ScannerIcon";
 import {
   AlertTriangle,
   ArrowLeft,
-  Bot,
   Brain,
   CheckCircle2,
   ChevronDown,
@@ -821,184 +820,185 @@ export function OcrScreen({ storageIds, mimeTypes, householdId, currency, countr
 
       {!items ? (
         /* ── FAZA 1: zrodla + analiza ─────────────────────────────── */
-        <>
+        processing ? (
+          /* W trakcie analizy kafle zrodel sa i tak nieklikalne, wiec zamiast
+             wisiec nad loaderem oddaja mu swoje miejsce. */
           <AppCard padding="md" className="space-y-3">
-            {previewUrls.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {previewUrls.map((url, i) => (
-                  <div key={i} className="relative rounded-xl border border-white/60 bg-white/60 p-1.5 shadow-sm transition-colors duration-700 dark:border-white/10 dark:bg-white/5">
-                    {url === "pdf" ? (
-                      <div className="flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-lg border-2 border-orange-200/50 bg-orange-50 shadow-sm transition-colors duration-700 dark:border-white/10 dark:bg-white/5">
-                        <FileText className="h-6 w-6 text-orange-500 transition-colors duration-700 dark:text-indigo-400" />
-                        <span className="text-[9px] font-bold text-orange-500 transition-colors duration-700 dark:text-indigo-400">PDF</span>
-                      </div>
+            <CatLoader message={STAGE_LABELS[processingStage] || "Przetwarzanie..."} />
+            <div className="space-y-1.5">
+              {(["cache", "ai", "categorizing"] as const).map((stage) => {
+                const stageOrder = ["cache", "uploading", "ai", "categorizing", "done"] as const;
+                const currentIdx = stageOrder.indexOf(processingStage as typeof stageOrder[number]);
+                const thisIdx = stageOrder.indexOf(stage);
+                const isActive = processingStage === stage;
+                const isDone = currentIdx > thisIdx;
+                return (
+                  <div
+                    key={stage}
+                    className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-700 ${isActive
+                      ? "bg-orange-100 dark:bg-indigo-500/20 text-orange-600 dark:text-indigo-400 border border-orange-200 dark:border-indigo-500/30"
+                      : isDone
+                        ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30"
+                        : "bg-orange-50/60 dark:bg-white/5 text-orange-900/40 dark:text-white/40 border border-transparent"
+                      }`}
+                  >
+                    {isDone ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    ) : isActive ? (
+                      <span className="relative flex h-3.5 w-3.5 shrink-0">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-600 opacity-40 transition-colors duration-700 dark:bg-indigo-400" />
+                        <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-orange-600 transition-colors duration-700 dark:bg-indigo-400" />
+                      </span>
                     ) : (
-                      <img
-                        src={url}
-                        alt={`Plik ${i + 1}`}
-                        className="h-16 w-16 rounded-lg border-2 border-orange-200/50 object-cover shadow-sm transition-colors duration-700 dark:border-white/10"
-                      />
+                      <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-orange-200 transition-colors duration-700 dark:border-white/20" />
                     )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPreviewUrls((p) => p.filter((_, idx) => idx !== i));
-                        setPreviewTypes((p) => p.filter((_, idx) => idx !== i));
-                        setCurrentStorageIds((p) => p.filter((_, idx) => idx !== i));
-                        setCurrentMimeTypes((p) => p.filter((_, idx) => idx !== i));
-                      }}
-                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-red-200 bg-white text-xs text-red-500 shadow-sm dark:border-red-500/40 dark:bg-[#1a1a22] dark:text-red-400"
-                      aria-label={`Usuń plik ${i + 1}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
+                    <span>{STAGE_LABELS[stage]}</span>
                   </div>
-                ))}
-              </div>
-            )}
-
-            <div className="grid grid-cols-3 gap-2">
-              <label className={tileClass("border-emerald-500/40 bg-emerald-50/60 hover:bg-emerald-100/60 hover:border-emerald-500 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:hover:border-emerald-400")}>
-                <ScannerIcon className="h-6 w-6 text-emerald-700 transition-colors duration-700 dark:text-emerald-400" />
-                <span className="text-xs font-bold text-emerald-700 transition-colors duration-700 dark:text-emerald-400">
-                  {uploading ? "Wysyłam..." : "Aparat"}
-                </span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  multiple
-                  className="hidden"
-                  onChange={handleAddImages}
-                  disabled={uploading || currentStorageIds.length >= 3}
-                />
-              </label>
-
-              <label className={tileClass("border-orange-300 dark:border-indigo-500/40 bg-white/40 dark:bg-white/5 hover:border-orange-400 dark:hover:border-indigo-400 hover:bg-orange-50/50 dark:hover:bg-indigo-500/10")}>
-                <Image className="h-6 w-6 text-orange-900/60 transition-colors duration-700 dark:text-white/50" />
-                <span className="text-xs font-bold text-orange-900/60 transition-colors duration-700 dark:text-white/50">
-                  {uploading ? "Wysyłam..." : "Galeria"}
-                </span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={handleAddImages}
-                  disabled={uploading || currentStorageIds.length >= 3}
-                />
-              </label>
-
-              <label className={tileClass("border-violet-300 dark:border-violet-500/40 bg-violet-50/60 dark:bg-violet-500/10 hover:border-violet-500 dark:hover:border-violet-400 hover:bg-violet-100/60 dark:hover:bg-violet-500/20")}>
-                <FileText className="h-6 w-6 text-violet-700 transition-colors duration-700 dark:text-violet-400" />
-                <span className="text-xs font-bold text-violet-700 transition-colors duration-700 dark:text-violet-400">
-                  {uploading ? "Wysyłam..." : "PDF"}
-                </span>
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  className="hidden"
-                  onChange={handleAddImages}
-                  disabled={uploading || currentStorageIds.length >= 3}
-                />
-              </label>
+                );
+              })}
             </div>
-
-            {currentStorageIds.length > 0 && currentStorageIds.length < 3 && (
-              <p className="text-[11px] font-bold leading-relaxed text-orange-900/55 transition-colors duration-700 dark:text-white/45">
-                Paragon nie zmieścił się w kadrze? Dodaj kolejne ujęcie — AI połączy je w jeden wynik.
-              </p>
-            )}
-
-            {hasPdf && (
-              <div className="flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 transition-colors duration-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-400">
-                <FileText className="h-4 w-4" />
-                <span>PDF wykryty — AI wyciągnie tekst i pozycje automatycznie</span>
-              </div>
-            )}
-
-            {uploading && <Spinner className="py-2" size="sm" />}
           </AppCard>
+        ) : (
+          <>
+            <AppCard padding="md" className="space-y-3">
+              {previewUrls.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {previewUrls.map((url, i) => (
+                    <div key={i} className="relative rounded-xl border border-white/60 bg-white/60 p-1.5 shadow-sm transition-colors duration-700 dark:border-white/10 dark:bg-white/5">
+                      {url === "pdf" ? (
+                        <div className="flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-lg border-2 border-orange-200/50 bg-orange-50 shadow-sm transition-colors duration-700 dark:border-white/10 dark:bg-white/5">
+                          <FileText className="h-6 w-6 text-orange-500 transition-colors duration-700 dark:text-indigo-400" />
+                          <span className="text-[9px] font-bold text-orange-500 transition-colors duration-700 dark:text-indigo-400">PDF</span>
+                        </div>
+                      ) : (
+                        <img
+                          src={url}
+                          alt={`Plik ${i + 1}`}
+                          className="h-16 w-16 rounded-lg border-2 border-orange-200/50 object-cover shadow-sm transition-colors duration-700 dark:border-white/10"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPreviewUrls((p) => p.filter((_, idx) => idx !== i));
+                          setPreviewTypes((p) => p.filter((_, idx) => idx !== i));
+                          setCurrentStorageIds((p) => p.filter((_, idx) => idx !== i));
+                          setCurrentMimeTypes((p) => p.filter((_, idx) => idx !== i));
+                        }}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-red-200 bg-white text-xs text-red-500 shadow-sm dark:border-red-500/40 dark:bg-[#1a1a22] dark:text-red-400"
+                        aria-label={`Usuń plik ${i + 1}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-          {queuedNotice && (
-            <div className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 transition-colors duration-700 dark:border-emerald-500/30 dark:bg-emerald-500/10">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700 transition-colors duration-700 dark:text-emerald-400" />
-                <div className="space-y-1">
-                  <p className="text-sm font-bold text-emerald-900 transition-colors duration-700 dark:text-emerald-100">Paragon trafił do kolejki</p>
-                  <p className="text-xs font-medium leading-relaxed text-emerald-800 transition-colors duration-700 dark:text-emerald-200">
-                    {queuedNotice} Zachowaj papierowy paragon do czasu sprawdzenia wyniku.
-                  </p>
+              <div className="grid grid-cols-3 gap-2">
+                <label className={tileClass("border-emerald-500/40 bg-emerald-50/60 hover:bg-emerald-100/60 hover:border-emerald-500 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:hover:border-emerald-400")}>
+                  <ScannerIcon className="h-6 w-6 text-emerald-700 transition-colors duration-700 dark:text-emerald-400" />
+                  <span className="text-xs font-bold text-emerald-700 transition-colors duration-700 dark:text-emerald-400">
+                    {uploading ? "Wysyłam..." : "Aparat"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    multiple
+                    className="hidden"
+                    onChange={handleAddImages}
+                    disabled={uploading || currentStorageIds.length >= 3}
+                  />
+                </label>
+
+                <label className={tileClass("border-orange-300 dark:border-indigo-500/40 bg-white/40 dark:bg-white/5 hover:border-orange-400 dark:hover:border-indigo-400 hover:bg-orange-50/50 dark:hover:bg-indigo-500/10")}>
+                  <Image className="h-6 w-6 text-orange-900/60 transition-colors duration-700 dark:text-white/50" />
+                  <span className="text-xs font-bold text-orange-900/60 transition-colors duration-700 dark:text-white/50">
+                    {uploading ? "Wysyłam..." : "Galeria"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleAddImages}
+                    disabled={uploading || currentStorageIds.length >= 3}
+                  />
+                </label>
+
+                <label className={tileClass("border-violet-300 dark:border-violet-500/40 bg-violet-50/60 dark:bg-violet-500/10 hover:border-violet-500 dark:hover:border-violet-400 hover:bg-violet-100/60 dark:hover:bg-violet-500/20")}>
+                  <FileText className="h-6 w-6 text-violet-700 transition-colors duration-700 dark:text-violet-400" />
+                  <span className="text-xs font-bold text-violet-700 transition-colors duration-700 dark:text-violet-400">
+                    {uploading ? "Wysyłam..." : "PDF"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    className="hidden"
+                    onChange={handleAddImages}
+                    disabled={uploading || currentStorageIds.length >= 3}
+                  />
+                </label>
+              </div>
+
+              {currentStorageIds.length > 0 && currentStorageIds.length < 3 && (
+                <p className="text-[11px] font-bold leading-relaxed text-orange-900/55 transition-colors duration-700 dark:text-white/45">
+                  Paragon nie zmieścił się w kadrze? Dodaj kolejne ujęcie — AI połączy je w jeden wynik.
+                </p>
+              )}
+
+              {hasPdf && (
+                <div className="flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 transition-colors duration-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-400">
+                  <FileText className="h-4 w-4" />
+                  <span>PDF wykryty — AI wyciągnie tekst i pozycje automatycznie</span>
+                </div>
+              )}
+
+              {uploading && <Spinner className="py-2" size="sm" />}
+            </AppCard>
+
+            {queuedNotice && (
+              <div className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 transition-colors duration-700 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700 transition-colors duration-700 dark:text-emerald-400" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-emerald-900 transition-colors duration-700 dark:text-emerald-100">Paragon trafił do kolejki</p>
+                    <p className="text-xs font-medium leading-relaxed text-emerald-800 transition-colors duration-700 dark:text-emerald-200">
+                      {queuedNotice} Zachowaj papierowy paragon do czasu sprawdzenia wyniku.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <ButtonSecondary onClick={onOpenReviewQueue ?? onDone} icon={<Search className="h-4 w-4" />}>
+                    Otwórz kolejkę
+                  </ButtonSecondary>
+                  <ButtonSecondary onClick={onDone} icon={<CheckCircle2 className="h-4 w-4" />}>
+                    Wróć do wydatków
+                  </ButtonSecondary>
                 </div>
               </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <ButtonSecondary onClick={onOpenReviewQueue ?? onDone} icon={<Search className="h-4 w-4" />}>
-                  Otwórz kolejkę
-                </ButtonSecondary>
-                <ButtonSecondary onClick={onDone} icon={<CheckCircle2 className="h-4 w-4" />}>
-                  Wróć do wydatków
-                </ButtonSecondary>
-              </div>
-            </div>
-          )}
+            )}
 
-          {processing && (
-            <AppCard padding="md" className="space-y-3">
-              <CatLoader message={STAGE_LABELS[processingStage] || "Przetwarzanie..."} />
-              <div className="space-y-1.5">
-                {(["cache", "ai", "categorizing"] as const).map((stage) => {
-                  const stageOrder = ["cache", "uploading", "ai", "categorizing", "done"] as const;
-                  const currentIdx = stageOrder.indexOf(processingStage as typeof stageOrder[number]);
-                  const thisIdx = stageOrder.indexOf(stage);
-                  const isActive = processingStage === stage;
-                  const isDone = currentIdx > thisIdx;
-                  return (
-                    <div
-                      key={stage}
-                      className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-700 ${isActive
-                        ? "bg-orange-100 dark:bg-indigo-500/20 text-orange-600 dark:text-indigo-400 border border-orange-200 dark:border-indigo-500/30"
-                        : isDone
-                          ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30"
-                          : "bg-orange-50/60 dark:bg-white/5 text-orange-900/40 dark:text-white/40 border border-transparent"
-                        }`}
-                    >
-                      {isDone ? (
-                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                      ) : isActive ? (
-                        <span className="relative flex h-3.5 w-3.5 shrink-0">
-                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-600 opacity-40 transition-colors duration-700 dark:bg-indigo-400" />
-                          <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-orange-600 transition-colors duration-700 dark:bg-indigo-400" />
-                        </span>
-                      ) : (
-                        <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-orange-200 transition-colors duration-700 dark:border-white/20" />
-                      )}
-                      <span>{STAGE_LABELS[stage]}</span>
-                    </div>
-                  );
-                })}
+            {!queuedNotice && (
+              <div className="sticky bottom-0 z-20 -mx-3 bg-gradient-to-t from-[#fcf8f2] via-[#fcf8f2] to-transparent px-3 pb-0 pt-3 transition-colors duration-700 dark:from-[#0a0a0a] dark:via-[#0a0a0a] sm:-mx-4 sm:px-4">
+                <p className="mb-2 text-center text-[11px] font-bold text-orange-900/55 transition-colors duration-700 dark:text-white/45">
+                  {currentStorageIds.length === 0
+                    ? "Dodaj zdjęcie lub PDF, aby uruchomić analizę"
+                    : "AI odczyta pozycje, kwoty i podpowie kategorie"}
+                </p>
+                <ButtonPrimary
+                  onClick={handleExtract}
+                  disabled={!categories || currentStorageIds.length === 0}
+                  size="lg"
+                  icon={<Search className="h-4 w-4" />}
+                >
+                  Analizuj paragon
+                </ButtonPrimary>
               </div>
-            </AppCard>
-          )}
-
-          {!queuedNotice && (
-            <div className="sticky bottom-0 z-20 -mx-3 bg-gradient-to-t from-[#fcf8f2] via-[#fcf8f2] to-transparent px-3 pb-0 pt-3 transition-colors duration-700 dark:from-[#0a0a0a] dark:via-[#0a0a0a] sm:-mx-4 sm:px-4">
-              <p className="mb-2 text-center text-[11px] font-bold text-orange-900/55 transition-colors duration-700 dark:text-white/45">
-                {currentStorageIds.length === 0
-                  ? "Dodaj zdjęcie lub PDF, aby uruchomić analizę"
-                  : "AI odczyta pozycje, kwoty i podpowie kategorie"}
-              </p>
-              <ButtonPrimary
-                onClick={handleExtract}
-                disabled={processing || !categories || currentStorageIds.length === 0}
-                loading={processing}
-                size="lg"
-                icon={processing ? <Bot className="h-4 w-4" /> : <Search className="h-4 w-4" />}
-              >
-                {processing ? "Przetwarzanie AI..." : "Analizuj paragon"}
-              </ButtonPrimary>
-            </div>
-          )}
-        </>
+            )}
+          </>
+        )
       ) : (
         /* ── FAZA 2: weryfikacja wyniku ───────────────────────────── */
         <>
